@@ -137,6 +137,7 @@ def cmd_chat(args):
         "  [green]/errors[/green] — 错题统计\n"
         "  [green]/review[/green] — 今日待复习错题 (SM-2)\n"
         "  [green]/next[/green] — 明天待复习预览\n"
+        "  [green]/sprint[/green] — 冲刺计划 & 进度\n"
         "  [green]/help[/green] — 显示帮助\n"
         "  [green]/exit[/green] — 退出\n"
         "\n直接输入问题即可对话。输入 [dim]'我好蠢'[/dim] 试试看 😉",
@@ -194,7 +195,7 @@ def _handle_slash_command(user_input: str, emotion):
 | `/errors` | 查看错题统计 |
 | `/review` | 今日待复习错题 (SM-2 间隔复习) |
 | `/next` | 预览明天待复习 |
-| `/review-stats` | 复习进度统计 |
+| `/sprint` | 冲刺计划进度 & 今日任务 |
 | `/help` | 显示此帮助 |
 | `/exit` | 退出程序 |
 """))
@@ -256,6 +257,34 @@ def _handle_slash_command(user_input: str, emotion):
         stats = sr.get_stats()
         console.print()
         print_markdown(_format_stats(stats))
+
+    elif cmd == "sprint":
+        # 支持子命令: /sprint plan 7, /sprint today, /sprint progress, /sprint done 1
+        from .sprint_planner import (SprintPlanner, format_plan_markdown,
+                                      format_today_markdown, format_progress_markdown)
+        sp = SprintPlanner()
+        sub_cmd = parts[1] if len(parts) > 1 else "today"
+        if sub_cmd == "plan" or sub_cmd == "new":
+            days = int(parts[2]) if len(parts) > 2 else 7
+            plan = sp.generate(days=days)
+            console.print()
+            print_markdown(format_plan_markdown(plan))
+        elif sub_cmd == "done":
+            day = int(parts[2]) if len(parts) > 2 else 1
+            ok = sp.mark_done(day)
+            if ok:
+                console.print(f"[green]✅ 第 {day} 天已标记完成！[/green]")
+            else:
+                console.print(f"[red]❌ 标记失败，请检查天数是否正确。[/red]")
+        elif sub_cmd == "progress":
+            progress = sp.get_progress()
+            console.print()
+            print_markdown(format_progress_markdown(progress))
+        else:
+            # 默认显示 today
+            tasks = sp.get_today_tasks()
+            console.print()
+            print_markdown(format_today_markdown(tasks or {}))
 
     elif cmd == "errors":
         from .error_logger import ErrorLogger, _format_stats
