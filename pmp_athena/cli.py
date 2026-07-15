@@ -138,6 +138,7 @@ def cmd_chat(args):
         "  [green]/review[/green] — 今日待复习错题 (SM-2)\n"
         "  [green]/next[/green] — 明天待复习预览\n"
         "  [green]/sprint[/green] — 冲刺计划 & 进度\n"
+        "  [green]/countdown[/green] — 考试倒计时\n"
         "  [green]/help[/green] — 显示帮助\n"
         "  [green]/exit[/green] — 退出\n"
         "\n直接输入问题即可对话。输入 [dim]'我好蠢'[/dim] 试试看 😉",
@@ -196,6 +197,8 @@ def _handle_slash_command(user_input: str, emotion):
 | `/review` | 今日待复习错题 (SM-2 间隔复习) |
 | `/next` | 预览明天待复习 |
 | `/sprint` | 冲刺计划进度 & 今日任务 |
+| `/countdown` | 考试倒计时 & 备考阶段 |
+| `/milestones` | 关键节点时间线 |
 | `/help` | 显示此帮助 |
 | `/exit` | 退出程序 |
 """))
@@ -285,6 +288,39 @@ def _handle_slash_command(user_input: str, emotion):
             tasks = sp.get_today_tasks()
             console.print()
             print_markdown(format_today_markdown(tasks or {}))
+
+    elif cmd == "countdown" or cmd == "cd":
+        from .exam_timer import ExamTimer, format_countdown
+        timer = ExamTimer()
+        cd = timer.countdown()
+        console.print()
+        print_markdown(format_countdown(cd))
+
+    elif cmd == "exam-date" or cmd == "考试日期":
+        from .exam_timer import ExamTimer
+        timer = ExamTimer()
+        if len(parts) > 1:
+            try:
+                timer.set_date(parts[1])
+                cd = timer.countdown()
+                console.print(f"\n[green]✅ 考试日期已更新！[/green]")
+                console.print(f"📆 距考试还有 [bold]{cd['days_remaining']} 天[/bold]")
+                console.print(f"📖 当前阶段：[bold]{cd['phase']}[/bold]")
+            except ValueError as e:
+                console.print(f"[red]❌ {e}[/red]")
+        else:
+            cd = timer.countdown()
+            if cd["status"] == "not_set":
+                console.print("用法: /exam-date YYYY-MM-DD")
+            else:
+                console.print(f"📅 考试日期: {cd['exam_date']}")
+
+    elif cmd == "milestones":
+        from .exam_timer import ExamTimer, format_milestones
+        timer = ExamTimer()
+        ms = timer.get_milestones()
+        console.print()
+        print_markdown(format_milestones(ms))
 
     elif cmd == "errors":
         from .error_logger import ErrorLogger, _format_stats

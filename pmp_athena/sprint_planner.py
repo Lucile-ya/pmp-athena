@@ -162,7 +162,7 @@ class SprintPlanner:
 
     # ── 生成计划 ──────────────────────────────────────────
 
-    def generate(self, days: int = 7, start_date: Optional[str] = None) -> dict:
+    def generate(self, days: Optional[int] = None, start_date: Optional[str] = None) -> dict:
         """
         生成 N 天冲刺计划。
 
@@ -178,8 +178,29 @@ class SprintPlanner:
         else:
             start_date = date.fromisoformat(start_date).isoformat()
 
+        # 自动推荐天数（如果未指定）
+        if days is None:
+            try:
+                from .exam_timer import ExamTimer
+                days = ExamTimer().recommend_sprint_days()
+            except Exception:
+                days = 7
+
         # 分析弱点
         weaknesses = self.analyze_weakness()
+
+        # 获取当前备考阶段，加到计划元数据
+        try:
+            from .exam_timer import ExamTimer
+            timer = ExamTimer()
+            cd = timer.countdown()
+            phase = cd.get("phase", "")
+            exam_date = cd.get("exam_date")
+            days_remaining = cd.get("days_remaining")
+        except Exception:
+            phase = ""
+            exam_date = None
+            days_remaining = None
 
         # 按 weak_rate 降序排列领域
         ranked = sorted(weaknesses.items(), key=lambda x: x[1]["weak_rate"], reverse=True)
@@ -279,6 +300,9 @@ class SprintPlanner:
             "start_date": start_date,
             "end_date": (baseline_date + timedelta(days=days - 1)).isoformat(),
             "status": "active",          # active | completed | abandoned
+            "exam_date": exam_date,
+            "days_remaining": days_remaining,
+            "phase": phase,
             "weakness_analysis": {
                 a: {
                     "errors": d["errors"],
