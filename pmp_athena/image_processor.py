@@ -34,6 +34,14 @@ DEFAULT_JPEG_QUALITY = 80
 try:
     import pytesseract
 
+    # Windows 下显式指定 Tesseract 路径
+    if sys.platform == "win32":
+        _tesseract_path = Path("C:/Program Files/Tesseract-OCR/tesseract.exe")
+        if _tesseract_path.exists():
+            pytesseract.pytesseract.tesseract_cmd = str(_tesseract_path)
+        else:
+            logger.warning("Tesseract not found at %s, OCR may fail", _tesseract_path)
+
     HAS_OCR = True
 except ImportError:
     HAS_OCR = False

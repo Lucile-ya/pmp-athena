@@ -25,6 +25,13 @@ logger = logging.getLogger(__name__)
 try:
     import pytesseract
 
+    # Windows 下显式指定 Tesseract 路径
+    import sys as _sys
+    if _sys.platform == "win32":
+        _tesseract_path = Path("C:/Program Files/Tesseract-OCR/tesseract.exe")
+        if _tesseract_path.exists():
+            pytesseract.pytesseract.tesseract_cmd = str(_tesseract_path)
+
     HAS_TESSERACT = True
 except ImportError:
     HAS_TESSERACT = False

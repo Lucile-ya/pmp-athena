@@ -134,6 +134,7 @@ def cmd_chat(args):
         "  [green]/exam add[/green] — 添加模考成绩\n"
         "  [green]/ingest[/green] — 重新导入笔记\n"
         "  [green]/quick[/green] — 快速回顾卡片\n"
+        "  [green]/errors[/green] — 错题统计\n"
         "  [green]/help[/green] — 显示帮助\n"
         "  [green]/exit[/green] — 退出\n"
         "\n直接输入问题即可对话。输入 [dim]'我好蠢'[/dim] 试试看 😉",
@@ -188,6 +189,7 @@ def _handle_slash_command(user_input: str, emotion):
 | `/exam add` | 手动添加模考成绩 |
 | `/ingest` | 重新扫描导入笔记 |
 | `/quick` | 快速回顾卡片 |
+| `/errors` | 查看错题统计 |
 | `/help` | 显示此帮助 |
 | `/exit` | 退出程序 |
 """))
@@ -225,6 +227,13 @@ def _handle_slash_command(user_input: str, emotion):
         card = gen.get_quick_review()
         console.print()
         print_markdown(card)
+
+    elif cmd == "errors":
+        from .error_logger import ErrorLogger, _format_stats
+        logger_inst = ErrorLogger()
+        stats = logger_inst.get_stats()
+        console.print()
+        print_markdown(_format_stats(stats))
 
     elif cmd == "ingest":
         # 模拟 argparse namespace
@@ -363,6 +372,12 @@ def _print_stats():
             latest = exams[0]
             date = latest["metadata"].get("exam_date", "未知")[:10]
             table.add_row("📅 最近模考", date)
+
+        # 错题统计
+        from .error_logger import ErrorLogger
+        error_logger = ErrorLogger()
+        error_count = error_logger.get_stats()["total"]
+        table.add_row("❌ 错题记录", str(error_count))
 
         console.print(table)
     else:
