@@ -135,6 +135,8 @@ def cmd_chat(args):
         "  [green]/ingest[/green] — 重新导入笔记\n"
         "  [green]/quick[/green] — 快速回顾卡片\n"
         "  [green]/errors[/green] — 错题统计\n"
+        "  [green]/review[/green] — 今日待复习错题 (SM-2)\n"
+        "  [green]/next[/green] — 明天待复习预览\n"
         "  [green]/help[/green] — 显示帮助\n"
         "  [green]/exit[/green] — 退出\n"
         "\n直接输入问题即可对话。输入 [dim]'我好蠢'[/dim] 试试看 😉",
@@ -190,6 +192,9 @@ def _handle_slash_command(user_input: str, emotion):
 | `/ingest` | 重新扫描导入笔记 |
 | `/quick` | 快速回顾卡片 |
 | `/errors` | 查看错题统计 |
+| `/review` | 今日待复习错题 (SM-2 间隔复习) |
+| `/next` | 预览明天待复习 |
+| `/review-stats` | 复习进度统计 |
 | `/help` | 显示此帮助 |
 | `/exit` | 退出程序 |
 """))
@@ -227,6 +232,30 @@ def _handle_slash_command(user_input: str, emotion):
         card = gen.get_quick_review()
         console.print()
         print_markdown(card)
+
+    elif cmd == "review":
+        from .spaced_repetition import SpacedRepetition, _format_due_list
+        sr = SpacedRepetition()
+        cards = sr.get_due_today()
+        console.print()
+        print_markdown(_format_due_list(cards))
+
+    elif cmd == "next":
+        from .spaced_repetition import SpacedRepetition, _format_due_list
+        sr = SpacedRepetition()
+        cards = sr.get_due_tomorrow()
+        console.print()
+        if not cards:
+            console.print("✅ 明天暂无待复习题目")
+        else:
+            print_markdown(_format_due_list(cards, "📆 明天待复习"))
+
+    elif cmd == "review-stats":
+        from .spaced_repetition import SpacedRepetition, _format_stats
+        sr = SpacedRepetition()
+        stats = sr.get_stats()
+        console.print()
+        print_markdown(_format_stats(stats))
 
     elif cmd == "errors":
         from .error_logger import ErrorLogger, _format_stats

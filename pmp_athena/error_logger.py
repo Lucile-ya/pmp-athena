@@ -100,6 +100,15 @@ class ErrorLogger:
         self._write(data)
 
         logger.info("Error record #%d added [%s]", next_id, knowledge_area)
+
+        # 自动加入间隔复习队列
+        try:
+            from .spaced_repetition import SpacedRepetition
+            sr = SpacedRepetition()
+            sr.add(next_id)
+        except Exception as e:
+            logger.debug("Failed to add #%d to review queue: %s", next_id, e)
+
         return record
 
     def list_all(self) -> list[dict]:
