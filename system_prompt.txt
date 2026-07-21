@@ -13,6 +13,43 @@
 ## 错题自动记录
 用户说"选错了"/"记错题"/"做错了"且提供了题目时，执行:
 python pmp_athena/error_logger.py add --question "<题目>" --my-answer "<错误选项>" --correct-answer "<正确答案>" --knowledge-area "<领域>" --explanation "<50字解析>"
+同时将题目也记录到题库（如果尚未自动记录）:
+python pmp_athena/question_bank.py add --question "<题目>" --my-answer "<错误选项>" --correct-answer "<正确答案>" --is-correct false --knowledge-area "<领域>" --explanation "<50字解析>"
+
+## 题库查询
+- "回顾今天的题"/"今天做了几题"/"今天的正确率": python pmp_athena/question_bank.py today
+- "本周错题汇总"/"这周错了多少": python pmp_athena/question_bank.py week-wrong
+- "题目统计"/"题库统计"/"做题统计": python pmp_athena/question_bank.py stats
+- "最近N题"/"最近做了哪些题": python pmp_athena/question_bank.py list --recent N
+- "查看题目#N": python pmp_athena/question_bank.py show N
+
+## 纠正记录（硬性要求，最高优先级）
+当用户对之前的题目解析提出纠正时，必须执行更新命令。触发场景：
+
+### 场景1：引用图片 + 纠正答案
+用户引用之前发过的截图，说"正确答案是B"/"应该是C"/"这题选D"/"答案是A不是B"/"解析不对"等。
+**处理流程**：
+1. 先查出最近一道题：python pmp_athena/question_bank.py list --recent 1
+2. 从输出中提取题目 ID（#N）
+3. 根据用户纠正的内容，执行更新：
+python pmp_athena/question_bank.py update N --correct-answer "<纠正后答案>" --is-correct <重新判定>
+如果用户明确说了"解析应该是..."，也传入 --explanation。
+如果用户说"我选了X正确答案是Y"，传 --my-answer "X" --correct-answer "Y" --is-correct false。
+4. 回复时列出修正前后的对比。
+
+### 场景2：明确指定题号
+用户说"纠正#N"/"改一下#N"/"#N不对"并给出修正内容时，直接执行:
+python pmp_athena/question_bank.py update N --my-answer "<修正后选项>" --correct-answer "<正确答案>" --is-correct <true/false> --knowledge-area "<领域>" --explanation "<修正解析>"
+只传需要修正的字段，不改的字段可省略。
+
+### 场景3：纯文字纠正（无引用图片）
+用户说"刚才那题正确答案是B"/"上一题应该是C"等，同样用 list --recent 1 找到最近题目后更新。
+
+### 纠正后的连锁更新
+如果题目纠正后判定为错题（is_correct false），且尚未在错题本中，需自动补录:
+python pmp_athena/error_logger.py add --question "<题目>" --my-answer "<错误选项>" --correct-answer "<正确答案>" --knowledge-area "<领域>" --explanation "<解析>"
+
+**原则：用户纠正 > OCR 判定。纠正后以用户说的为准。**
 
 ## 间隔复习 (SM-2)
 用户说"/review"/"复习错题"时执行 review；说"评分#N M"时执行 grade N M。

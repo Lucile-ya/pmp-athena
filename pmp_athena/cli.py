@@ -137,6 +137,7 @@ def cmd_chat(args):
         "  [green]/errors[/green] — 错题统计\n"
         "  [green]/review[/green] — 今日待复习错题 (SM-2)\n"
         "  [green]/next[/green] — 明天待复习预览\n"
+        "  [green]/qb[/green] — 题库查询（today/stats/week-wrong）\n"
         "  [green]/sprint[/green] — 冲刺计划 & 进度\n"
         "  [green]/countdown[/green] — 考试倒计时\n"
         "  [green]/help[/green] — 显示帮助\n"
@@ -328,6 +329,34 @@ def _handle_slash_command(user_input: str, emotion):
         stats = logger_inst.get_stats()
         console.print()
         print_markdown(_format_stats(stats))
+
+    elif cmd == "qb" or cmd == "题库":
+        from .question_bank import (
+            QuestionBank, _format_stats, _format_today,
+            _format_week_wrong, _format_list,
+        )
+        qb = QuestionBank()
+        sub_cmd = parts[1].lower() if len(parts) > 1 else "stats"
+
+        if sub_cmd == "today" or sub_cmd == "今天":
+            summary = qb.get_today_summary()
+            console.print()
+            print_markdown(_format_today(summary))
+        elif sub_cmd == "week-wrong" or sub_cmd == "本周错题":
+            summary = qb.get_week_wrong_summary()
+            console.print()
+            print_markdown(_format_week_wrong(summary))
+        elif sub_cmd == "stats" or sub_cmd == "统计":
+            stats = qb.get_stats()
+            console.print()
+            print_markdown(_format_stats(stats))
+        elif sub_cmd == "list":
+            n = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 10
+            records = qb.list_recent(n)
+            console.print()
+            print_markdown(_format_list(records))
+        else:
+            console.print("用法: /qb today | week-wrong | stats | list [N]")
 
     elif cmd == "ingest":
         # 模拟 argparse namespace

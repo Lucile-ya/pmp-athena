@@ -352,9 +352,9 @@ class AnswerValidator:
         # ── 3. 综合判定 ────────────────────────────────────
         verdict = self._synthesize_verdict(signals)
 
-        # ── 4. 提取题目信息（仅答错时有用）─────────────────
+        # ── 4. 提取题目信息（无论对错都提取，用于题库记录）───
         extracted = {}
-        if text and not verdict["is_correct"]:
+        if text:
             extracted = self._extract_question_info(text)
 
         # ── 5. 自动动作 ────────────────────────────────────
@@ -820,6 +820,26 @@ def process_and_validate(
                     except Exception as e:
                         logger.warning("Auto error-log failed: %s", e)
 
+                # ── 题库自动记录（无论对错都入库）─────────────────
+                try:
+                    from .question_bank import QuestionBank
+                    qb = QuestionBank()
+                    ext = validation.get("extracted", {})
+                    if ext.get("question"):
+                        error_log_id = validation.get("error_log_record_id")
+                        qb_record = qb.add_from_validation(
+                            validation,
+                            parsed_by="ocr_validator",
+                            error_log_id=error_log_id,
+                        )
+                        if qb_record:
+                            validation["question_bank_record_id"] = qb_record["id"]
+                            is_ok = validation.get("is_correct")
+                            label = "correct" if is_ok else ("wrong" if is_ok is False else "uncertain")
+                            logger.info("Question bank #%d logged [%s]", qb_record["id"], label)
+                except Exception as e:
+                    logger.warning("Question bank log failed: %s", e)
+
         except Exception as e:
             result["answer_validation"] = {
                 "is_correct": None,
@@ -895,52 +915,10 @@ def main():
         help="答错时不自动记录到错题本",
     )
 
-    subp = parser.add_subparsers(dest="mode", help="子模式")
-
-    # validate 子命令：仅验证已有 OCR 文本或图片
-    p_val = subp.add_parser("validate", help="仅验证答案正误（不做压缩）")
-    p_val.add_argument("image_path", type=str, help="图片路径")
-    p_val.add_argument("--ocr-text", type=str, help="已有的 OCR 文本（跳过 OCR）")
-    p_val.add_argument("--json", action="store_true", help="JSON 输出")
-
-    # 默认模式需要 input
+    # 默认模式：压缩 + OCR + 验证（需要 input）
     parser.add_argument("input", nargs="?", type=str, help="输入图片路径")
 
     args = parser.parse_args()
-
-    # ── validate 子命令 ───────────────────────────────────
-    if args.mode == "validate":
-        img = Image.open(args.image_path)
-        validator = AnswerValidator()
-        ocr_text = args.ocr_text
-        if not ocr_text:
-            # 临时做 OCR
-            processor = ImageProcessor()
-            ocr_text = processor._ocr(img)
-
-        result = validator.validate(img, ocr_text)
-        result["ocr_text"] = ocr_text
-
-        if args.json:
-            print(json.dumps(result, ensure_ascii=False, indent=2))
-        else:
-            verdict_str = {
-                True: "✅ 答对了",
-                False: "❌ 答错了",
-                None: "⚠️ 无法判断",
-            }
-            print(verdict_str.get(result["is_correct"], "?"))
-            print(f"   置信度: {result['confidence']:.0%}")
-            print(f"   信号: {result['primary_signal']}")
-            print(f"   方法: {result['method']}")
-            if result["auto_action"] == "log_error":
-                print(f"   🔧 建议: 自动记录错题")
-                ext = result.get("extracted", {})
-                if ext.get("my_answer"):
-                    print(f"   你的答案: {ext['my_answer']} → 正确答案: {ext['correct_answer']}")
-                if ext.get("knowledge_area"):
-                    print(f"   知识领域: {ext['knowledge_area']}")
-        return
 
     # ── 完整管线：压缩 + OCR + 验证 ───────────────────────
     if not args.input:
@@ -994,6 +972,10 @@ def main():
                     print(f"   📝 已自动记录错题 #{rid}")
                 elif validation.get("auto_action") == "log_mastered":
                     print(f"   🏆 已掌握，不记录错题")
+                # 题库记录提示
+                qb_id = validation.get("question_bank_record_id")
+                if qb_id:
+                    print(f"   📋 已记录到题库 #{qb_id}")
         else:
             print(f"❌ 处理失败: {result.get('error', 'unknown')}")
             sys.exit(1)
