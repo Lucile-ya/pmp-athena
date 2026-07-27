@@ -1,8 +1,13 @@
 # ── 向量数据库（本地持久化，每台机器自己生成）─────────────
 data/
 
-# ── 个人笔记（你的笔记和 PDF 不上传）─────────────────────
-pmp_notes/
+# ── 个人做题数据（不上传）─────────────────────────────────
+pmp_notes/question_bank.json
+pmp_notes/error_log.json
+pmp_notes/error_review_state.json
+pmp_notes/exam_records.json
+pmp_notes/sprint_plans.json
+pmp_notes/exam_config.json
 
 # ── Python ────────────────────────────────────────────────
 __pycache__/
