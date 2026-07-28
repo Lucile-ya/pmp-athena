@@ -563,6 +563,32 @@ def cmd_exam_add(args):
     print_markdown(report)
 
 
+def cmd_exam_record(args):
+    """写入完整模考记录到 exam_records.json"""
+    from .exam_recorder import ExamRecorder
+
+    recorder = ExamRecorder()
+    record = recorder.add(
+        exam_id=args.exam_id,
+        total_questions=args.total_questions,
+        correct_count=args.correct_count,
+        wrong_count=args.wrong_count,
+        correct_rate=args.correct_rate,
+        time_used_minutes=args.time_used,
+        scores={
+            "people": args.people,
+            "process": args.process,
+            "business_environment": args.business_environment,
+        },
+        weak_areas=args.weak_areas.split(",") if args.weak_areas else [],
+        status=args.status,
+    )
+    print(f"✅ 模考记录已写入 exam_records.json")
+    print(f"   {record['exam_id']} | {record['exam_date']}")
+    print(f"   {record['correct_count']}/{record['total_questions']} ({record['correct_rate']*100:.1f}%)")
+    print(f"   用时 {record['time_used_minutes']} 分钟")
+
+
 # ═══════════════════════════════════════════════════════════════
 # 入口
 # ═══════════════════════════════════════════════════════════════
@@ -604,6 +630,21 @@ def main():
     p_exam.add_argument("--business-environment", "-b", type=float, required=True, help="商业环境领域得分")
     p_exam.add_argument("--date", "-d", type=str, help="考试日期（YYYY-MM-DD）")
     p_exam.set_defaults(func=cmd_exam_add)
+
+    # exam-record (新格式，完整模考记录)
+    p_exam_rec = subparsers.add_parser("exam-record", help="写入完整模考记录（新格式）")
+    p_exam_rec.add_argument("--exam-id", required=True, help="模考标识（如 模考卷二）")
+    p_exam_rec.add_argument("--total-questions", type=int, default=180)
+    p_exam_rec.add_argument("--correct-count", type=int, default=0)
+    p_exam_rec.add_argument("--wrong-count", type=int, default=0)
+    p_exam_rec.add_argument("--correct-rate", type=float, default=0.0)
+    p_exam_rec.add_argument("--time-used", type=int, default=0, help="用时（分钟）")
+    p_exam_rec.add_argument("--people", type=float, default=0.0)
+    p_exam_rec.add_argument("--process", type=float, default=0.0)
+    p_exam_rec.add_argument("--business-environment", type=float, default=0.0)
+    p_exam_rec.add_argument("--weak-areas", type=str, help="薄弱领域，逗号分隔（如 质量管理,干系人管理）")
+    p_exam_rec.add_argument("--status", default="completed")
+    p_exam_rec.set_defaults(func=cmd_exam_record)
 
     args = parser.parse_args()
 
