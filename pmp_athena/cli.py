@@ -7,6 +7,12 @@ PMP Athena CLI —— 命令行交互界面
     python -m pmp_athena.cli plan     # 生成每日计划
     python -m pmp_athena.cli analyze  # 分析通过率
     python -m pmp_athena.cli stats    # 查看统计
+    python -m pmp_athena.cli exam-state start --exam-id "模考三"  # 开始模考
+    python -m pmp_athena.cli exam-state pause   # 暂停模考
+    python -m pmp_athena.cli exam-state resume  # 继续模考
+    python -m pmp_athena.cli exam-state complete --correct-count 142  # 完成模考
+    python -m pmp_athena.cli exam-state abandon  # 放弃模考
+    python -m pmp_athena.cli exam-state status   # 查看模考状态
 """
 
 import argparse
@@ -645,6 +651,10 @@ def main():
     p_exam_rec.add_argument("--weak-areas", type=str, help="薄弱领域，逗号分隔（如 质量管理,干系人管理）")
     p_exam_rec.add_argument("--status", default="completed")
     p_exam_rec.set_defaults(func=cmd_exam_record)
+
+    # exam-state (模考状态持久化)
+    from .mock_exam_state import add_subparser as add_exam_state_subparser
+    add_exam_state_subparser(subparsers)
 
     args = parser.parse_args()
 
