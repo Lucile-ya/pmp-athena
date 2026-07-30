@@ -63,6 +63,18 @@ def normalize_source(source: str) -> str:
     return s
 
 
+def _ensure_review_queue(error_id: int) -> None:
+    """错题写入后确保进入 SM-2 复习队列（含去重复用旧 # 的情况）。"""
+    try:
+        try:
+            from pmp_athena.spaced_repetition import SpacedRepetition
+        except ModuleNotFoundError:
+            from spaced_repetition import SpacedRepetition
+        SpacedRepetition().add(error_id)
+    except Exception:
+        pass
+
+
 def record_wrong_answer(
     question: str,
     my_answer: str,
@@ -113,6 +125,8 @@ def record_wrong_answer(
         source=src,
         error_log_id=error_record["id"],
     )
+
+    _ensure_review_queue(error_record["id"])
 
     return {
         "error_log_id": error_record["id"],
