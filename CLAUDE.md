@@ -26,7 +26,7 @@
 
 ## 出题规则
 1. 只出题目+选项，禁止附带答案/解析/历史作答
-2. 等大王回复后判卷
+2. 等大王回复后判卷。判卷时**必须从 error_log.json 查该题 correct_answer**，不可凭记忆猜
 3. 答对 → `spaced_repetition.py grade N 5`；答错 → `spaced_repetition.py grade N 1`
 4. 一次只出一题
 
