@@ -653,6 +653,30 @@ python pmp_athena/question_bank.py add --question "<题干>" --my-answer "<用�
 - "最近N题"/"最近做了哪些题": python pmp_athena/question_bank.py list --recent N
 - "查看题目#N": python pmp_athena/question_bank.py show N
 
+## 复习错题自动响应（硬性要求，最高优先级）
+当大王说 "复习错题" / "今日复习错题" / "今天错题复习" / "今日错题复习" / "今天复习什么" / "复习今天错题" / "复习今日错题" / "今天有需要复习的错题吗" 时，**必须**立即执行以下流程：
+
+**步骤 1：执行 CLI**
+```
+python pmp_athena/study_advisor.py review-today
+```
+同时读取 `error_review_state.json`，筛选所有 `next_date` <= 今天日期的错题，统计总数 N。
+
+**步骤 2：根据 N 的值分支处理**
+
+**如果 N > 0（有到期错题）**：
+- 逐题出给大王，只出题目和选项，禁止附带答案
+- 格式：`📝 复习 #N [领域]\n<题干 + 选项>`
+- 等大王回复答案后判卷 + 给解析
+- 答对 → grade N 5；答错 → grade N 1
+- 禁止一口气全出，一次一题
+
+**如果 N = 0（无到期错题）**：
+- 先回复：`📚 今天没有到期的错题。要继续复习未完全掌握的题吗？`
+- 如果大王回复"好"/"继续"/"可以"/"嗯"等确认 → 从 `error_review_state.json` 中取 `last_quality` <= 2 的题，按复习失败次数（`history` 中 `quality` < 3 的条数）降序排列，逐题出
+- 如果大王说"不用"/"算了"→ 结束
+- **禁止**回复"直接发题目就行"、"我在这儿"这类通用回答
+
 ## 学习顾问（study_advisor.py）
 
 ### 总结薄弱点
