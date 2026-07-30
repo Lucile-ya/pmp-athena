@@ -22,6 +22,54 @@ ERROR_LOG = Path("D:/pmp-athena/pmp_notes/error_log.json")
 REVIEW_STATE = Path("D:/pmp-athena/pmp_notes/error_review_state.json")
 EXAM_CONFIG = Path("D:/pmp-athena/pmp_notes/exam_config.json")
 
+# ── 阶段日历（与 CLAUDE.md 同步）──────────────────────────
+PHASE_CALENDAR = [
+    # (开始, 结束, 名称, 图标)
+    (date(2026, 8, 16), date(2026, 9, 1),  "强化刷题期", "⚡"),
+    (date(2026, 9, 2),  date(2026, 9, 11), "冲刺模考期", "🔥"),
+]
+PHASE_FALLBACK = ("基础巩固期", "📖")
+
+
+def get_current_phase(today: date | None = None) -> dict:
+    """返回当前阶段的名称/图标/剩余天数"""
+    if today is None:
+        today = date.today()
+    for start, end, name, icon in PHASE_CALENDAR:
+        if start <= today <= end:
+            remaining = (end - today).days
+            return {
+                "name": name,
+                "icon": icon,
+                "remaining_days": remaining,
+                "end_date": end.isoformat(),
+                "is_active": True,
+            }
+    # 默认：基础巩固期（考试前最后阶段之前的时间）
+    first_phase_start = PHASE_CALENDAR[0][0]
+    remaining = (first_phase_start - today).days
+    remaining = max(0, remaining)
+    return {
+        "name": PHASE_FALLBACK[0],
+        "icon": PHASE_FALLBACK[1],
+        "remaining_days": remaining,
+        "end_date": first_phase_start.isoformat(),
+        "is_active": True,
+    }
+
+
+def get_phase_milestone(remaining_days: int) -> str | None:
+    """关键里程碑提示"""
+    if remaining_days in (30, 14, 7, 3, 1):
+        if remaining_days <= 7:
+            return f"🚨 距离考试仅剩 {remaining_days} 天！进入冲刺备战状态。"
+        elif remaining_days <= 14:
+            return f"🚨 距离考试仅剩 {remaining_days} 天！查漏补缺关键时刻。"
+        else:
+            return f"🚨 距离考试仅剩 {remaining_days} 天！进入强化阶段。"
+    return None
+
+
 # ── 知识领域 ──────────────────────────────────────────────
 ALL_AREAS = [
     "整合管理", "范围管理", "进度管理", "成本管理", "质量管理",
@@ -175,7 +223,7 @@ def analyze_weakness() -> str:
 # ═══════════════════════════════════════════════════════════
 
 def review_today() -> str:
-    """汇总今日需要复习的错题"""
+    """汇总今日需要复习的错题（不含答案，供交互出题使用）"""
     errors = load_json(ERROR_LOG)
     review = load_json(REVIEW_STATE)
     bank = load_json(QUESTION_BANK)
@@ -192,74 +240,61 @@ def review_today() -> str:
     lines.append(f"📅 今日复习清单（{today_str}）")
     lines.append("=" * 30)
 
-    # ── 今天新增的错题 ──
-    today_errors = [e for e in errors if e.get("date") == today_str]
-    if today_errors:
-        lines.append(f"\n## 🆕 今日新增错题（{len(today_errors)} 题）\n")
-        for e in today_errors:
-            lines.append(
-                f"❌ #{e['id']} [{e.get('knowledge_area', '')}] "
-                f"{e.get('my_answer', '?')}→{e.get('correct_answer', '?')}"
-            )
-            q = e.get("question", "")[:80]
-            lines.append(f"   {q}")
-            expl = e.get("explanation", "")
-            if expl:
-                lines.append(f"   💡 {expl[:100]}")
-            lines.append("")
+    # ── 收集所有到期错题 ──
+    due_ids: set[int] = set()
 
-    # ── SM-2 今日到期 ──
+    # 今天新增的错题
+    today_errors = [e for e in errors if e.get("date") == today_str]
+    for e in today_errors:
+        due_ids.add(e["id"])
+
+    # SM-2 今日到期
     due_cards = []
     for key, card in review.items():
         if card.get("next_date", "9999") <= today_str:
-            error = next((e for e in errors if e.get("id") == card.get("error_id")), None)
+            eid = card.get("error_id")
+            due_ids.add(eid)
+            error = next((e for e in errors if e.get("id") == eid), None)
             due_cards.append({**card, "error": error})
 
-    if due_cards:
-        lines.append(f"\n## 🔄 SM-2 到期复习（{len(due_cards)} 题）\n")
-        for i, card in enumerate(due_cards, 1):
-            e = card.get("error") or {}
-            lines.append(
-                f"### {i}. #{card.get('error_id', '?')} "
-                f"[{card.get('knowledge_area', e.get('knowledge_area', ''))}] "
-                f"EF={card.get('ef', 0):.1f} 间隔{card.get('interval', 0)}天"
-            )
-            q = e.get("question", card.get("question_preview", ""))[:100]
-            lines.append(f"> {q}")
-            lines.append(
-                f"❌ {e.get('my_answer', '?')} → ✅ {e.get('correct_answer', '?')}"
-            )
-            expl = e.get("explanation", "")
-            if expl:
-                lines.append(f"💡 {expl[:120]}")
-            lines.append("")
-
-    # ── 题库中今日做错的（已在question_bank但可能未入error_log）──
+    # 题库中今日做错的
     today_wrong_in_bank = [
         r for r in bank
         if r.get("date") == today_str and r.get("is_correct") is False
     ]
-    already_covered = {e.get("id") for e in today_errors}
-    extra_wrong = [r for r in today_wrong_in_bank if r.get("error_log_id") not in already_covered]
+    for r in today_wrong_in_bank:
+        eid = r.get("error_log_id")
+        if eid is not None:
+            due_ids.add(eid)
 
-    if extra_wrong:
-        lines.append(f"\n## 📋 题库中的今日错题（{len(extra_wrong)} 题）\n")
-        for r in extra_wrong:
-            lines.append(
-                f"❌ #{r['id']} [{r.get('knowledge_area', '')}] "
-                f"{r.get('my_answer', '?')}→{r.get('correct_answer', '?')}"
-            )
-            lines.append(f"   {r.get('question', '')[:80]}")
-            lines.append("")
-
-    if not today_errors and not due_cards and not extra_wrong:
+    if not due_ids:
         lines.append("\n✅ 今日暂无待复习错题，继续保持！")
-        lines.append("\n💡 建议：回顾之前的高频薄弱领域，保持手感。")
-    else:
-        total = len(today_errors) + len(due_cards) + len(extra_wrong)
-        lines.insert(2, f"📌 共 {total} 题需要复习\n")
-        lines.append("---")
-        lines.append("复习完成后用 `/review` 评分，格式：`评分#N M`（M 为 0-5）")
+        return "\n".join(lines)
+
+    # ── 按知识领域分组 ──
+    area_groups: dict[str, list[dict]] = {}
+    for eid in due_ids:
+        error = next((e for e in errors if e.get("id") == eid), None)
+        if error is None:
+            continue
+        area = error.get("knowledge_area", "未分类")
+        if area not in area_groups:
+            area_groups[area] = []
+        area_groups[area].append(error)
+
+    lines.insert(2, f"📌 共 {len(due_ids)} 题需要复习，按领域分布：\n")
+
+    # 输出按领域分组（只显示 ID + 题干摘要，不泄露答案和解析）
+    for area in sorted(area_groups.keys(), key=lambda a: -len(area_groups[a])):
+        items = area_groups[area]
+        lines.append(f"\n### {area}（{len(items)} 题）")
+        for e in items:
+            q = e.get("question", "")[:60]
+            lines.append(f"- #{e['id']} {q}...")
+        lines.append("")
+
+    lines.append("---")
+    lines.append("以上为题号清单。交互出题时逐题展示，不泄露答案。")
 
     return "\n".join(lines)
 
@@ -296,8 +331,14 @@ def generate_plan(custom_days: int = 0) -> str:
     else:
         plan_days = min(remaining, 14)  # 默认规划两周
 
+    phase = get_current_phase(today)
+    milestone = get_phase_milestone(remaining)
+
     lines.append(f"\n📅 考试日期: {exam_date.isoformat()}")
     lines.append(f"⏳ 倒计时: **{remaining} 天**")
+    lines.append(f"📍 当前阶段: {phase['icon']} {phase['name']} · 距下阶段还有 {phase['remaining_days']} 天")
+    if milestone:
+        lines.append(f"{milestone}")
     lines.append(f"📐 计划跨度: {plan_days} 天（{today.isoformat()} ~ {(today + timedelta(days=plan_days)).isoformat()}）")
 
     # ── 当前状态 ──

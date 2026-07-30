@@ -605,7 +605,7 @@ python pmp_athena/question_bank.py add --question "<题干>" --my-answer "<用�
 **第3步：判卷 + 更新状态**
 收到用户答案后，与 `correct_answer` 比对：
 - **答对**：执行 `python pmp_athena/spaced_repetition.py grade N 5`（quality=5，按 SM-2 推进到下一轮）
-- **答错**：执行 `python pmp_athena/spaced_repetition.py grade N 2`（quality=2，明天继续复习）
+- **答错**：执行 `python pmp_athena/spaced_repetition.py grade N 1`（quality=1，明天继续复习）
 不需要再写入 question_bank.json（复习题之前已录入）。
 
 **第4步：小结**
