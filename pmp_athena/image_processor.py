@@ -33,6 +33,17 @@ DEFAULT_OUTPUT_DIR = Path.home() / ".wechat-claude-code" / "processed"
 DEFAULT_MAX_SIZE = 1500
 DEFAULT_JPEG_QUALITY = 80
 
+
+def clean_explanation_text(text: str, *, max_len: int = 150) -> str:
+    """清理 OCR 解析文本，去掉 UI 垃圾和「解析:」前缀。"""
+    if not text:
+        return ""
+    expl = re.sub(r"^解析\s*[:：]\s*", "", text.strip())
+    expl = re.split(r"[\$《<]|(?:\d+\s*)?\d+/\d+\s*$", expl)[0]
+    expl = re.sub(r"\s+", " ", expl).strip()
+    return expl[:max_len]
+
+
 # OCR 可用性
 try:
     import pytesseract
@@ -175,32 +186,38 @@ class ImageProcessor:
         return image.resize(new_size, Image.Resampling.LANCZOS)
 
     def _ocr(self, image: Image.Image) -> str:
-        """
-        OCR 识别图片中的文字。
-
-        对图片做预处理（灰度化、增强对比度、二值化）以提高识别率。
-        """
+        """OCR：预处理 + 双通道取最优（不合并，避免垃圾行干扰）。"""
         if not HAS_OCR:
             return ""
 
         try:
-            # 预处理：灰度化
-            gray = image.convert("L")
+            gray = self.preprocess_for_ocr(image)
+            best_text = ""
+            best_score = -1
 
-            # 预处理：增强对比度
-            enhancer = ImageEnhance.Contrast(gray)
-            gray = enhancer.enhance(2.0)
+            for cfg in ("", "--psm 6"):
+                try:
+                    if cfg:
+                        raw = pytesseract.image_to_string(
+                            gray, lang="chi_sim+eng", config=cfg,
+                        )
+                    else:
+                        raw = pytesseract.image_to_string(gray, lang="chi_sim+eng")
+                except Exception as e:
+                    logger.debug("OCR pass failed (%s): %s", cfg or "default", e)
+                    continue
 
-            # 预处理：锐化
-            gray = gray.filter(ImageFilter.SHARPEN)
+                score = sum(
+                    1 for m in (
+                        "正确答案", "我的答", "单选题", "多选题", "作答错误", "解析",
+                    ) if m in raw
+                )
+                if score > best_score or (score == best_score and len(raw) > len(best_text)):
+                    best_text = raw
+                    best_score = score
 
-            # OCR（中英文混合）
-            text = pytesseract.image_to_string(gray, lang="chi_sim+eng")
-
-            # 基本后处理：去掉纯空白行
-            lines = [line.strip() for line in text.split("\n") if line.strip()]
+            lines = [line.strip() for line in best_text.split("\n") if line.strip()]
             return "\n".join(lines)
-
         except Exception as e:
             logger.warning("OCR failed: %s", e)
             return ""
@@ -250,9 +267,9 @@ class AnswerValidator:
     # ── 文字匹配规则 ───────────────────────────────────────
 
     WRONG_LABELS = [
-        "答错", "错误", "选错", "做错", "答错了",
+        "答错", "错误", "选错", "做错", "答错了", "作答错误",
         "incorrect", "wrong", "❌", "✗", "✘", "×",
-        "你答错了", "回答错误", "不是正确答案",
+        "你答错了", "回答错误", "不是正确答案", "单选作答错误", "多选作答错误",
     ]
 
     CORRECT_LABELS = [
@@ -262,13 +279,22 @@ class AnswerValidator:
     ]
 
     # OCR 中常见的关键词
-    QUESTION_MARKERS = ["题目", "问题", "question", "题干", "第", "Q:", "Q："]
+    QUESTION_MARKERS = [
+        "题目", "问题", "question", "题干", "第", "Q:", "Q：",
+        "单选题", "多选题", "判断题",
+    ]
+    QUESTION_TYPE_MARKERS = ["单选题", "多选题", "判断题"]
     MY_ANSWER_MARKERS = ["我的答案", "你的答案", "选择的答案", "所选答案", "your answer", "my answer", "你选了"]
     CORRECT_ANSWER_MARKERS = ["正确答案", "correct answer"]
     # "答案" 作为兜底但排除"我的答案""你的答案"等情况
     FALLBACK_ANSWER_MARKER = "答案"
     # 解析行——单独提取
     EXPLANATION_MARKERS = ["解析", "解释", "explanation"]
+    # 有效选项（单选题 A-D；多选题可含 E）
+    VALID_CHOICES = frozenset("ABCDE")
+    VALID_CHOICES_SINGLE = frozenset("ABCD")
+    # 选项字母后不能紧跟 .．、（避免「我的答案: A.专家」误匹配）
+    _CHOICE_TAIL = r"(?![.．、])"
     AREA_KEYWORDS = {
         "整合管理": ["整合", "章程", "变更控制", "知识管理", "收尾"],
         "范围管理": ["范围", "WBS", "需求", "可交付", "范围基准"],
@@ -354,15 +380,36 @@ class AnswerValidator:
 
         # ── 4. 提取题目信息（无论对错都提取，用于题库记录）───
         extracted = {}
+        answer_meta: dict = {}
         if text:
             extracted = self._extract_question_info(text)
+            answer_meta = extracted.pop("answer_confidence", {})
 
         # ── 5. 自动动作 ────────────────────────────────────
-        if verdict["is_correct"] is False and verdict["confidence"] >= 0.6:
+        my_conf = float(answer_meta.get("my", 0) or 0)
+        correct_conf = float(answer_meta.get("correct", 0) or 0)
+        can_auto_log = (
+            extracted.get("my_answer")
+            and extracted.get("correct_answer")
+            and my_conf >= 0.75
+            and correct_conf >= 0.85
+        )
+
+        if verdict["is_correct"] is False and verdict["confidence"] >= 0.6 and can_auto_log:
             auto_action = "log_error"
         elif verdict["is_correct"] is True and verdict["confidence"] >= 0.6:
             auto_action = "log_mastered"
         else:
+            auto_action = "none"
+
+        needs_confirm = (
+            verdict["confidence"] < 0.8
+            or not can_auto_log
+            or answer_meta.get("needs_user_confirm")
+            or (verdict["is_correct"] is False and not extracted.get("my_answer"))
+        )
+
+        if answer_meta.get("needs_user_confirm"):
             auto_action = "none"
 
         result = {
@@ -372,8 +419,10 @@ class AnswerValidator:
             "primary_signal": verdict["primary_signal"],
             "method": verdict["method"],
             "extracted": extracted,
+            "answer_confidence": answer_meta,
             "auto_action": auto_action,
-            "human_confirm": verdict["confidence"] < 0.8,
+            "human_confirm": needs_confirm,
+            "needs_user_confirm": bool(answer_meta.get("needs_user_confirm")),
         }
 
         self._cached_result = result
@@ -491,33 +540,40 @@ class AnswerValidator:
                 })
                 break
 
-        # 2. 我的答案 vs 正确答案 对比
-        my_answer = self._find_answer(text, self.MY_ANSWER_MARKERS)
-        correct_answer = self._find_answer(text, self.CORRECT_ANSWER_MARKERS)
-        if not correct_answer:
-            correct_answer = self._find_answer(text, [self.FALLBACK_ANSWER_MARKER])
+        # 2. 我的答案 vs 正确答案 对比（多策略稳定提取）
+        resolved = self._resolve_answers(text)
+        my_letter = resolved["my_answer"]
+        correct_letter = resolved["correct_answer"]
+        has_wrong_label = any(
+            s["type"] == "text_label" and s["verdict"] == "wrong" for s in signals
+        )
 
-        if my_answer and correct_answer:
-            my_letter = self._extract_option_letter(my_answer)
-            correct_letter = self._extract_option_letter(correct_answer, prefer_last=True)
-
-            if my_letter and correct_letter:
-                if my_letter.upper() != correct_letter.upper():
-                    signals.append({
-                        "type": "answer_comparison",
-                        "verdict": "wrong",
-                        "matched": f"{my_letter}≠{correct_letter}",
-                        "detail": f'你的答案 "{my_letter}" ≠ 正确答案 "{correct_letter}"',
-                        "my_answer": my_letter.upper(),
-                        "correct_answer": correct_letter.upper(),
-                    })
-                else:
-                    signals.append({
-                        "type": "answer_comparison",
-                        "verdict": "correct",
-                        "matched": f"{my_letter}={correct_letter}",
-                        "detail": f'你的答案 "{my_letter}" = 正确答案 "{correct_letter}"',
-                    })
+        if my_letter and correct_letter:
+            if my_letter.upper() != correct_letter.upper():
+                signals.append({
+                    "type": "answer_comparison",
+                    "verdict": "wrong",
+                    "matched": f"{my_letter}≠{correct_letter}",
+                    "detail": f'你的答案 "{my_letter}" ≠ 正确答案 "{correct_letter}"',
+                    "my_answer": my_letter.upper(),
+                    "correct_answer": correct_letter.upper(),
+                })
+            elif not has_wrong_label:
+                signals.append({
+                    "type": "answer_comparison",
+                    "verdict": "correct",
+                    "matched": f"{my_letter}={correct_letter}",
+                    "detail": f'你的答案 "{my_letter}" = 正确答案 "{correct_letter}"',
+                })
+        elif correct_letter and has_wrong_label:
+            signals.append({
+                "type": "answer_comparison",
+                "verdict": "wrong",
+                "matched": f"?≠{correct_letter}",
+                "detail": f'作答错误，正确答案 "{correct_letter}"',
+                "my_answer": my_letter,
+                "correct_answer": correct_letter.upper(),
+            })
 
         # 3. 符号标记
         for char in ["✗", "✘", "×", "❌"]:
@@ -579,43 +635,327 @@ class AnswerValidator:
             return matches[-1].group(1).upper()
         return matches[0].group(1).upper()
 
+    def _normalize_answer_text(self, text: str) -> str:
+        """OCR 答案区常见错字归一。"""
+        return (
+            text.replace("我的答家", "我的答案")
+            .replace("正确答案，", "正确答案:")
+            .replace("正确答案,", "正确答案:")
+        )
+
+    def _is_valid_choice(self, letter: str | None) -> bool:
+        return bool(letter and letter.upper() in self.VALID_CHOICES)
+
+    def _extract_labeled_correct(self, text: str) -> str | None:
+        """优先从「正确答案：X」标注行提取（仅 A-E）。"""
+        normalized = self._normalize_answer_text(text)
+        compact = re.sub(r"\s+", " ", normalized)
+
+        combo = re.search(
+            rf"正确答案\s*[:：,，]?\s*([A-Ea-e])\1?{self._CHOICE_TAIL}",
+            compact,
+        )
+        if combo and self._is_valid_choice(combo.group(1)):
+            return combo.group(1).upper()
+
+        for line in normalized.split("\n"):
+            if "正确答案" not in line:
+                continue
+            m = re.search(r"正确答案\s*[:：,，]?\s*([A-Ea-e])\1?", line)
+            if m and self._is_valid_choice(m.group(1)):
+                return m.group(1).upper()
+
+        return None
+
+    def _extract_labeled_my(self, text: str) -> str | None:
+        """其次从「我的答案：X」标注行提取（仅 A-E）。"""
+        normalized = self._normalize_answer_text(text)
+        compact = re.sub(r"\s+", " ", normalized)
+
+        combo = re.search(
+            rf"我的答[案家]\s*[:：,，]?\s*([A-Ea-e])\1?{self._CHOICE_TAIL}",
+            compact,
+        )
+        if combo and self._is_valid_choice(combo.group(1)):
+            return combo.group(1).upper()
+
+        lines = normalized.split("\n")
+        for i, line in enumerate(lines):
+            if "我的答" not in line:
+                continue
+            m = re.search(rf"我的答[案家]\s*[:：,，]?\s*([A-Ea-e])\1?{self._CHOICE_TAIL}", line)
+            if m and self._is_valid_choice(m.group(1)):
+                return m.group(1).upper()
+            for j in range(i + 1, min(i + 3, len(lines))):
+                nxt = lines[j].strip()
+                if re.match(r"^[A-Ea-e]{1,2}$", nxt) and self._is_valid_choice(nxt[0]):
+                    return nxt[0].upper()
+                if nxt.startswith("解析"):
+                    break
+        return None
+
+    def _extract_answer_letters(self, text: str) -> tuple[str | None, str | None]:
+        """从 OCR 标注行提取答案（正确答案优先于我的答案）。"""
+        return self._extract_labeled_my(text), self._extract_labeled_correct(text)
+
+    def _resolve_answers(self, text: str) -> dict:
+        """
+        OCR 答案纠偏（标注行 > 选项推断 > 用户确认）。
+
+        纠偏顺序：
+        1. 「正确答案：X」标注行（权威）
+        2. 「我的答案：X」标注行
+        3. 选项 @/× 标记推断（仅补全缺失的「我的答案」）
+        4. 仍不在 A-E → needs_user_confirm
+        """
+        corrections: list[str] = []
+        has_wrong_label = any(
+            lbl in text for lbl in ("作答错误", "答错", "选错", "做错", "回答错误")
+        )
+        normalized = self._normalize_answer_text(text)
+        compact = re.sub(r"\s+", " ", normalized)
+
+        # ── 0. 同行「正确答案 + 我的答案」（最完整）──
+        correct_letter: str | None = None
+        my_letter: str | None = None
+        combo = re.search(
+            r"正确答案\s*[:：,，]?\s*([A-Ea-e])\1?\s*"
+            rf"我的答[案家]\s*[:：,，]?\s*([A-Ea-e])\2?{self._CHOICE_TAIL}",
+            compact,
+        )
+        if combo:
+            if self._is_valid_choice(combo.group(1)):
+                correct_letter = combo.group(1).upper()
+            if combo.group(2) and self._is_valid_choice(combo.group(2)):
+                my_letter = combo.group(2).upper()
+
+        # ── 1. 标注行（权威来源，覆盖不完整 combo）──
+        if not correct_letter:
+            correct_letter = self._extract_labeled_correct(text)
+        if not my_letter:
+            my_letter = self._extract_labeled_my(text)
+        correct_method = "labeled_correct" if correct_letter else ""
+        my_method = "labeled_my" if my_letter else ""
+
+        correct_conf = 0.98 if correct_letter else 0.0
+        my_conf = 0.98 if my_letter else 0.0
+
+        # ── 2. 推断仅补全「我的答案」，永不覆盖标注的正确答案 ──
+        inferred: str | None = None
+        if my_letter is None and correct_letter and (has_wrong_label or "我的答案" in text):
+            inferred, inf_conf, inf_method = self._infer_wrong_option_with_confidence(text)
+            if inferred and self._is_valid_choice(inferred):
+                my_letter = inferred
+                my_conf = inf_conf
+                my_method = inf_method
+                corrections.append(f"my_answer: 标注缺失 → 推断 {inferred}")
+
+        # ── 3. 标注说错但 my==correct → 用推断覆盖 my（不动 correct）──
+        if (
+            has_wrong_label
+            and correct_letter
+            and my_letter == correct_letter
+        ):
+            inferred, inf_conf, inf_method = self._infer_wrong_option_with_confidence(text)
+            if inferred and inferred != correct_letter and self._is_valid_choice(inferred):
+                old = my_letter
+                my_letter = inferred
+                my_conf = max(inf_conf, 0.85)
+                my_method = inf_method
+                corrections.append(f"my_answer: {old}→{inferred} (与正确答案相同，按标注纠偏)")
+
+        needs_user_confirm = False
+        if not self._is_valid_choice(correct_letter):
+            needs_user_confirm = True
+        elif has_wrong_label and not self._is_valid_choice(my_letter):
+            needs_user_confirm = True
+
+        return {
+            "my_answer": my_letter,
+            "correct_answer": correct_letter,
+            "my_confidence": round(my_conf, 2),
+            "correct_confidence": round(correct_conf, 2),
+            "my_method": my_method,
+            "correct_method": correct_method,
+            "needs_user_confirm": needs_user_confirm,
+            "corrections": corrections,
+        }
+
+    def _infer_wrong_option_with_confidence(
+        self, text: str,
+    ) -> tuple[str | None, float, str]:
+        """推断用户错选，返回 (字母, 置信度, 方法)。"""
+        options = self._parse_options_full(text)
+        option_rows: list[tuple[str, str]] = []
+
+        for line in text.split("\n"):
+            s = line.strip()
+            if not s:
+                continue
+            if re.match(r"^([A-E])[.、．)]", s):
+                option_rows.append(("normal", s))
+            elif re.match(r"^[@×✗✘❌]", s):
+                option_rows.append(("marked", s))
+
+        for idx, (kind, s) in enumerate(option_rows):
+            if kind != "marked":
+                continue
+
+            m = re.match(r"^[@×✗✘❌]\s*([A-E])[.、．)]", s)
+            if m:
+                return m.group(1).upper(), 0.92, "marked_option_letter"
+
+            content = re.sub(r"^[@×✗✘❌]\s*[.、．)]?\s*", "", s).strip()
+            by_text = self._match_option_by_text(content, options)
+            if by_text:
+                return by_text, 0.88, "marked_option_text"
+
+            if idx < 5:
+                return ["A", "B", "C", "D", "E"][idx], 0.82, "marked_option_position"
+
+        for s in (row[1] for row in option_rows if row[0] == "normal"):
+            m = re.match(r"^([A-E])[.、．)]", s)
+            if m and any(c in s for c in ("×", "✗", "✘", "❌", "@")):
+                return m.group(1).upper(), 0.85, "option_line_marker"
+
+        return None, 0.0, ""
+
+    def _parse_options_full(self, text: str) -> dict[str, str]:
+        """解析全部选项，含 OCR 把 A/C 读成 @ 行的场景。"""
+        options = self._parse_options(text)
+        option_rows: list[str] = []
+
+        for line in text.split("\n"):
+            s = line.strip()
+            if re.match(r"^([A-E])[.、．)]", s) or re.match(r"^[@×✗✘❌]", s):
+                option_rows.append(s)
+
+        letters = ["A", "B", "C", "D", "E"]
+        for idx, row in enumerate(option_rows):
+            if idx >= len(letters):
+                break
+            letter = letters[idx]
+            if letter in options:
+                continue
+            if re.match(r"^[@×✗✘❌]", row):
+                content = re.sub(r"^[@×✗✘❌]\s*[.、．)]?\s*", "", row).strip()
+                if content:
+                    options[letter] = content
+
+        return options
+
+    def _parse_options(self, text: str) -> dict[str, str]:
+        """解析 OCR 中的选项 A-E → 选项文字。"""
+        options: dict[str, str] = {}
+        for line in text.split("\n"):
+            s = line.strip()
+            m = re.match(r"^([A-E])[.、．)]\s*(.+)$", s)
+            if m:
+                options[m.group(1).upper()] = m.group(2).strip()
+        return options
+
+    def _match_option_by_text(
+        self,
+        content: str,
+        options: dict[str, str],
+    ) -> str | None:
+        """通过选项文字反查字母（处理 C. 被 OCR 成 @ . 的情况）。"""
+        norm = re.sub(r"\s+", "", content)
+        if len(norm) < 2:
+            return None
+
+        best_letter: str | None = None
+        best_score = 0
+        for letter, opt_text in options.items():
+            opt_norm = re.sub(r"\s+", "", opt_text)
+            if norm in opt_norm or opt_norm in norm:
+                score = min(len(norm), len(opt_norm))
+                if score > best_score:
+                    best_score = score
+                    best_letter = letter
+
+        if best_letter:
+            return best_letter
+
+        # 只有一个缺失选项（如 A/B/D 都在、C 被 OCR 成 @ .三点估算）
+        all_letters = ["A", "B", "C", "D", "E"]
+        missing = [l for l in all_letters if l not in options]
+        if len(missing) == 1:
+            return missing[0]
+
+        return None
+
+    def _infer_wrong_option(self, text: str) -> str | None:
+        """OCR 丢失「我的答案」时，从选项行的错误标记推断用户选择。"""
+        letter, _, _ = self._infer_wrong_option_with_confidence(text)
+        return letter
+
+    def _is_ui_noise(self, line: str) -> bool:
+        """过滤刷题 App 状态栏、导航等干扰行。"""
+        s = line.strip()
+        if not s or len(s) < 2:
+            return True
+        noise = (
+            r"^\d{1,2}:\d{2}",
+            r"^\d{2}:\d{2}:\d{2}",
+            r"章节练习",
+            r"^返回",
+            r"提交并查看",
+            r"^下一题",
+            r"^\d+/\d+\s*$",
+            r"^[<>]",
+            r"ODS|wifi|GB\)",
+        )
+        return any(re.search(p, s) for p in noise)
+
+    def _extract_question_body(self, lines: list[str]) -> str | None:
+        """从 OCR 行列表中提取题干（跳过状态栏，在选项前截断）。"""
+        stop_markers = ("作答错误", "作答正确", "正确答案", "我的答案", "解析")
+
+        for i, line in enumerate(lines):
+            for qtype in self.QUESTION_TYPE_MARKERS:
+                if qtype not in line:
+                    continue
+                parts: list[str] = []
+                rest = line.split(qtype, 1)[-1].strip()
+                if rest and len(rest) > 8 and not self._is_ui_noise(rest):
+                    parts.append(rest)
+                for j in range(i + 1, len(lines)):
+                    nxt = lines[j].strip()
+                    if self._is_ui_noise(nxt):
+                        continue
+                    if re.match(r"^[A-E@][.、．)]", nxt) or re.match(r"^[@×✗✘❌]", nxt):
+                        break
+                    if any(m in nxt for m in stop_markers):
+                        break
+                    if nxt:
+                        parts.append(nxt)
+                if parts:
+                    return " ".join(parts)
+
+        # 退而求其次：最长中文段落（选项前）
+        best = ""
+        for line in lines:
+            s = line.strip()
+            if self._is_ui_noise(s):
+                continue
+            if re.match(r"^[A-E@][.、．)]", s) or any(m in s for m in stop_markers):
+                break
+            if len(s) > len(best) and re.search(r"[\u4e00-\u9fff]", s):
+                best = s
+        return best or None
+
     # ── 题目信息提取 ──────────────────────────────────────
 
     def _extract_question_info(self, text: str) -> dict:
         """从 OCR 文字中提取题目、选项、解析等信息"""
         lines = text.split("\n")
 
-        # 提取题目文字
-        question = None
-        for i, line in enumerate(lines):
-            for marker in self.QUESTION_MARKERS:
-                if marker in line:
-                    # 取这一行 + 接下来直到遇到选项的行
-                    parts = [line]
-                    for j in range(i + 1, min(i + 5, len(lines))):
-                        next_line = lines[j].strip()
-                        if re.match(r'^[A-E][.、．)]', next_line):
-                            break
-                        if next_line:
-                            parts.append(next_line)
-                    question = " ".join(parts)
-                    break
-            if question:
-                break
+        question = self._extract_question_body(lines)
 
-        if not question:
-            # 退而求其次：取前 3 行非空行
-            question = " ".join(lines[:3])
-
-        # 提取我的答案
-        my_answer = self._find_answer(text, self.MY_ANSWER_MARKERS)
-        my_letter = self._extract_option_letter(my_answer or "") if my_answer else None
-
-        # 提取正确答案（先用精确标记，再用"答案"兜底）
-        correct_answer = self._find_answer(text, self.CORRECT_ANSWER_MARKERS)
-        if not correct_answer:
-            correct_answer = self._find_answer(text, [self.FALLBACK_ANSWER_MARKER])
-        correct_letter = self._extract_option_letter(correct_answer or "", prefer_last=True) if correct_answer else None
+        resolved = self._resolve_answers(text)
+        my_letter = resolved["my_answer"]
+        correct_letter = resolved["correct_answer"]
 
         # 提取解析
         explanation = None
@@ -623,27 +963,37 @@ class AnswerValidator:
             for marker in self.EXPLANATION_MARKERS:
                 if marker in line:
                     exp_parts = [line]
-                    for j in range(i + 1, min(i + 5, len(lines))):
+                    for j in range(i + 1, min(i + 8, len(lines))):
                         next_line = lines[j].strip()
-                        if len(next_line) < 5:
+                        if self._is_ui_noise(next_line):
+                            break
+                        if len(next_line) < 3:
                             break
                         exp_parts.append(next_line)
-                    explanation = " ".join(exp_parts)[:200]
+                    explanation = clean_explanation_text(" ".join(exp_parts), max_len=200)
                     break
             if explanation:
                 break
 
-        # 推断知识领域
-        knowledge_area = self._classify_knowledge_area(text)
+        classify_text = question or text
+        knowledge_area = self._classify_knowledge_area(classify_text)
+        options = self._parse_options_full(text)
 
         return {
             "question": question[:200] if question else None,
             "my_answer": my_letter,
             "correct_answer": correct_letter,
-            "my_answer_raw": my_answer,
-            "correct_answer_raw": correct_answer,
             "knowledge_area": knowledge_area,
             "explanation": explanation,
+            "options": options,
+            "answer_confidence": {
+                "my": resolved["my_confidence"],
+                "correct": resolved["correct_confidence"],
+                "my_method": resolved["my_method"],
+                "correct_method": resolved.get("correct_method", ""),
+                "needs_user_confirm": resolved.get("needs_user_confirm", False),
+                "corrections": resolved.get("corrections", []),
+            },
         }
 
     def _classify_knowledge_area(self, text: str) -> str:
@@ -694,10 +1044,22 @@ class AnswerValidator:
         correct_score = 0.0
         signal_types_used = set()
 
+        has_wrong_label = any(
+            s["type"] == "text_label" and s["verdict"] == "wrong" for s in signals
+        )
+
         for s in signals:
             stype = s["type"]
             weight = weights.get(stype, 0.5)
             signal_types_used.add(stype)
+
+            # OCR 常丢「我的答案」，导致 B=B 误判；有「作答错误」标签时不采信「答对」对比
+            if (
+                stype == "answer_comparison"
+                and s["verdict"] == "correct"
+                and has_wrong_label
+            ):
+                continue
 
             if s["verdict"] == "wrong":
                 wrong_score += weight
@@ -797,48 +1159,72 @@ def process_and_validate(
             validation = validator.validate(img, result.get("ocr_text"))
             result["answer_validation"] = validation
 
-            # 自动记录错题
-            if (auto_log_errors and
-                    validation["auto_action"] == "log_error" and
-                    validation["extracted"].get("question")):
-
+            # 自动记录错题（三文件同步）
+            if (
+                auto_log_errors
+                and validation["auto_action"] == "log_error"
+                and validation["extracted"].get("question")
+            ):
                 ext = validation["extracted"]
                 if ext.get("my_answer") and ext.get("correct_answer"):
                     try:
-                        from .error_logger import ErrorLogger
-                        el = ErrorLogger()
-                        record = el.add(
+                        try:
+                            from .record_answer import record_wrong_answer
+                        except ImportError:
+                            from record_answer import record_wrong_answer
+                        rec = record_wrong_answer(
                             question=ext["question"] or "（OCR 题目提取不完整，请手动补充）",
                             my_answer=ext["my_answer"],
                             correct_answer=ext["correct_answer"],
                             knowledge_area=ext.get("knowledge_area", "未分类"),
                             explanation=ext.get("explanation", ""),
+                            source="screenshot",
                             parsed_by="ocr_validator",
                         )
-                        validation["error_log_record_id"] = record["id"]
-                        logger.info("Auto-logged error #%d via answer validator", record["id"])
+                        validation["error_log_record_id"] = rec["error_log_id"]
+                        validation["question_bank_record_id"] = rec["bank_id"]
+                        logger.info(
+                            "Auto-logged error #%d / bank #%d via record_answer",
+                            rec["error_log_id"],
+                            rec["bank_id"],
+                        )
                     except Exception as e:
                         logger.warning("Auto error-log failed: %s", e)
-
-                # ── 题库自动记录（无论对错都入库）─────────────────
-                try:
-                    from .question_bank import QuestionBank
-                    qb = QuestionBank()
-                    ext = validation.get("extracted", {})
-                    if ext.get("question"):
-                        error_log_id = validation.get("error_log_record_id")
+                elif ext.get("correct_answer"):
+                    try:
+                        from .question_bank import QuestionBank
+                    except ImportError:
+                        from question_bank import QuestionBank
+                    try:
+                        qb = QuestionBank()
                         qb_record = qb.add_from_validation(
                             validation,
                             parsed_by="ocr_validator",
-                            error_log_id=error_log_id,
                         )
                         if qb_record:
                             validation["question_bank_record_id"] = qb_record["id"]
-                            is_ok = validation.get("is_correct")
-                            label = "correct" if is_ok else ("wrong" if is_ok is False else "uncertain")
-                            logger.info("Question bank #%d logged [%s]", qb_record["id"], label)
-                except Exception as e:
-                    logger.warning("Question bank log failed: %s", e)
+                    except Exception as e:
+                        logger.warning("Question bank log failed: %s", e)
+            elif auto_log_errors and validation.get("is_correct") is True:
+                ext = validation.get("extracted", {})
+                if ext.get("question") and ext.get("correct_answer"):
+                    try:
+                        try:
+                            from .record_answer import record_correct_answer
+                        except ImportError:
+                            from record_answer import record_correct_answer
+                        rec = record_correct_answer(
+                            question=ext["question"],
+                            my_answer=ext.get("my_answer") or ext["correct_answer"],
+                            correct_answer=ext["correct_answer"],
+                            knowledge_area=ext.get("knowledge_area", "未分类"),
+                            explanation=ext.get("explanation", ""),
+                            source="screenshot",
+                            parsed_by="ocr_validator",
+                        )
+                        validation["question_bank_record_id"] = rec["bank_id"]
+                    except Exception as e:
+                        logger.warning("Question bank log failed: %s", e)
 
         except Exception as e:
             result["answer_validation"] = {

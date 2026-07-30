@@ -518,8 +518,11 @@ def grade_review(error_id: int, user_answer: str) -> dict:
     if is_correct:
         lines.append("✅ 正确！")
     else:
-        expl = error.get("explanation", "")[:100]
-        lines.append(f"❌ 正确答案是 {correct_ans} — {expl}")
+        try:
+            from pmp_athena.error_insights import format_wrong_feedback
+        except ImportError:
+            from error_insights import format_wrong_feedback
+        lines.append(format_wrong_feedback(error, user_answer=user_ans))
 
     nxt = review_next(include_header=False)
     if nxt["status"] == "question":
@@ -690,6 +693,10 @@ def main():
     p_plan = sub.add_parser("plan", help="制定学习计划")
     p_plan.add_argument("--days", "-d", type=int, default=0, help="计划跨度（天），默认14天")
 
+    p_freq = sub.add_parser("frequent-errors", help="高频错题（总结+解答+口诀）")
+    p_freq.add_argument("--top", type=int, default=5, help="显示 Top N")
+    p_freq.add_argument("--json", action="store_true")
+
     args = parser.parse_args()
 
     if args.command == "weakness":
@@ -708,6 +715,14 @@ def main():
             output = json.dumps(result, ensure_ascii=False)
         else:
             output = result["text"]
+    elif args.command == "frequent-errors":
+        try:
+            from pmp_athena.error_insights import format_high_frequency_report
+        except ImportError:
+            from error_insights import format_high_frequency_report
+        output = format_high_frequency_report(top_n=args.top)
+        if args.json:
+            output = json.dumps({"status": "ok", "text": output}, ensure_ascii=False)
     elif args.command == "plan":
         output = generate_plan(custom_days=args.days)
     else:
