@@ -26,6 +26,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+try:
+    from pmp_athena.utils.question_text import normalize_question_text
+except ModuleNotFoundError:
+    from utils.question_text import normalize_question_text
+
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("error_logger")
 
@@ -71,6 +76,19 @@ class ErrorLogger:
 
     # ── CRUD ───────────────────────────────────────────────
 
+    def find_by_question(self, question: str) -> dict | None:
+        """按规范化题干查找已有错题（去重用）"""
+        try:
+            from pmp_athena.utils.question_text import question_dedup_key, normalize_question_text
+        except ModuleNotFoundError:
+            from utils.question_text import question_dedup_key, normalize_question_text
+
+        key = question_dedup_key(question)
+        for record in reversed(self._read()):
+            if question_dedup_key(record.get("question", "")) == key:
+                return record
+        return None
+
     def add(
         self,
         question: str,
@@ -79,8 +97,21 @@ class ErrorLogger:
         knowledge_area: str = "",
         explanation: str = "",
         parsed_by: str = "claude",
+        *,
+        allow_duplicate: bool = False,
     ) -> dict:
-        """追加一条错题，返回记录"""
+        """追加一条错题；默认同题去重，返回已有记录。"""
+        question = normalize_question_text(question)
+
+        if not allow_duplicate:
+            existing = self.find_by_question(question)
+            if existing:
+                logger.info(
+                    "Error #%d already exists (dedup), skip new entry",
+                    existing["id"],
+                )
+                return existing
+
         data = self._read()
         next_id = max((r.get("id", 0) for r in data), default=0) + 1
 
@@ -88,7 +119,7 @@ class ErrorLogger:
             "id": next_id,
             "date": datetime.now().strftime("%Y-%m-%d"),
             "timestamp": datetime.now().isoformat(),
-            "question": question.strip(),
+            "question": question,
             "my_answer": my_answer.strip().upper(),
             "correct_answer": correct_answer.strip().upper(),
             "knowledge_area": knowledge_area.strip(),

@@ -21,6 +21,11 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
+try:
+    from pmp_athena.utils.question_text import normalize_question_text, question_dedup_key
+except ModuleNotFoundError:
+    from utils.question_text import normalize_question_text, question_dedup_key
+
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("question_bank")
 
@@ -78,30 +83,32 @@ class QuestionBank:
         """
         追加一条题目记录。
 
-        自动去重：如果相同题目（前80字符匹配）在24小时内已存在，
+        自动去重：如果相同题目（规范化题干前 50 字匹配）在 24 小时内已存在，
         则仅更新 times_seen 和 last_review_date，不创建新记录。
         """
         data = self._read()
         now = datetime.now()
-        question_stub = question.strip()[:80]
+        question = normalize_question_text(question)
+        question_stub = question_dedup_key(question)
 
-        # 去重：24 小时内同题只增加 seen 计数
-        for record in reversed(data):
-            if record.get("question", "")[:80] == question_stub:
-                try:
-                    record_time = datetime.fromisoformat(record["timestamp"])
-                    if (now - record_time).total_seconds() < 86400:
-                        record["times_seen"] = record.get("times_seen", 1) + 1
-                        record["last_review_date"] = now.strftime("%Y-%m-%d")
-                        self._write(data)
-                        logger.info(
-                            "Updated existing record #%d (times_seen=%d)",
-                            record["id"],
-                            record["times_seen"],
-                        )
-                        return record
-                except (ValueError, KeyError):
-                    pass
+        # 去重：24 小时内同题且做对的记录合并 times_seen；错题每次作答单独一条
+        if is_correct is not False:
+            for record in reversed(data):
+                if question_dedup_key(record.get("question", "")) == question_stub:
+                    try:
+                        record_time = datetime.fromisoformat(record["timestamp"])
+                        if (now - record_time).total_seconds() < 86400:
+                            record["times_seen"] = record.get("times_seen", 1) + 1
+                            record["last_review_date"] = now.strftime("%Y-%m-%d")
+                            self._write(data)
+                            logger.info(
+                                "Updated existing record #%d (times_seen=%d)",
+                                record["id"],
+                                record["times_seen"],
+                            )
+                            return record
+                    except (ValueError, KeyError):
+                        pass
 
         # 新记录
         next_id = max((r.get("id", 0) for r in data), default=0) + 1
@@ -110,7 +117,7 @@ class QuestionBank:
             "date": now.strftime("%Y-%m-%d"),
             "timestamp": now.isoformat(),
             "is_correct": is_correct,
-            "question": question.strip(),
+            "question": question,
             "my_answer": my_answer.strip().upper(),
             "correct_answer": correct_answer.strip().upper(),
             "knowledge_area": knowledge_area.strip(),
@@ -181,7 +188,10 @@ class QuestionBank:
                 ]
                 for key in updatable:
                     if key in kwargs and kwargs[key] is not None:
-                        record[key] = kwargs[key]
+                        val = kwargs[key]
+                        if key == "question":
+                            val = normalize_question_text(val)
+                        record[key] = val
                 # 修正来源标记
                 record["parsed_by"] = record.get("parsed_by", "claude") + "+manual_fix"
                 self._write(data)

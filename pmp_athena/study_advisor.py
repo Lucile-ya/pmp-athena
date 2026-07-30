@@ -11,6 +11,7 @@
 
 import argparse
 import json
+import re
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -21,6 +22,9 @@ QUESTION_BANK = Path("D:/pmp-athena/pmp_notes/question_bank.json")
 ERROR_LOG = Path("D:/pmp-athena/pmp_notes/error_log.json")
 REVIEW_STATE = Path("D:/pmp-athena/pmp_notes/error_review_state.json")
 EXAM_CONFIG = Path("D:/pmp-athena/pmp_notes/exam_config.json")
+OPTIONS_SUPPLEMENT = Path("D:/pmp-athena/pmp_notes/question_options_supplement.json")
+
+_OPTION_RE = re.compile(r"(?:^|\s)[A-D][\.、．\)]")
 
 # ── 阶段日历（与 CLAUDE.md 同步）──────────────────────────
 PHASE_CALENDAR = [
@@ -299,6 +303,242 @@ def review_today() -> str:
     return "\n".join(lines)
 
 
+def _collect_due_ids(
+    errors: list,
+    review: dict,
+    bank: list,
+    today_str: str,
+) -> list[int]:
+    """收集今日到期需复习的错题 ID（与 review_today 逻辑一致）"""
+    due_ids: set[int] = set()
+
+    for e in errors:
+        if e.get("date") == today_str:
+            due_ids.add(e["id"])
+
+    for card in review.values():
+        if card.get("next_date", "9999") <= today_str:
+            due_ids.add(card.get("error_id"))
+
+    for r in bank:
+        if r.get("date") == today_str and r.get("is_correct") is False:
+            eid = r.get("error_log_id")
+            if eid is not None:
+                due_ids.add(eid)
+
+    return sorted(due_ids)
+
+
+def _is_reviewed_today(card: dict | None, today_str: str) -> bool:
+    """今日是否已复习过（history 中有今日 quality>0 记录）"""
+    if not card:
+        return False
+    for h in card.get("history", []):
+        if h.get("date") == today_str and h.get("quality", 0) > 0:
+            return True
+    return False
+
+
+def _has_options(text: str) -> bool:
+    return bool(_OPTION_RE.search(text or ""))
+
+
+def _load_options_supplement() -> dict:
+    if not OPTIONS_SUPPLEMENT.exists():
+        return {}
+    try:
+        data = json.loads(OPTIONS_SUPPLEMENT.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def _merge_options(question: str, error_id: int) -> str:
+    """题干缺选项时，从 supplement 或分字段 options 补全"""
+    if _has_options(question):
+        return question.strip()
+
+    supplement = _load_options_supplement()
+    entry = supplement.get(str(error_id)) or supplement.get(error_id)
+    if not entry:
+        return question.strip()
+
+    if isinstance(entry, str):
+        opts = entry.strip()
+    elif isinstance(entry, dict):
+        opts = entry.get("options", "").strip()
+        if not opts and all(k in entry for k in "ABCD"):
+            opts = "\n".join(f"{k}. {entry[k]}" for k in "ABCD")
+    else:
+        return question.strip()
+
+    if not opts:
+        return question.strip()
+
+    if _has_options(opts):
+        # supplement 已是完整题干+选项
+        if len(opts) > len(question):
+            return opts
+        return f"{question.strip()}\n{opts}"
+
+    return f"{question.strip()}\n{opts}"
+
+
+def _find_full_question(error_id: int, errors: list, bank: list) -> dict:
+    """优先从题库/错题本取含选项的完整题干"""
+    bank_entries = [r for r in bank if r.get("error_log_id") == error_id]
+    error = next((e for e in errors if e.get("id") == error_id), None)
+    candidates: list[dict] = list(bank_entries)
+    if error:
+        candidates.append(error)
+
+    if not candidates:
+        return {}
+
+    with_opts = [r for r in candidates if _has_options(r.get("question", ""))]
+    record = max(with_opts or candidates, key=lambda r: len(r.get("question", "")))
+
+    merged = dict(record)
+    merged["question"] = _merge_options(record.get("question", ""), error_id)
+    return merged
+
+
+def _format_review_question(error_id: int, record: dict) -> str:
+    """格式化单道复习题（不含答案、解析、历史作答）"""
+    area = record.get("knowledge_area", "综合")
+    question = record.get("question", "").strip()
+    lines = [f"📝 复习 #{error_id} [{area}]", question]
+    if not _has_options(question):
+        lines.append("")
+        lines.append("⚠️ 本题录入时未保存选项。请凭记忆作答，或发「查看题目#N」补录。")
+    return "\n".join(lines)
+
+
+def review_next(*, include_header: bool = False) -> dict:
+    """
+    获取下一道待复习错题（微信硬路由用）。
+    返回 dict: status, error_id, total_due, remaining, text
+    """
+    errors = load_json(ERROR_LOG)
+    review = load_json(REVIEW_STATE)
+    bank = load_json(QUESTION_BANK)
+
+    if not isinstance(errors, list):
+        errors = []
+    if not isinstance(review, dict):
+        review = {}
+    if not isinstance(bank, list):
+        bank = []
+
+    today_str = date.today().isoformat()
+    due_ids = _collect_due_ids(errors, review, bank, today_str)
+
+    if not due_ids:
+        return {
+            "status": "empty",
+            "error_id": None,
+            "total_due": 0,
+            "remaining": 0,
+            "text": "✅ 今日暂无待复习错题，继续保持！",
+        }
+
+    pending = [
+        eid for eid in due_ids
+        if not _is_reviewed_today(review.get(str(eid)), today_str)
+    ]
+
+    if not pending:
+        return {
+            "status": "done",
+            "error_id": None,
+            "total_due": len(due_ids),
+            "remaining": 0,
+            "text": f"✅ 今日 {len(due_ids)} 道错题已全部复习完毕！",
+        }
+
+    error_id = pending[0]
+    record = _find_full_question(error_id, errors, bank)
+    if not record:
+        return {
+            "status": "error",
+            "error_id": error_id,
+            "total_due": len(due_ids),
+            "remaining": len(pending),
+            "text": f"⚠️ 错题 #{error_id} 未找到题目内容",
+        }
+
+    body = _format_review_question(error_id, record)
+    if include_header:
+        text = (
+            f"📚 今日待复习错题: {len(due_ids)} 道（还剩 {len(pending)} 道）\n\n"
+            f"{body}"
+        )
+    else:
+        text = body
+
+    return {
+        "status": "question",
+        "error_id": error_id,
+        "total_due": len(due_ids),
+        "remaining": len(pending),
+        "text": text,
+    }
+
+
+def grade_review(error_id: int, user_answer: str) -> dict:
+    """判卷并返回下一题（微信硬路由用）"""
+    import sys
+    from pathlib import Path
+    _pkg = Path(__file__).resolve().parent
+    if str(_pkg) not in sys.path:
+        sys.path.insert(0, str(_pkg))
+    from spaced_repetition import SpacedRepetition
+
+    errors = load_json(ERROR_LOG)
+    if not isinstance(errors, list):
+        errors = []
+
+    error = next((e for e in errors if e.get("id") == error_id), None)
+    if error is None:
+        return {
+            "status": "error",
+            "correct": False,
+            "error_id": error_id,
+            "text": f"⚠️ 错题 #{error_id} 不存在",
+        }
+
+    user_ans = user_answer.strip().upper()
+    correct_ans = str(error.get("correct_answer", "")).strip().upper()
+    is_correct = user_ans == correct_ans
+
+    sr = SpacedRepetition()
+    sr.grade(error_id, 5 if is_correct else 1)
+
+    lines: list[str] = []
+    if is_correct:
+        lines.append("✅ 正确！")
+    else:
+        expl = error.get("explanation", "")[:100]
+        lines.append(f"❌ 正确答案是 {correct_ans} — {expl}")
+
+    nxt = review_next(include_header=False)
+    if nxt["status"] == "question":
+        lines.append("")
+        lines.append(nxt["text"])
+    elif nxt["status"] == "done":
+        lines.append("")
+        lines.append(nxt["text"])
+
+    return {
+        "status": "graded",
+        "correct": is_correct,
+        "error_id": error_id,
+        "next_error_id": nxt.get("error_id"),
+        "done": nxt["status"] in ("done", "empty"),
+        "text": "\n".join(lines),
+    }
+
+
 # ═══════════════════════════════════════════════════════════
 # 3. 制定学习计划
 # ═══════════════════════════════════════════════════════════
@@ -438,6 +678,15 @@ def main():
     sub.add_parser("weakness", help="总结薄弱点")
     sub.add_parser("review-today", help="今日复习错题")
 
+    p_next = sub.add_parser("review-next", help="获取下一道待复习错题（微信硬路由）")
+    p_next.add_argument("--json", action="store_true", help="JSON 输出")
+    p_next.add_argument("--header", action="store_true", help="附带今日待复习统计")
+
+    p_grade = sub.add_parser("grade-review", help="复习错题判卷（微信硬路由）")
+    p_grade.add_argument("error_id", type=int, help="错题 ID")
+    p_grade.add_argument("answer", help="用户答案 A/B/C/D")
+    p_grade.add_argument("--json", action="store_true", help="JSON 输出")
+
     p_plan = sub.add_parser("plan", help="制定学习计划")
     p_plan.add_argument("--days", "-d", type=int, default=0, help="计划跨度（天），默认14天")
 
@@ -447,6 +696,18 @@ def main():
         output = analyze_weakness()
     elif args.command == "review-today":
         output = review_today()
+    elif args.command == "review-next":
+        result = review_next(include_header=args.header)
+        if args.json:
+            output = json.dumps(result, ensure_ascii=False)
+        else:
+            output = result["text"]
+    elif args.command == "grade-review":
+        result = grade_review(args.error_id, args.answer)
+        if args.json:
+            output = json.dumps(result, ensure_ascii=False)
+        else:
+            output = result["text"]
     elif args.command == "plan":
         output = generate_plan(custom_days=args.days)
     else:
