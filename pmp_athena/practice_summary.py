@@ -30,6 +30,60 @@ TARGET_ACCURACY = 0.70
 TARGET_CORRECT = 126
 TARGET_TOTAL = 180
 PASS_CORRECT = 106
+CONFIG_PATH = DEFAULT_BANK_PATH.parent / "config.json"
+
+
+def _load_config() -> dict[str, Any]:
+    if not CONFIG_PATH.exists():
+        return {}
+    try:
+        data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def _prep_start_date() -> str | None:
+    cfg = _load_config()
+    val = cfg.get("prep_start_date")
+    return str(val) if val else None
+
+
+def _filter_from_prep_start(records: list[dict]) -> list[dict]:
+    start = _prep_start_date()
+    if not start:
+        return records
+    return [r for r in records if str(r.get("date", "")) >= start]
+
+
+def _active_days_in_month(
+    graded: list[dict],
+    year: int,
+    month: int,
+) -> int:
+    """活跃天数 = 有判卷记录的日期 ∪ 当月已完成每日一练日期。"""
+    prefix = _month_prefix(year, month)
+    bank_days = {r.get("date") for r in graded if r.get("date", "").startswith(prefix)}
+    cfg = _load_config()
+    daily_done = cfg.get("daily_completed") or []
+    if isinstance(daily_done, list):
+        bank_days |= {d for d in daily_done if str(d).startswith(prefix)}
+    return len(bank_days)
+
+
+def _is_full_mock_exam(exam: dict) -> bool:
+    if exam.get("type") == "chapter_practice":
+        return False
+    total = int(exam.get("total_questions") or 0)
+    return total >= 100
+
+
+def _exam_kind_label(exam: dict) -> str:
+    if exam.get("type") == "chapter_practice":
+        return "章节练习"
+    if _is_full_mock_exam(exam):
+        return "模考"
+    return "练习"
 
 
 def _bar(pct: float, width: int = 8) -> str:
@@ -132,19 +186,27 @@ def _collect_month_stats(
     month: int,
 ) -> dict[str, Any]:
     start, end = _month_bounds(year, month)
+    prep = _prep_start_date()
+    if prep and prep > start:
+        start = prep
     records = bank.list_by_date_range(start, end)
     graded = [r for r in records if r.get("is_correct") is not None]
     total = len(graded)
     correct = sum(1 for r in graded if r.get("is_correct"))
+    month_exams = _exams_in_month(_load_exam_records(), year, month)
+    if prep:
+        month_exams = [e for e in month_exams if str(e.get("exam_date", "")) >= prep]
     return {
         "year": year,
         "month": month,
         "total": total,
         "correct": correct,
         "accuracy": _accuracy(correct, total),
-        "active_days": len({r.get("date") for r in graded if r.get("date")}),
+        "active_days": _active_days_in_month(graded, year, month),
         "by_area": _area_stats(graded),
-        "exams": _exams_in_month(_load_exam_records(), year, month),
+        "exams": month_exams,
+        "mock_exams": [e for e in month_exams if _is_full_mock_exam(e)],
+        "chapter_exams": [e for e in month_exams if e.get("type") == "chapter_practice"],
     }
 
 
@@ -239,8 +301,8 @@ def _format_month_compare(
                 lines.append(f"  · [{area}] 上月 {pa}% → 本月未练习")
 
     # ── 模考成绩对比 ──
-    curr_exams = curr.get("exams") or []
-    prev_exams = prev.get("exams") or []
+    curr_exams = [e for e in (curr.get("exams") or []) if _is_full_mock_exam(e)]
+    prev_exams = [e for e in (prev.get("exams") or []) if _is_full_mock_exam(e)]
     curr_exam_avg = _exam_avg_rate(curr_exams)
     prev_exam_avg = _exam_avg_rate(prev_exams)
 
@@ -293,6 +355,9 @@ def month_summary(*, year: int | None = None, month: int) -> dict[str, Any]:
     by_area = curr_stats["by_area"]
     graded = bank.list_by_date_range(*_month_bounds(y, month))
     graded = [r for r in graded if r.get("is_correct") is not None]
+    prep = _prep_start_date()
+    if prep:
+        graded = [r for r in graded if str(r.get("date", "")) >= prep]
 
     # 上月数据
     prev_y, prev_m = _prev_month_year(y, month)
@@ -316,12 +381,17 @@ def month_summary(*, year: int | None = None, month: int) -> dict[str, Any]:
 
     gap_questions = max(0, round(TARGET_ACCURACY * total) - correct) if total else 0
     active_days = curr_stats["active_days"]
+    prep_start = _prep_start_date()
 
     lines = [
         f"📊 {y}年{month}月刷题总结（{total} 题）",
         "",
-        f"📈 总正确率：{acc}%（{correct}/{total}）",
     ]
+    if prep_start:
+        lines.append(f"📆 备考起始：{prep_start}")
+    lines.extend([
+        f"📈 总正确率：{acc}%（{correct}/{total}）",
+    ])
     if vs_prev is not None:
         arrow = "↑" if vs_prev > 0 else ("↓" if vs_prev < 0 else "→")
         emoji = "🎉" if vs_prev >= 10 else ("✅" if vs_prev > 0 else ("⚠️" if vs_prev <= -10 else ""))
@@ -350,17 +420,32 @@ def month_summary(*, year: int | None = None, month: int) -> dict[str, Any]:
             tag = "🔴" if a < 50 else ("🟡" if a < 70 else "🟢")
             lines.append(f"  {tag} [{area}]: {s['correct']}/{s['total']}（{a}%） {_bar(a)}")
 
-    # 本月模考摘要
-    curr_exams = curr_stats["exams"]
-    if curr_exams:
+    # 本月考试记录（模考 / 章节练习分开）
+    mock_exams = curr_stats.get("mock_exams") or []
+    chapter_exams = curr_stats.get("chapter_exams") or []
+    if mock_exams:
         lines.append("")
-        lines.append(f"🏁 本月模考：{len(curr_exams)} 次")
-        for e in curr_exams:
+        lines.append(f"🏁 本月模考：{len(mock_exams)} 次")
+        for e in mock_exams:
             rate = _exam_rate(e)
             lines.append(
                 f"  · {e.get('exam_date', '?')[:10]} {e.get('exam_id', '模考')}: "
                 f"{rate}%（{e.get('correct_count', '?')}/{e.get('total_questions', '?')}）"
             )
+    if chapter_exams:
+        lines.append("")
+        lines.append(f"📚 本月章节练习：{len(chapter_exams)} 次")
+        for e in chapter_exams:
+            rate = _exam_rate(e)
+            lines.append(
+                f"  · {e.get('exam_date', '?')[:10]} {e.get('exam_id', '章节练习')}: "
+                f"{rate}%（{e.get('correct_count', '?')}/{e.get('total_questions', '?')}）"
+            )
+    if not mock_exams and not chapter_exams:
+        pass
+    elif not mock_exams:
+        lines.append("")
+        lines.append("🏁 本月模考：0 次")
 
     lines.extend([
         "",
@@ -393,7 +478,7 @@ def month_summary(*, year: int | None = None, month: int) -> dict[str, Any]:
         lines.append("  · 各域表现均衡，可加大模考频率")
 
     return {
-        "status": "ok" if graded or curr_exams else "empty",
+        "status": "ok" if graded or mock_exams or chapter_exams else "empty",
         "year": y,
         "month": month,
         "total": total,
@@ -412,10 +497,13 @@ def prep_summary(*, year: int | None = None) -> dict[str, Any]:
     y = year or EXAM_YEAR
     bank = QuestionBank()
     all_records = bank.list_all()
+    prep = _prep_start_date()
     graded = [
         r for r in all_records
         if r.get("is_correct") is not None and str(r.get("date", "")).startswith(str(y))
     ]
+    if prep:
+        graded = [r for r in graded if str(r.get("date", "")) >= prep]
 
     total = len(graded)
     correct = sum(1 for r in graded if r.get("is_correct"))
@@ -435,8 +523,10 @@ def prep_summary(*, year: int | None = None) -> dict[str, Any]:
 
     exams = _load_exam_records()
     year_exams = [e for e in exams if str(e.get("exam_date", "")).startswith(str(y))]
+    if prep:
+        year_exams = [e for e in year_exams if str(e.get("exam_date", "")) >= prep]
 
-    first_date = min((r.get("date") for r in graded if r.get("date")), default=None)
+    first_date = prep or min((r.get("date") for r in graded if r.get("date")), default=None)
     active_days = len({r.get("date") for r in graded if r.get("date")})
 
     by_area = _area_stats(graded)

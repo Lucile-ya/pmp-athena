@@ -145,6 +145,50 @@ def test_grade_batch() -> None:
     _clear_state()
 
 
+def test_grade_multichoice() -> None:
+    from pmp_athena.daily_practice import _clear_state, _save_state, grade_answers
+
+    _clear_state()
+    _save_state(
+        {
+            "mode": "fixed",
+            "date": "2026-07-24",
+            "label": "7月24日",
+            "questions": [
+                {
+                    "index": 1,
+                    "num": 1,
+                    "stem": "多选干系人",
+                    "options": {"A": "a", "B": "b", "C": "c", "D": "d", "E": "e"},
+                    "correct_answer": "ACD",
+                    "explanation": "测试",
+                    "knowledge_area": "干系人管理",
+                    "question_type": "multi",
+                },
+                {
+                    "index": 2,
+                    "num": 2,
+                    "stem": "单选",
+                    "options": {"A": "a", "B": "b", "C": "c", "D": "d"},
+                    "correct_answer": "B",
+                    "explanation": "",
+                    "knowledge_area": "综合",
+                    "question_type": "single",
+                },
+            ],
+            "current_index": 0,
+            "correct_count": 0,
+            "wrong_count": 0,
+            "wrong_items": [],
+        }
+    )
+    r = grade_answers("ACD")
+    assert r.get("status") == "question", r
+    assert "✅ 正确" in r.get("text", ""), r
+    assert r.get("question_index") == 2
+    _clear_state()
+
+
 def main() -> int:
     tests = [
         test_strip_header_preserves_stem,
@@ -152,6 +196,7 @@ def main() -> int:
         test_watermark_line_skipped,
         test_option_not_watermark_tail,
         test_grade_batch,
+        test_grade_multichoice,
         test_july16_pdf_if_present,
         test_july17_pdf_if_present,
         test_july20_pdf_if_present,

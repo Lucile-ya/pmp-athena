@@ -72,6 +72,8 @@ python -m pmp_athena.cli stats      # 查看向量库统计
 ```bash
 # ── 每日一练 ──
 python pmp_athena/daily_practice.py menu              # 未完成日期菜单
+python pmp_athena/daily_practice.py progress          # 扫描文件夹，完成/未完成进度
+python pmp_athena/daily_practice.py week-check        # 本周工作日完成情况
 python pmp_athena/daily_practice.py start --date 2026-07-31
 python pmp_athena/daily_practice.py grade ACCAB...    # 判卷（需先 start）
 python pmp_athena/daily_practice.py audit-content     # PDF 解析质量审计

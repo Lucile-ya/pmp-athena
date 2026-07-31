@@ -24,7 +24,7 @@ if ($LASTEXITCODE -ne 0) { Pop-Location; exit 1 }
 Pop-Location
 
 Write-Host "[3/4] Start bridge..."
-Start-Process -FilePath $NodeExe -ArgumentList "dist\main.js","start" -WorkingDirectory $BridgeDir -WindowStyle Hidden
+Start-Process -FilePath $NodeExe -ArgumentList "dist\main.js","start" -WorkingDirectory $BridgeDir -WindowStyle Minimized
 Start-Sleep 2
 
 $count = @(Get-CimInstance Win32_Process -Filter "name='node.exe'" -ErrorAction SilentlyContinue | Where-Object { Test-BridgeCommandLine $_.CommandLine }).Count

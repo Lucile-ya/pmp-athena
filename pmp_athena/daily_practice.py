@@ -16,7 +16,7 @@ import json
 import random
 import re
 import sys
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -576,6 +576,82 @@ def _clear_state() -> None:
         STATE_PATH.unlink()
 
 
+def progress() -> dict[str, Any]:
+    """扫描文件夹 + 对比 config，输出完整进度（无需 ingest）。"""
+    all_dates = list_available_dates()
+    completed = _load_completed()
+    done = [d for d in all_dates if d.isoformat() in completed]
+    incomplete = [d for d in all_dates if d.isoformat() not in completed]
+
+    if not all_dates:
+        text = (
+            "⚠️ pmp_notes/每日一练/ 下暂无 PDF。\n\n"
+            "请将培训机构 PDF 放入该文件夹，命名须含日期，例如：\n"
+            "  2609每日一练8月1日.pdf\n"
+            "  2609每日一练8月1日答案解析.pdf"
+        )
+        return {"status": "empty", "total_count": 0, "completed_count": 0, "text": text}
+
+    if not incomplete:
+        text = f"🎉 所有每日一练已全部完成！（共 {len(all_dates)} 天）"
+        return {
+            "status": "all_done",
+            "total_count": len(all_dates),
+            "completed_count": len(done),
+            "incomplete": [],
+            "text": text,
+        }
+
+    done_labels = "  ".join(_format_label(d) for d in done)
+    inc_labels = "  ".join(_format_label(d) for d in incomplete)
+    rate = round(len(done) / len(all_dates) * 100)
+    text = (
+        "📋 每日一练进度\n\n"
+        f"📂 文件夹共 {len(all_dates)} 天 PDF（实时扫描，无需 ingest）\n\n"
+        f"✅ 已完成（{len(done)} 天）:\n"
+        f" {done_labels or '（无）'}\n\n"
+        f"❌ 未完成（{len(incomplete)} 天）:\n"
+        f" {inc_labels}\n\n"
+        f"📊 完成率: {rate}%"
+    )
+    return {
+        "status": "ok",
+        "total_count": len(all_dates),
+        "completed_count": len(done),
+        "incomplete": [d.isoformat() for d in incomplete],
+        "text": text,
+    }
+
+
+def week_check(*, today: date | None = None) -> dict[str, Any]:
+    """检查本周一至周五已发布 PDF 的完成情况。"""
+    today = today or date.today()
+    # 本周一
+    monday = today - timedelta(days=today.weekday())
+    weekdays = [monday + timedelta(days=i) for i in range(5)]
+
+    available = {d.isoformat() for d in list_available_dates()}
+    completed = _load_completed()
+    published = [d for d in weekdays if d.isoformat() in available]
+    missing = [d for d in published if d.isoformat() not in completed]
+
+    if not published:
+        return {"status": "no_pdf", "text": ""}
+
+    if not missing:
+        text = "✅ 本周工作日每日一练已全部完成！继续保持～"
+        return {"status": "all_done", "missing": [], "text": text}
+
+    labels = "、".join(_format_label(d) for d in missing)
+    prefix = "📅 上周每日一练检查\n\n" if today.weekday() == 0 else "📅 周末每日一练检查\n\n"
+    text = (
+        f"{prefix}"
+        f"本周还有 {len(missing)} 天的每日一练未完成：{labels}\n\n"
+        "💡 建议在周末补上，保持做题手感！"
+    )
+    return {"status": "incomplete", "missing": [d.isoformat() for d in missing], "text": text}
+
+
 def menu(*, include_completed: bool = False) -> dict[str, Any]:
     incomplete = list_incomplete_dates()
     completed = _load_completed()
@@ -753,10 +829,19 @@ def start_session(*, target_date: date | None = None, random_mode: bool = False)
 
 
 def grade_answers(user_answer: str) -> dict[str, Any]:
-    """判卷入口：单字母逐题；多字母按顺序批量判卷。"""
+    """判卷入口：单选题可批量；多选题整串判当前题。"""
     raw = user_answer.strip().upper().replace(",", "").replace(" ", "")
     if not raw:
         return {"status": "error", "text": "⚠️ 请回复 A/B/C/D"}
+
+    state = _load_state()
+    if state and state.get("questions"):
+        idx = int(state.get("current_index", 0))
+        questions: list[dict] = state["questions"]
+        if 0 <= idx < len(questions):
+            if questions[idx].get("question_type") == "multi":
+                return grade_current(raw)
+
     if len(raw) == 1:
         return grade_current(raw)
     return grade_batch(raw)
@@ -1165,6 +1250,12 @@ def main() -> None:
     p_menu = sub.add_parser("menu", help="列出未完成日期")
     p_menu.add_argument("--json", action="store_true")
 
+    p_progress = sub.add_parser("progress", help="扫描文件夹，输出完成/未完成进度")
+    p_progress.add_argument("--json", action="store_true")
+
+    p_week = sub.add_parser("week-check", help="检查本周工作日每日一练完成情况")
+    p_week.add_argument("--json", action="store_true")
+
     p_resolve = sub.add_parser("resolve-date", help="解析用户日期")
     p_resolve.add_argument("text")
     p_resolve.add_argument("--json", action="store_true")
@@ -1223,6 +1314,10 @@ def main() -> None:
 
     if args.command == "menu":
         result = menu()
+    elif args.command == "progress":
+        result = progress()
+    elif args.command == "week-check":
+        result = week_check()
     elif args.command == "resolve-date":
         d = resolve_date(args.text)
         incomplete = {x.isoformat() for x in list_incomplete_dates()}
