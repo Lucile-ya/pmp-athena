@@ -8,6 +8,13 @@ pmp_notes/error_review_state.json
 pmp_notes/exam_records.json
 pmp_notes/sprint_plans.json
 pmp_notes/exam_config.json
+pmp_notes/batch_practice_state.json
+pmp_notes/daily_practice_state.json
+pmp_notes/mock_exam_state.json
+pmp_notes/knowledge_mastery.json
+pmp_notes/bedtime_tracker.json
+pmp_notes/chapter_practice_pending.json
+pmp_notes/plain_question_pending.json
 
 # ── Python ────────────────────────────────────────────────
 __pycache__/

@@ -78,40 +78,203 @@ def _extract_pdf_text(path: Path) -> str:
     return "\n".join(parts)
 
 
+_WATERMARK_ONLY = re.compile(r"^[料资部内育教迹骐练一日每\s]+$")
+
+
 def _strip_watermark(text: str) -> str:
-    return re.sub(r"[料资部内育教迹骐练一日每]", "", text)
+    """去掉水印行/短语，不逐字剥离（避免「一个→个」「内部→部」）。"""
+    if not text:
+        return text
+    text = text.replace("内部资料", "")
+    lines: list[str] = []
+    for line in text.split("\n"):
+        s = line.strip()
+        if not s or _WATERMARK_ONLY.match(s):
+            continue
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def _is_watermark_line(line: str) -> bool:
+    s = line.strip()
+    return not s or s == "内部资料" or bool(_WATERMARK_ONLY.match(s))
+
+
+def _strip_question_header(line: str) -> str:
+    """去掉题号/题型标签，避免 [单选] 被误当成第二个【】块吞掉整行题干。"""
+    line = line.strip()
+    line = re.sub(r"^\d+[\.．]\s*", "", line)
+    line = re.sub(r"^【[^】]*】\s*", "", line)
+    line = re.sub(r"^[料资部内育教迹骐练一日每\s]+", "", line)
+    line = re.sub(r"^\[(?:单选|多选)[^\]]*\]\s*", "", line)
+    return line.strip()
+
+
+def _remove_inline_watermark_chars(text: str) -> str:
+    """去掉带空格的水印字符，或已知错字模式（不泛化剥离「一/教」等常用字）。"""
+    text = re.sub(
+        r"(?<=[\u4e00-\u9fff])\s+[料资部内育教迹骐练]\s+(?=[\u4e00-\u9fff])",
+        "",
+        text,
+    )
+    return text
+
+
+def _fix_watermark_typos(stem: str) -> str:
+    """修复 PDF 水印插入导致的常见错字。"""
+    for old, new in (
+        ("项目经部理", "项目经理"),
+        ("经部理", "经理"),
+        ("（）", "（SMEs）"),
+        ("包育含", "包含"),
+        ("时内间", "时间"),
+        ("以便部团队", "以便团队"),
+        ("干系资人", "干系人"),
+        ("包括干部系人", "包括干系人"),
+        ("资育源", "资源"),
+        ("并没 骐有", "并没有"),
+        ("并没骐有", "并没有"),
+        ("组织过程产", "组织过程资产"),
+        ("经验训登记册", "经验教训登记册"),
+        ("分配名源", "分配一名资源"),
+        ("问题志", "问题日志"),
+        ("问育题", "问题"),
+        ("给内团队", "给团队"),
+        ("下发给内团队", "下发给团队"),
+        ("评估教费用", "评估费用"),
+        ("料. ", ""),
+        ("料.", ""),
+    ):
+        stem = stem.replace(old, new)
+    stem = _remove_inline_watermark_chars(stem)
+    stem = re.sub(r"^[单选多选\s]+", "", stem)
+    stem = re.sub(r"([，,])[料资部内育教迹骐练一日每\s]+(并)", r"\1\2", stem)
+    stem = re.sub(r"([A-E])\s+(公司)", r"\1\2", stem)
+    idx = stem.find("？")
+    if idx >= 0:
+        stem = stem[: idx + 1]
+    else:
+        q = stem.find("?")
+        if q >= 0:
+            stem = stem[: q + 1]
+    stem = re.sub(r"[料资部内育教迹骐练一日每\s]+$", "", stem)
+    stem = re.sub(r"\s+", " ", stem).strip()
+    return stem
+
+
+def _clean_stem_legacy(stem: str) -> str:
+    """旧版 PDF：中文题干 + 英文对照。"""
+    stem = stem.replace("（SMEs）", "\ufffcSMEs\ufffc")
+    stem = re.sub(r"[A-Za-z][A-Za-z0-9'\",.;:()\-/\s]{8,}", " ", stem)
+    stem = stem.replace("\ufffcSMEs\ufffc", "（SMEs）")
+    stem = re.sub(r"\s+", " ", stem).strip()
+    parts = re.findall(r"[\u4e00-\u9fff0-9A-Za-z，。、；;（）()\"'\s？?]+", stem)
+    merged = "".join(p.strip() for p in parts if len(p.strip()) >= 1)
+    return _fix_watermark_typos(merged)
 
 
 def _clean_stem(stem: str) -> str:
-    """优先保留中文题干，去掉 PDF 噪声。"""
+    """优先保留中文题干，去掉 PDF 噪声与双语 PDF 中的英文段落。"""
     stem = _strip_watermark(re.sub(r"\s+", " ", stem).strip())
-    candidates = re.findall(
-        r"[\u4e00-\u9fff][\u4e00-\u9fff\d，。、；;（）()\"'\s]*[？?]",
-        stem,
+    legacy = _clean_stem_legacy(stem)
+    legacy_has_english = bool(
+        re.search(r"(?<![（(])[A-Za-z]{4,}(?![）)])", legacy)
     )
-    if candidates:
-        return max(candidates, key=len).strip()[:500]
-    cn_segments = re.findall(
-        r"[\u4e00-\u9fff][\u4e00-\u9fff\d，。、？?：:；;（）()\"''\sA-Za-z-]*[\u4e00-\u9fff？?。]",
-        stem,
-    )
+    cn_segments = _extract_chinese_segments(stem)
     if cn_segments:
-        return max(cn_segments, key=len).strip()[:500]
-    return stem[:500]
+        with_q = [s for s in cn_segments if s.rstrip().endswith(("？", "?"))]
+        pick = max(with_q or cn_segments, key=len)
+        use_segment = legacy_has_english or len(pick) > len(legacy)
+        if use_segment and len(pick) >= 12:
+            return pick[:500]
+    return legacy[:500] if legacy else stem[:500]
+
+
+_PAREN_ACRONYM = re.compile(r"（[A-Za-z]{2,12}）")
+_CHINESE_BEFORE_ENGLISH = re.compile(
+    r"(?<=[。！？?；;：:）\)""''\u4e00-\u9fff])(?=[A-Za-z])"
+    r"|\s+(?=[A-Z][a-z])",
+)
+_LATIN_RUN = re.compile(r"[A-Za-z][A-Za-z0-9'\",.;:()\-/\s]*")
+_WM_TRAIL = re.compile(r"[料资部内育教迹骐练一日每\s]+$")
+_WM_AFTER_PUNCT = re.compile(r"([。！？?])[料资部内育教迹骐练一日每\s]+$")
+
+
+def _split_chinese_before_english(text: str) -> str:
+    parts = _CHINESE_BEFORE_ENGLISH.split(text, maxsplit=1)
+    return parts[0].strip()
+
+
+def _strip_latin_preserve_acronyms(cn: str) -> str:
+    protected: dict[str, str] = {}
+
+    def _keep(m: re.Match[str]) -> str:
+        key = f"\ufffd{len(protected)}\ufffd"
+        protected[key] = m.group(0)
+        return key
+
+    cn = _PAREN_ACRONYM.sub(_keep, cn)
+    cn = _LATIN_RUN.sub("", cn)
+    for key, value in protected.items():
+        cn = cn.replace(key, value)
+    return cn
+
+
+def _strip_option_tail_noise(cn: str) -> str:
+    cn = _WM_AFTER_PUNCT.sub(r"\1", cn)
+    cn = _WM_TRAIL.sub("", cn)
+    return cn.strip()
+
+
+def _extract_chinese_segments(text: str) -> list[str]:
+    """从双语选项文本中提取中文片段（兼容中文在前/英文在前两种 PDF）。"""
+    segments = re.findall(
+        r"[\u4e00-\u9fff][\u4e00-\u9fff0-9（）()、，。：；\s"
+        r"\"'\u201c\u201dA-Za-z-？?]*[\u4e00-\u9fff。？?]?",
+        text,
+    )
+    cleaned: list[str] = []
+    for seg in segments:
+        seg = re.sub(r"^[料资部内育教迹骐练一日每\s]+", "", seg.strip())
+        if re.search(r"分值|单选题|多选题|问答题", seg):
+            continue
+        seg = _strip_latin_preserve_acronyms(seg)
+        seg = _strip_option_tail_noise(_fix_watermark_typos(seg))
+        seg = re.sub(r"\s+", " ", seg).strip()
+        cn_count = len(re.findall(r"[\u4e00-\u9fff]", seg))
+        latin_count = len(re.findall(r"[A-Za-z]", seg))
+        if cn_count < 2 or latin_count > cn_count:
+            continue
+        if _WATERMARK_ONLY.match(seg.replace(" ", "")):
+            continue
+        cleaned.append(seg)
+    if not cleaned:
+        return []
+    cleaned.sort(key=len, reverse=True)
+    top: list[str] = []
+    for seg in cleaned:
+        if any(seg in other and seg != other for other in cleaned):
+            continue
+        top.append(seg)
+    return top or cleaned
 
 
 def _clean_option(text: str) -> str:
-    text = _strip_watermark(re.sub(r"\s+", " ", text).strip())
-    parts = re.split(r"(?<=[a-zA-Z\.])\s+(?=[\u4e00-\u9fff])", text)
-    for part in reversed(parts):
-        if re.search(r"[\u4e00-\u9fff]", part):
-            cleaned = part.strip()
-            if len(cleaned) >= 4:
-                return cleaned[:120]
-    cn = re.findall(r"[\u4e00-\u9fff][\u4e00-\u9fff，。、？?：:；;（）()\s]*", text)
-    if cn:
-        return max(cn, key=len).strip()[:120]
-    return text[:120]
+    text = re.sub(r"\s+", " ", text.strip()).replace("内部资料", "")
+    text = re.sub(r"\s+[料资部内育教迹骐练一日每\s]+$", "", text)
+    text = _fix_watermark_typos(text)
+
+    segments = _extract_chinese_segments(text)
+    if segments:
+        return max(segments, key=len)[:120]
+
+    # 旧版 PDF：中文在前、英文在后
+    cn = _split_chinese_before_english(text)
+    cn = re.sub(r"^[料资部内育教迹骐练一日每\s]+", "", cn)
+    cn = _strip_latin_preserve_acronyms(cn)
+    cn = _strip_option_tail_noise(_fix_watermark_typos(cn))
+    cn = re.sub(r"\s+", " ", cn).strip()
+    return cn[:120] if cn else ""
 
 
 def _guess_knowledge_area(stem: str, explanation: str = "") -> str:
@@ -203,13 +366,15 @@ def _parse_questions(text: str) -> list[dict[str, Any]]:
             if om:
                 current = om.group(1).upper()
                 opts[current] = om.group(2)
-            elif current and current in opts and not re.match(r"^\d+\.", line):
+            elif current and current in opts and not re.match(r"^\d+[\.．]", line):
+                if _is_watermark_line(line):
+                    continue
                 opts[current] += " " + line
             elif not opts:
-                if re.match(r"^\d+\.", line):
-                    line = re.sub(r"^\d+\.\s*【[^】]*】[^】]*\s*", "", line)
-                    line = re.sub(r"^\d+\.\s*", "", line)
-                    line = re.sub(r"\[(?:单选|多选)[^\]]*\]\s*", "", line)
+                if re.match(r"^\d+[\.．]", line):
+                    line = _strip_question_header(line)
+                if _is_watermark_line(line):
+                    continue
                 stem_lines.append(line)
 
         min_opts = 2 if is_multi else 4
@@ -587,6 +752,96 @@ def start_session(*, target_date: date | None = None, random_mode: bool = False)
     }
 
 
+def grade_answers(user_answer: str) -> dict[str, Any]:
+    """判卷入口：单字母逐题；多字母按顺序批量判卷。"""
+    raw = user_answer.strip().upper().replace(",", "").replace(" ", "")
+    if not raw:
+        return {"status": "error", "text": "⚠️ 请回复 A/B/C/D"}
+    if len(raw) == 1:
+        return grade_current(raw)
+    return grade_batch(raw)
+
+
+def grade_batch(user_answer: str) -> dict[str, Any]:
+    raw = user_answer.strip().upper().replace(",", "").replace(" ", "")
+    if not re.fullmatch(r"[A-E]+", raw):
+        return {"status": "error", "text": "⚠️ 答案格式有误，请回复字母如 ACCAB"}
+
+    state = _load_state()
+    if not state or not state.get("questions"):
+        return {
+            "status": "error",
+            "text": "⚠️ 当前没有进行中的每日一练，请发送「每日一练」开始。",
+        }
+
+    remaining = len(state["questions"]) - state["current_index"]
+    if len(raw) > remaining:
+        return {
+            "status": "error",
+            "text": f"⚠️ 提交了 {len(raw)} 个答案，但只剩 {remaining} 题。请核对后重发。",
+        }
+
+    start_correct = state["correct_count"]
+    start_wrong_len = len(state.get("wrong_items", []))
+    batch_correct = 0
+    batch_wrong: list[dict[str, Any]] = []
+
+    last_result: dict[str, Any] | None = None
+    for letter in raw:
+        state_before = _load_state() or {}
+        correct_before = state_before.get("correct_count", 0)
+        last_result = grade_current(letter)
+        if last_result.get("status") == "error":
+            return last_result
+        state_mid = _load_state()
+        if state_mid:
+            batch_correct += state_mid.get("correct_count", 0) - correct_before
+            batch_wrong = state_mid.get("wrong_items", [])[start_wrong_len:]
+        elif last_result.get("done"):
+            if (last_result.get("text") or "").lstrip().startswith("✅"):
+                batch_correct += 1
+            batch_wrong = (last_result.get("wrong_items") or [])[start_wrong_len:]
+
+    assert last_result is not None
+    if last_result.get("done") and not batch_wrong:
+        batch_wrong = (last_result.get("wrong_items") or [])[start_wrong_len:]
+    graded = len(raw)
+
+    lines = [f"📊 批量判卷：正确 {batch_correct}/{graded}"]
+    if batch_wrong:
+        lines.append("")
+        for w in batch_wrong:
+            expl = (w.get("explanation") or "")[:80]
+            line = (
+                f"❌ Q{w['index']} [{w['knowledge_area']}]: "
+                f"你的 {w['my_answer']} → 正确 {w['correct_answer']}"
+            )
+            if expl:
+                line += f"\n  解析: {expl}"
+            lines.append(line)
+
+    if last_result.get("done"):
+        lines.append("")
+        total = last_result.get("total", graded)
+        correct_total = last_result.get("correct", batch_correct)
+        rate = last_result.get("rate", 0)
+        lines.append(f"📋 每日一练完成：正确 {correct_total}/{total}（{rate}%）")
+        finish_text = last_result.get("text", "")
+        if "💾 已记录完成" in finish_text:
+            for fl in finish_text.split("\n"):
+                if fl.startswith("💾"):
+                    lines.append(fl)
+                    break
+        return {**last_result, "text": "\n".join(lines)}
+
+    q_part = last_result.get("text", "")
+    if "📝" in q_part:
+        q_part = q_part[q_part.find("📝") :]
+        lines.append("")
+        lines.append(q_part)
+    return {**last_result, "text": "\n".join(lines)}
+
+
 def grade_current(user_answer: str) -> dict[str, Any]:
     state = _load_state()
     if not state or not state.get("questions"):
@@ -715,6 +970,7 @@ def _finish_session(state: dict[str, Any], prefix_lines: list[str]) -> dict[str,
         "total": total,
         "rate": rate,
         "done": True,
+        "wrong_items": wrong_items,
         "text": "\n".join(lines),
     }
 
@@ -811,6 +1067,97 @@ def _format_audit_report(
     return "\n".join(lines)
 
 
+_WM_CHAR_SET = set("料资部内育教迹骐练一日每")
+
+
+def _inspect_question_quality(q: dict[str, Any]) -> list[str]:
+    """检查单题题干/选项的内容质量问题。"""
+    issues: list[str] = []
+    num = q.get("num", "?")
+    stem = q.get("stem", "")
+    opts: dict[str, str] = q.get("options", {})
+
+    if len(stem) < 12:
+        issues.append(f"Q{num} 题干过短")
+    if "（）" in stem or "()" in stem:
+        issues.append(f"Q{num} 题干空括号")
+    if re.search(r"(?<![（(])[A-Za-z]{4,}(?![）)])", stem):
+        issues.append(f"Q{num} 题干含英文")
+    if re.search(r"[料资部内育教迹骐练一日每]$", stem.strip()):
+        issues.append(f"Q{num} 题干末尾水印")
+
+    need = 4 if q.get("question_type") != "multi" else 2
+    if len(opts) < need:
+        issues.append(f"Q{num} 选项不足({len(opts)}/{need})")
+
+    for key, val in sorted(opts.items()):
+        label = f"Q{num}{key}"
+        if not val.strip():
+            issues.append(f"{label} 为空")
+            continue
+        if _WATERMARK_ONLY.match(val.replace(" ", "")):
+            issues.append(f"{label} 仅水印")
+        if "（）" in val or re.search(r"（\s*）", val):
+            issues.append(f"{label} 空括号")
+        if re.search(r"(?<![（(])[A-Za-z]{4,}(?![）)])", val):
+            issues.append(f"{label} 含英文")
+        if re.search(r"[。！？?][料资部内育教迹骐练]$", val):
+            issues.append(f"{label} 句号后水印")
+        if re.search(r"[料资部内育教迹骐练]$", val):
+            issues.append(f"{label} 末尾水印")
+    return issues
+
+
+def audit_content(*, expect_count: int = 10) -> dict[str, Any]:
+    """逐题检查全部每日一练的题干与选项内容质量。"""
+    rows: list[dict[str, Any]] = []
+    ok_count = 0
+    total_issues = 0
+
+    for d in list_available_dates():
+        label = _format_label(d)
+        row: dict[str, Any] = {"date": d.isoformat(), "label": label, "ok": False, "issues": []}
+        try:
+            merged = load_questions_for_date(d)
+            if len(merged) != expect_count:
+                row["issues"].append(f"题量 {len(merged)}/{expect_count}")
+            for q in merged:
+                row["issues"].extend(_inspect_question_quality(q))
+            row["ok"] = not row["issues"]
+            if row["ok"]:
+                ok_count += 1
+            else:
+                total_issues += len(row["issues"])
+        except Exception as e:
+            row["issues"].append(str(e))
+        rows.append(row)
+
+    lines = [
+        "📋 每日一练 题干/选项 质量审计",
+        f"✅ 无问题: {ok_count}/{len(rows)} 天",
+        f"⚠️ 共 {total_issues} 条问题",
+        "",
+    ]
+    for r in rows:
+        if r["ok"]:
+            lines.append(f"✅ {r['label']}")
+        else:
+            lines.append(f"❌ {r['label']}:")
+            for issue in r["issues"][:12]:
+                lines.append(f"   · {issue}")
+            if len(r["issues"]) > 12:
+                lines.append(f"   · …还有 {len(r['issues']) - 12} 条")
+
+    return {
+        "status": "ok" if ok_count == len(rows) else "issues",
+        "ok_days": ok_count,
+        "total_days": len(rows),
+        "total_issues": total_issues,
+        "rows": rows,
+        "text": "\n".join(lines),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="每日一练")
     sub = parser.add_subparsers(dest="command")
@@ -835,6 +1182,27 @@ def main() -> None:
     p_audit = sub.add_parser("audit", help="审计全部 PDF 解析完整性")
     p_audit.add_argument("--json", action="store_true")
     p_audit.add_argument("--expect", type=int, default=10, help="期望题数")
+
+    p_content = sub.add_parser("audit-content", help="审计题干与选项内容质量")
+    p_content.add_argument("--json", action="store_true")
+    p_content.add_argument("--expect", type=int, default=10, help="期望题数")
+
+    p_batch = sub.add_parser("batch", help="App 批量题收录/判卷（多题+答案串）")
+    p_batch.add_argument("--questions", help="题目全文（含题号、选项、我的答案是）")
+    p_batch.add_argument("--stdin", action="store_true", help="从标准输入读取题目全文")
+    p_batch.add_argument("--key", help="标准答案串，如 CCCAB（可选；无则先收录待补录）")
+    p_batch.add_argument("--json", action="store_true")
+
+    p_bupd = sub.add_parser("batch-update", help="补录批量题标准答案")
+    p_bupd.add_argument("num", type=int, help="题号，如 41")
+    p_bupd.add_argument("--correct-answer", "-c", required=True)
+    p_bupd.add_argument("--explanation", "-e", default="")
+    p_bupd.add_argument("--json", action="store_true")
+
+    p_bupd_t = sub.add_parser("batch-update-text", help="从自然语言补录，如「更新41题，正确答案是 B」")
+    p_bupd_t.add_argument("text", nargs="?", default="")
+    p_bupd_t.add_argument("--stdin", action="store_true")
+    p_bupd_t.add_argument("--json", action="store_true")
 
     args = parser.parse_args()
 
@@ -867,9 +1235,50 @@ def main() -> None:
         td = date.fromisoformat(args.date) if args.date else None
         result = start_session(target_date=td, random_mode=args.random)
     elif args.command == "grade":
-        result = grade_current(args.answer)
+        result = grade_answers(args.answer)
     elif args.command == "audit":
         result = audit_pdfs(expect_count=args.expect)
+    elif args.command == "audit-content":
+        result = audit_content(expect_count=args.expect)
+    elif args.command == "batch":
+        try:
+            from pmp_athena.batch_practice import batch_ingest
+        except ModuleNotFoundError:
+            from batch_practice import batch_ingest
+        body = args.questions or ""
+        if args.stdin:
+            body = sys.stdin.read()
+        if not body.strip():
+            result = {"status": "error", "text": "⚠️ 请提供题目文本（--questions 或 --stdin）"}
+        else:
+            result = batch_ingest(body, answer_key=args.key)
+    elif args.command == "batch-update":
+        try:
+            from pmp_athena.batch_practice import batch_update
+        except ModuleNotFoundError:
+            from batch_practice import batch_update
+        result = batch_update(
+            args.num,
+            correct_answer=args.correct_answer,
+            explanation=args.explanation,
+        )
+    elif args.command == "batch-update-text":
+        try:
+            from pmp_athena.batch_practice import batch_update, parse_batch_update_command
+        except ModuleNotFoundError:
+            from batch_practice import batch_update, parse_batch_update_command
+        body = args.text or ""
+        if args.stdin:
+            body = sys.stdin.read()
+        parsed = parse_batch_update_command(body)
+        if not parsed:
+            result = {"status": "error", "text": "⚠️ 无法解析，格式：更新41题，正确答案是 B，解析：xxx"}
+        else:
+            result = batch_update(
+                parsed["num"],
+                correct_answer=parsed["correct_answer"],
+                explanation=parsed["explanation"],
+            )
     else:
         result = menu()
 
