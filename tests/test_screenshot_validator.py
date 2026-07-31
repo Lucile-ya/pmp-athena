@@ -8,7 +8,7 @@ from pathlib import Path
 
 from PIL import Image
 
-# 允许直接 python pmp_athena/test_screenshot_validator.py
+# 允许直接 python tests/test_screenshot_validator.py
 _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))

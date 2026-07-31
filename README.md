@@ -217,8 +217,12 @@ pmp_athena/
 ### 测试
 
 ```bash
-python pmp_athena/test_daily_practice_parser.py   # PDF 解析回归
-python pmp_athena/test_batch_practice.py          # 批量刷题解析
+# 运行全部单元测试
+python -m unittest discover -s tests -t . -v
+
+# 单个模块
+python tests/test_daily_practice_parser.py   # PDF 解析回归
+python tests/test_batch_practice.py          # 批量刷题解析
 python pmp_athena/daily_practice.py audit-content # 全部每日一练 PDF 内容审计
 ```
 
