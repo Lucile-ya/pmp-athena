@@ -646,9 +646,33 @@ def _batch_grade_questions(
             }
 
         existing = _find_bank_by_dedup(q["stem"])
-        if existing and existing.get("my_answer") == my_ans.upper() and existing.get("correct_answer") == std_ans:
+        if (
+            existing
+            and existing.get("my_answer") == my_ans.upper()
+            and std_ans
+            and existing.get("correct_answer") == std_ans
+        ):
             by_num[str(num)] = _by_entry(
                 bank_id=existing["id"], my=my_ans.upper(), ca=std_ans, pending=False
+            )
+            if my_ans.upper() == std_ans:
+                correct_nums.append(num)
+            else:
+                wrong_nums.append(num)
+            skipped.append(num)
+            continue
+
+        if (
+            existing
+            and existing.get("my_answer") == my_ans.upper()
+            and not std_ans
+            and existing.get("bank_id")
+        ):
+            by_num[str(num)] = _by_entry(
+                bank_id=existing["id"],
+                my=my_ans.upper(),
+                ca=existing.get("correct_answer", ""),
+                pending=not existing.get("correct_answer"),
             )
             skipped.append(num)
             continue
@@ -706,12 +730,19 @@ def _batch_grade_questions(
             lines.append(f"❌ 错题：{'、'.join(str(n) for n in wrong_nums)}（{len(wrong_nums)} 题）")
         if correct_nums:
             lines.append(f"✅ 正确：{'、'.join(str(n) for n in correct_nums)}（{len(correct_nums)} 题）")
-        lines.append("💾 错题已同步 question_bank + error_log + error_review_state")
+        if wrong_nums:
+            lines.append("💾 错题已同步 question_bank + error_log + error_review_state")
+        elif correct_nums and not skipped:
+            lines.append("💾 已写入 question_bank")
+        elif skipped and not wrong_nums and not correct_nums:
+            lines.append("📌 本题之前已收录，未重复写入")
     else:
-        lines.append("⏳ 标准答案待补录（发：更新41题，正确答案是 C，解析：xxx）")
+        lines.append("⏳ 标准答案待补录（发：更新1题，正确答案是 B，解析：xxx）")
         lines.append("💾 做题记录已写入 question_bank（待判卷）")
-    if skipped:
-        lines.append(f"📌 已存在同题同答，跳过：{'、'.join(str(n) for n in skipped)}")
+    if skipped and key and (wrong_nums or correct_nums):
+        dup = [n for n in skipped if n not in wrong_nums and n not in correct_nums]
+        if dup:
+            lines.append(f"📌 已存在同题同答，跳过：{'、'.join(str(n) for n in dup)}")
 
     return {
         "status": "ok",
