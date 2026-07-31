@@ -127,14 +127,16 @@ class ExamRecorder:
         time_used_minutes: int = 0,
         scores: dict[str, float] | None = None,
         weak_areas: list[str] | None = None,
-        knowledge_areas: dict[str, float] | None = None,
+        knowledge_areas: dict | None = None,
         status: str = "completed",
+        exam_type: str | None = None,
+        source: str | None = None,
     ) -> dict:
         """
-        添加一条完整的模考记录。
+        添加一条完整的模考/练习记录。
 
         Args:
-            exam_id: 模考标识（如"模考卷二"）
+            exam_id: 模考标识（如"模考卷二"、"章节练习_范围管理"）
             total_questions: 总题数
             correct_count: 正确题数
             wrong_count: 错误题数
@@ -142,8 +144,11 @@ class ExamRecorder:
             time_used_minutes: 用时（分钟）
             scores: {"people": 0.72, "process": 0.78, "business_environment": 0.85}
             weak_areas: 薄弱知识领域列表
-            knowledge_areas: 各知识领域的正确率 {"整合管理": 0.8, "质量管理": 0.6, ...}
+            knowledge_areas: 各知识领域正确率或明细
+                {"整合管理": 0.8} 或 {"范围管理": {"correct": 6, "total": 30, "rate": 0.2}}
             status: 状态
+            exam_type: 记录类型（如 chapter_practice）
+            source: 来源（如 截图录入）
         Returns:
             写入的完整记录
         """
@@ -176,6 +181,11 @@ class ExamRecorder:
         # 可选：详细知识领域正确率
         if knowledge_areas:
             record["knowledge_areas"] = knowledge_areas
+
+        if exam_type:
+            record["type"] = exam_type
+        if source:
+            record["source"] = source
 
         data["exams"].append(record)
         self._write(data)
@@ -256,6 +266,8 @@ def main():
     p_add.add_argument("--weak-areas", type=str, default="[]", help='JSON: ["质量管理","干系人管理"]')
     p_add.add_argument("--knowledge-areas", type=str, default=None, help='JSON: {"整合管理":0.8,...}')
     p_add.add_argument("--status", default="completed")
+    p_add.add_argument("--type", dest="exam_type", default=None, help="记录类型，如 chapter_practice")
+    p_add.add_argument("--source", default=None, help="来源，如 截图录入")
 
     # list
     sub.add_parser("list", help="列出所有模考")
@@ -306,6 +318,8 @@ def main():
             weak_areas=weak_areas,
             knowledge_areas=knowledge_areas,
             status=args.status,
+            exam_type=args.exam_type,
+            source=args.source,
         )
 
         print(f"✅ 模考记录已写入 exam_records.json (#{len(recorder.list_all())})")

@@ -413,7 +413,19 @@ python pmp_athena/question_bank.py add ... --is-correct false --error-log-id <N>
 3. 三个文件中的题目、my_answer、correct_answer、knowledge_area 保持一致
 
 ## 发图录入错题（硬性要求）
-当用户发送一张题目截图并说 **"录入错题"** 时，自动执行 OCR 提取 + 入库流程：
+
+当用户**发图**并满足以下**任一**条件时，自动执行 OCR 提取 + 入库流程：
+
+### 触发条件
+
+**配文触发**（发图时的文字说明）：
+- 「我的答案是 X，正确答案是 Y」
+- 「正确答案是 X」
+- 「选错了」/「这题错了」/「答错了」
+- 「录入错题」/「录错题」/「错题录入」/「截图录入」
+
+**图中 OCR 自动识别**（无需配文）：
+- 截图含「我的答案」+「正确答案」字样（刷题 App 作答结果页 → `error_result`）
 
 ### 执行流程
 
@@ -464,6 +476,106 @@ python pmp_athena/question_bank.py add --question "<题干>" --my-answer "<用�
    📝 题干: <题干摘要>
    ❌ 你的答案: X → ✅ 正确答案: Y
    💾 已同步 question_bank.json + error_review_state.json
+```
+
+## 多图关联入库（硬性要求）
+
+当用户在**一条消息**中发送**多张**错题相关截图时：
+
+### 处理流程
+
+1. **逐张 OCR** 识别每张截图。
+2. **语义合并**：
+   - **主记录**：含题干 / 选项 / 我的答案 / 正确答案 的截图
+   - **副记录**：含「解析」「【解析】」「答案详解」的截图
+   - **关联键**：题干前 **20 字** 或题号（`Q1`、`第1题`、`1、`）
+3. **兜底配对**：仅 1 张主图 + 1 张副图时，即使题号/题干不完全匹配也强制关联。
+4. **入库**：合并后调用 `record_answer.py wrong`（三文件同步）；副图解析追加到 `explanation`（≤200 字）。
+5. **无法匹配**时返回：
+
+```
+⚠️ 无法自动匹配多图内容，请确认：
+  图1（题目）：…
+  图2（解析）：…
+💡 可回复「图2是图1的解析」，或合并配文：我的答案 X，正确答案 Y
+```
+
+### CLI
+
+```
+d:\miniconda\python.exe pmp_athena/multi_screenshot_merge.py 题目.png 解析.png --caption "选错了" --json
+```
+
+### 微信桥接
+
+一条消息含 **≥2 张图** → 自动走 `multi_screenshot_merge.py` 硬路由（不经 Claude）。
+
+## 章节练习截图录入（硬性要求）
+
+当用户发来**练习统计截图**并指定章节名（如「范围管理」）时：
+
+### 触发
+
+- 发图 + 配文含知识领域名（`范围管理` / `范围` 等）
+- 或发图 + 「章节练习」「练习统计」「录入章节」+ 章节名
+- **不与错题录入冲突**（配文含「选错了」「我的答案是」等时走错题流程）
+
+### 流程
+
+1. OCR 提取：正确率、总题数、答对题数、用时
+2. 章节名 → PMP 知识领域映射
+3. 写入 `exam_records.json`：
+   - `exam_id`: `章节练习_{领域名}`
+   - `type`: `chapter_practice`
+   - `source`: `截图录入`
+   - `knowledge_areas`: `{ 领域: { correct, total, rate } }`
+4. 确认输出：
+
+```
+✅ 已录入 范围管理 章节练习
+📊 正确率：20%（6/30）
+⏱️ 用时：11 分钟
+💾 已同步到 exam_records.json，将参与趋势分析
+```
+
+### CLI
+
+```
+d:\miniconda\python.exe pmp_athena/chapter_practice_recorder.py record --image stats.png --chapter 范围管理 --json
+```
+
+## 纯题干截图 + 用户报选错（硬性要求）
+
+**场景**：截图只有题干+选项（PDF/Word/题库），无「正确答案/我的答案」标注。
+
+### 行为
+
+1. **先发图**：OCR 识别为 `plain_question`，先按 PMP 截图解析规则输出（答案+解析+记忆口诀），**同时**写入 `pmp_notes/pending_plain_question.json`。
+2. **用户随后报选错**（如「我选 A」「A」「我的答案是 B」）：
+   - 若已给出标准答案且用户选错 → **自动三文件入库**
+   - 若尚未给出标准答案 → 先记录 `my_answer`，等解析完成后自动入库
+3. **同条消息带选答**（发图配文「我选 A」）：保存 pending 时一并记录 `my_answer`，解析完成后自动入库。
+
+### 入库命令（自动执行，勿让用户手动跑）
+
+```
+d:\miniconda\python.exe pmp_athena/plain_question_store.py followup --text "我选A" --json
+d:\miniconda\python.exe pmp_athena/plain_question_store.py apply-parse --text "<Claude解析全文>" --json
+```
+
+或直接：
+
+```
+d:\miniconda\python.exe pmp_athena/record_answer.py wrong --question "..." --my-answer A --correct-answer B --knowledge-area "范围管理" --explanation "..." --source screenshot
+```
+
+### 确认格式
+
+```
+✅ 已录入错题 #N [领域]
+📝 题干: <摘要>
+❌ 你的答案: X → ✅ 正确答案: Y
+💾 已同步 question_bank.json + error_review_state.json
 ```
 
 ## 题库查询

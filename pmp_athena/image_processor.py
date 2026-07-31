@@ -284,12 +284,18 @@ class AnswerValidator:
         "单选题", "多选题", "判断题",
     ]
     QUESTION_TYPE_MARKERS = ["单选题", "多选题", "判断题"]
-    MY_ANSWER_MARKERS = ["我的答案", "你的答案", "选择的答案", "所选答案", "your answer", "my answer", "你选了"]
+    MY_ANSWER_MARKERS = [
+        "我的答案", "你的答案", "你上次的选择", "上次的选择", "上次选择",
+        "选择的答案", "所选答案", "your answer", "my answer", "你选了",
+    ]
+    _MY_ANSWER_LABEL = (
+        r"(?:我的答[案家]|你上次的选择|上次的选择|上次选择|你的答案|选择的答案|所选答案)"
+    )
     CORRECT_ANSWER_MARKERS = ["正确答案", "correct answer"]
     # "答案" 作为兜底但排除"我的答案""你的答案"等情况
     FALLBACK_ANSWER_MARKER = "答案"
     # 解析行——单独提取
-    EXPLANATION_MARKERS = ["解析", "解释", "explanation"]
+    EXPLANATION_MARKERS = ["解析", "收缩解析", "解释", "explanation"]
     # 有效选项（单选题 A-D；多选题可含 E）
     VALID_CHOICES = frozenset("ABCDE")
     VALID_CHOICES_SINGLE = frozenset("ABCD")
@@ -330,10 +336,13 @@ class AnswerValidator:
 
     # ── 公开 API ──────────────────────────────────────────
 
+    CAPTION_WRONG_MARKERS = ("选错了", "这题错了", "这题做错了", "答错了", "我做错了")
+
     def validate(
         self,
         image: Image.Image,
         ocr_text: str | None = None,
+        user_caption: str | None = None,
     ) -> dict:
         """
         分析图片，判断答案是否正确。
@@ -341,6 +350,7 @@ class AnswerValidator:
         Args:
             image: PIL Image（原始/压缩后的都行，用于颜色检测）
             ocr_text: OCR 提取的文字（如果已执行过 OCR）
+            user_caption: 用户发图时的配文（如「我的答案是A，正确答案是B」）
 
         Returns:
             {
@@ -385,6 +395,11 @@ class AnswerValidator:
             extracted = self._extract_question_info(text)
             answer_meta = extracted.pop("answer_confidence", {})
 
+        if user_caption and user_caption.strip():
+            verdict, extracted, answer_meta = self._apply_caption_hints(
+                verdict, extracted, answer_meta, user_caption.strip()
+            )
+
         # ── 5. 自动动作 ────────────────────────────────────
         my_conf = float(answer_meta.get("my", 0) or 0)
         correct_conf = float(answer_meta.get("correct", 0) or 0)
@@ -412,6 +427,17 @@ class AnswerValidator:
         if answer_meta.get("needs_user_confirm"):
             auto_action = "none"
 
+        screenshot_type = self.classify_screenshot_type(text) if text else "unknown"
+        if (
+            user_caption
+            and extracted.get("my_answer")
+            and extracted.get("correct_answer")
+            and my_conf >= 0.95
+            and correct_conf >= 0.95
+        ):
+            # 配文明确给出双答案 → 走错题入库，即便 OCR 判为纯题干
+            screenshot_type = "error_result"
+
         result = {
             "is_correct": verdict["is_correct"],
             "confidence": verdict["confidence"],
@@ -423,10 +449,79 @@ class AnswerValidator:
             "auto_action": auto_action,
             "human_confirm": needs_confirm,
             "needs_user_confirm": bool(answer_meta.get("needs_user_confirm")),
+            "screenshot_type": screenshot_type,
+            "formatted_question": (
+                self.format_question_for_display(extracted)
+                if screenshot_type == "plain_question"
+                else None
+            ),
         }
 
         self._cached_result = result
         return result
+
+    def _apply_caption_hints(
+        self,
+        verdict: dict,
+        extracted: dict,
+        answer_meta: dict,
+        caption: str,
+    ) -> tuple[dict, dict, dict]:
+        """合并用户发图配文中的答案信息（用户纠正 > OCR）。"""
+        try:
+            from pmp_athena.plain_question_store import parse_both_answers, parse_my_answer
+        except ImportError:
+            from plain_question_store import parse_both_answers, parse_my_answer
+
+        my, correct = parse_both_answers(caption)
+        if not my:
+            my = parse_my_answer(caption)
+
+        if not correct:
+            m = re.search(r"正确(?:答案)?[是为：:\s]*([A-Ea-e])", caption, re.IGNORECASE)
+            if m:
+                correct = m.group(1).upper()
+
+        explicit_wrong = any(m in caption for m in self.CAPTION_WRONG_MARKERS)
+        explicit_error_log = any(
+            k in caption for k in ("录入错题", "录错题", "错题录入", "截图录入")
+        )
+
+        if my and correct:
+            extracted["my_answer"] = my
+            extracted["correct_answer"] = correct
+            answer_meta["my"] = 0.98
+            answer_meta["correct"] = 0.98
+            answer_meta["my_method"] = "caption"
+            answer_meta["correct_method"] = "caption"
+            answer_meta["needs_user_confirm"] = False
+            verdict["is_correct"] = my == correct
+            verdict["confidence"] = max(float(verdict.get("confidence", 0) or 0), 0.95)
+            verdict["primary_signal"] = "caption_both_answers"
+        elif correct and not extracted.get("correct_answer"):
+            extracted["correct_answer"] = correct
+            answer_meta["correct"] = 0.95
+            answer_meta["correct_method"] = "caption"
+        elif my and not extracted.get("my_answer"):
+            extracted["my_answer"] = my
+            answer_meta["my"] = 0.95
+            answer_meta["my_method"] = "caption"
+
+        if explicit_wrong or explicit_error_log:
+            if extracted.get("my_answer") and extracted.get("correct_answer"):
+                verdict["is_correct"] = (
+                    extracted["my_answer"] == extracted["correct_answer"]
+                )
+                verdict["confidence"] = max(
+                    float(verdict.get("confidence", 0) or 0), 0.85
+                )
+            elif explicit_wrong and my:
+                verdict["is_correct"] = False
+                verdict["confidence"] = max(
+                    float(verdict.get("confidence", 0) or 0), 0.75
+                )
+
+        return verdict, extracted, answer_meta
 
     # ── 颜色检测 ──────────────────────────────────────────
 
@@ -641,6 +736,8 @@ class AnswerValidator:
             text.replace("我的答家", "我的答案")
             .replace("正确答案，", "正确答案:")
             .replace("正确答案,", "正确答案:")
+            .replace("你上次的选择", "我的答案")
+            .replace("上次的选择", "我的答案")
         )
 
     def _is_valid_choice(self, letter: str | None) -> bool:
@@ -668,12 +765,12 @@ class AnswerValidator:
         return None
 
     def _extract_labeled_my(self, text: str) -> str | None:
-        """其次从「我的答案：X」标注行提取（仅 A-E）。"""
+        """从「我的答案 / 你上次的选择」等标注行提取（仅 A-E）。"""
         normalized = self._normalize_answer_text(text)
         compact = re.sub(r"\s+", " ", normalized)
 
         combo = re.search(
-            rf"我的答[案家]\s*[:：,，]?\s*([A-Ea-e])\1?{self._CHOICE_TAIL}",
+            rf"{self._MY_ANSWER_LABEL}\s*[:：,，]?\s*([A-Ea-e])\1?{self._CHOICE_TAIL}",
             compact,
         )
         if combo and self._is_valid_choice(combo.group(1)):
@@ -681,16 +778,19 @@ class AnswerValidator:
 
         lines = normalized.split("\n")
         for i, line in enumerate(lines):
-            if "我的答" not in line:
+            if not re.search(self._MY_ANSWER_LABEL, line):
                 continue
-            m = re.search(rf"我的答[案家]\s*[:：,，]?\s*([A-Ea-e])\1?{self._CHOICE_TAIL}", line)
+            m = re.search(
+                rf"{self._MY_ANSWER_LABEL}\s*[:：,，]?\s*([A-Ea-e])\1?{self._CHOICE_TAIL}",
+                line,
+            )
             if m and self._is_valid_choice(m.group(1)):
                 return m.group(1).upper()
             for j in range(i + 1, min(i + 3, len(lines))):
                 nxt = lines[j].strip()
                 if re.match(r"^[A-Ea-e]{1,2}$", nxt) and self._is_valid_choice(nxt[0]):
                     return nxt[0].upper()
-                if nxt.startswith("解析"):
+                if nxt.startswith("解析") or nxt.startswith("收缩解析"):
                     break
         return None
 
@@ -720,7 +820,7 @@ class AnswerValidator:
         my_letter: str | None = None
         combo = re.search(
             r"正确答案\s*[:：,，]?\s*([A-Ea-e])\1?\s*"
-            rf"我的答[案家]\s*[:：,，]?\s*([A-Ea-e])\2?{self._CHOICE_TAIL}",
+            rf"{self._MY_ANSWER_LABEL}\s*[:：,，]?\s*([A-Ea-e])\2?{self._CHOICE_TAIL}",
             compact,
         )
         if combo:
@@ -728,6 +828,18 @@ class AnswerValidator:
                 correct_letter = combo.group(1).upper()
             if combo.group(2) and self._is_valid_choice(combo.group(2)):
                 my_letter = combo.group(2).upper()
+
+        if not my_letter or not correct_letter:
+            combo_rev = re.search(
+                rf"{self._MY_ANSWER_LABEL}\s*[:：,，]?\s*([A-Ea-e])\1?\s*"
+                r"正确答案\s*[:：,，]?\s*([A-Ea-e])\2?{self._CHOICE_TAIL}",
+                compact,
+            )
+            if combo_rev:
+                if self._is_valid_choice(combo_rev.group(1)):
+                    my_letter = combo_rev.group(1).upper()
+                if combo_rev.group(2) and self._is_valid_choice(combo_rev.group(2)):
+                    correct_letter = combo_rev.group(2).upper()
 
         # ── 1. 标注行（权威来源，覆盖不完整 combo）──
         if not correct_letter:
@@ -742,7 +854,12 @@ class AnswerValidator:
 
         # ── 2. 推断仅补全「我的答案」，永不覆盖标注的正确答案 ──
         inferred: str | None = None
-        if my_letter is None and correct_letter and (has_wrong_label or "我的答案" in text):
+        if my_letter is None and correct_letter and (
+            has_wrong_label
+            or "我的答案" in text
+            or "你上次的选择" in text
+            or "上次的选择" in text
+        ):
             inferred, inf_conf, inf_method = self._infer_wrong_option_with_confidence(text)
             if inferred and self._is_valid_choice(inferred):
                 my_letter = inferred
@@ -846,13 +963,80 @@ class AnswerValidator:
 
     def _parse_options(self, text: str) -> dict[str, str]:
         """解析 OCR 中的选项 A-E → 选项文字。"""
+        options = self._parse_options_lettered(text)
+        if len(options) >= 2:
+            return options
+        return self._parse_options_enumerated(text)
+
+    def _parse_options_lettered(self, text: str) -> dict[str, str]:
         options: dict[str, str] = {}
         for line in text.split("\n"):
             s = line.strip()
+            if self._is_ui_noise(s):
+                continue
             m = re.match(r"^([A-E])[.、．)]\s*(.+)$", s)
             if m:
                 options[m.group(1).upper()] = m.group(2).strip()
         return options
+
+    def _parse_options_enumerated(self, text: str) -> dict[str, str]:
+        """
+        解析无 A/B/C/D 字母前缀的选项（PDF/Word 截图常见）。
+
+        例：「、以下哪个…?」+「、项目管理计划…」+「批量生产…」
+        """
+        letters = ["A", "B", "C", "D", "E"]
+        options: dict[str, str] = {}
+        question_found = False
+
+        for line in text.split("\n"):
+            s = line.strip()
+            if self._is_ui_noise(s):
+                continue
+
+            if "?" in s or "？" in s:
+                question_found = True
+                continue
+
+            if not question_found:
+                continue
+
+            opt = s
+            opt = re.sub(r"^([A-E])[、.．)]\s*", "", opt)
+            opt = re.sub(r"^[、．.]+\s*", "", opt)
+            if len(opt) < 2:
+                continue
+
+            letter = letters[len(options)]
+            if len(options) >= 5:
+                break
+            options[letter] = opt
+
+        return options
+
+    def classify_screenshot_type(self, text: str) -> str:
+        """
+        截图类型：
+        - error_result: 刷题 App 作答结果（含正确答案/我的答案）
+        - plain_question: 纯题干+选项（PDF/文档/题库截图）
+        - unknown: 无法判定
+        """
+        if not text or not text.strip():
+            return "unknown"
+
+        error_markers = (
+            "作答错误", "作答正确", "正确答案", "我的答案", "我的答家",
+            "你上次的选择", "上次的选择", "答错了", "单选作答错误", "多选作答错误",
+        )
+        if any(m in text for m in error_markers):
+            return "error_result"
+
+        lines = [l.strip() for l in text.split("\n") if l.strip()]
+        question = self._extract_question_body(lines)
+        options = self._parse_options_full(text)
+        if question and len(options) >= 2:
+            return "plain_question"
+        return "unknown"
 
     def _match_option_by_text(
         self,
@@ -905,12 +1089,13 @@ class AnswerValidator:
             r"^\d+/\d+\s*$",
             r"^[<>]",
             r"ODS|wifi|GB\)",
+            r"^[口O中记加\s]{1,8}$",  # PDF/文档工具栏 OCR 噪音
         )
         return any(re.search(p, s) for p in noise)
 
     def _extract_question_body(self, lines: list[str]) -> str | None:
         """从 OCR 行列表中提取题干（跳过状态栏，在选项前截断）。"""
-        stop_markers = ("作答错误", "作答正确", "正确答案", "我的答案", "解析")
+        stop_markers = ("作答错误", "作答正确", "正确答案", "我的答案", "你上次的选择", "解析", "收缩解析")
 
         for i, line in enumerate(lines):
             for qtype in self.QUESTION_TYPE_MARKERS:
@@ -939,11 +1124,48 @@ class AnswerValidator:
             s = line.strip()
             if self._is_ui_noise(s):
                 continue
-            if re.match(r"^[A-E@][.、．)]", s) or any(m in s for m in stop_markers):
+            if re.match(r"^[A-E@][.、．)]", s) or re.match(r"^[@×✗✘❌]", s):
+                break
+            if any(m in s for m in stop_markers):
                 break
             if len(s) > len(best) and re.search(r"[\u4e00-\u9fff]", s):
                 best = s
+
+        # PDF/Word 题号格式：5、以下哪个…? 或 OCR 丢题号「、以下哪个…?」
+        for i, line in enumerate(lines):
+            s = line.strip()
+            if self._is_ui_noise(s):
+                continue
+            if "?" not in s and "？" not in s:
+                continue
+            parts: list[str] = []
+            for j in range(i - 1, -1, -1):
+                prev = lines[j].strip()
+                if self._is_ui_noise(prev):
+                    break
+                if re.match(r"^[A-E@][.、．)]", prev) or re.match(r"^[@×✗✘❌]", prev):
+                    break
+                if any(m in prev for m in stop_markers):
+                    break
+                parts.insert(0, prev)
+            stem = re.sub(r"^\d+[、.．)]\s*", "", s)
+            stem = re.sub(r"^[、．.]+\s*", "", stem)
+            parts.append(stem)
+            full = " ".join(p for p in parts if p)
+            if len(full) >= 8:
+                return full
+
         return best or None
+
+    def format_question_for_display(self, extracted: dict) -> str:
+        """格式化纯题目截图（供解析/互动）。"""
+        q = extracted.get("question") or "（题干未识别）"
+        options = extracted.get("options") or {}
+        lines = [f"📝 {q}"]
+        for letter in ("A", "B", "C", "D", "E"):
+            if letter in options:
+                lines.append(f"{letter}. {options[letter]}")
+        return "\n".join(lines)
 
     # ── 题目信息提取 ──────────────────────────────────────
 
@@ -1132,6 +1354,7 @@ def process_and_validate(
     run_ocr: bool = True,
     validate_answer: bool = True,
     auto_log_errors: bool = True,
+    user_caption: str | None = None,
 ) -> dict:
     """
     一站式处理：压缩 → OCR → 验证答案 → 错题记录。
@@ -1156,7 +1379,9 @@ def process_and_validate(
         try:
             img = Image.open(input_path)
             validator = AnswerValidator()
-            validation = validator.validate(img, result.get("ocr_text"))
+            validation = validator.validate(
+                img, result.get("ocr_text"), user_caption=user_caption
+            )
             result["answer_validation"] = validation
 
             # 自动记录错题（三文件同步）
@@ -1172,8 +1397,13 @@ def process_and_validate(
                             from .record_answer import record_wrong_answer
                         except ImportError:
                             from record_answer import record_wrong_answer
+                        bank_q = ext["question"] or "（OCR 题目提取不完整，请手动补充）"
+                        if ext.get("options"):
+                            bank_q = AnswerValidator().format_question_for_display(ext)
+                            if bank_q.startswith("📝 "):
+                                bank_q = bank_q[3:]
                         rec = record_wrong_answer(
-                            question=ext["question"] or "（OCR 题目提取不完整，请手动补充）",
+                            question=bank_q,
                             my_answer=ext["my_answer"],
                             correct_answer=ext["correct_answer"],
                             knowledge_area=ext.get("knowledge_area", "未分类"),
@@ -1300,6 +1530,12 @@ def main():
         action="store_true",
         help="答错时不自动记录到错题本",
     )
+    parser.add_argument(
+        "--caption",
+        type=str,
+        default=None,
+        help="用户发图配文（如：我的答案是A，正确答案是B）",
+    )
 
     # 默认模式：压缩 + OCR + 验证（需要 input）
     parser.add_argument("input", nargs="?", type=str, help="输入图片路径")
@@ -1320,6 +1556,7 @@ def main():
         run_ocr=not args.no_ocr,
         validate_answer=do_validate,
         auto_log_errors=auto_log,
+        user_caption=args.caption,
     )
 
     if args.json:
