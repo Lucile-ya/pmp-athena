@@ -34,6 +34,10 @@ _ANSWER_TAIL = re.compile(
     r"(?:我的答案(?:是)?|我选(?:了)?)[：:\s]*([A-E]+)\s*$",
     re.I | re.M,
 )
+_Q_NUM = re.compile(r"^(\d+)[\.．、]\s*")
+_Q_BLOCK_SPLIT = re.compile(r"(?=(?:^|\n)\d+[\.．、]\s*)")
+_PER_Q_ANS = re.compile(r"^(?:\d+[\.．、]\s*)?答案[：:\s]*([A-E])\s*$", re.I | re.M)
+_PER_Q_EXPL = re.compile(r"^(?:【解析】|解析[：:\s]*)(.*)", re.I | re.M)
 _BATCH_UPDATE = re.compile(
     r"更新\s*#?(\d+)\s*题",
     re.I,
@@ -46,10 +50,7 @@ _BATCH_UPDATE_EXPL = re.compile(
     r"解析[：:\s]*(.+)$",
     re.I | re.S,
 )
-_PER_Q_ANS = re.compile(r"^答案[：:\s]*([A-E])\s*$", re.I | re.M)
-_PER_Q_EXPL = re.compile(r"^解析[：:\s]*(.*)", re.I | re.M)
 _PREFIX_STRIP = re.compile(r"^(?:早餐题|早题)[：:\s]*", re.I)
-_Q_BLOCK_SPLIT = re.compile(r"(?=(?:^|\n)\d+[\.．]\s*)")
 
 
 def _load_json(path: Path, default: Any) -> Any:
@@ -90,8 +91,24 @@ def _format_question_text(stem: str, options: dict[str, str]) -> str:
 
 
 def extract_answer_string(text: str) -> str | None:
-    m = _ANSWER_TAIL.search(text.strip())
-    return m.group(1).upper() if m else None
+    t = text.strip()
+    m = _ANSWER_TAIL.search(t)
+    if m:
+        return m.group(1).upper()
+    # 整句仅「我的答案是A」（无冒号、无换行）
+    m2 = re.match(r"^(?:我的答案(?:是)?|我选(?:了)?)[：:\s]*([A-E]+)\s*$", t, re.I)
+    return m2.group(1).upper() if m2 else None
+
+
+def extract_my_answer_only(text: str) -> str | None:
+    """纯跟答：我的答案是A / 我选B / 单字母（需外部判定有 pending）。"""
+    t = text.strip()
+    ans = extract_answer_string(t)
+    if ans:
+        return ans
+    if re.match(r"^[A-E]$", t, re.I):
+        return t.upper()
+    return None
 
 
 def _normalize_input(text: str) -> str:
@@ -102,7 +119,7 @@ def _parse_question_block(block: str) -> dict[str, Any] | None:
     block = block.strip()
     if not block:
         return None
-    m = re.match(r"^(\d+)[\.．]\s*", block)
+    m = _Q_NUM.match(block)
     if not m:
         return None
     num = int(m.group(1))
@@ -113,19 +130,28 @@ def _parse_question_block(block: str) -> dict[str, Any] | None:
     current: str | None = None
     correct_answer = ""
     explanation = ""
+    in_expl = False
 
     for line in rest.split("\n"):
         line = line.strip()
         if not line:
             continue
+        if in_expl:
+            if _OPTION_LINE.match(line) or _PER_Q_ANS.match(line) or _Q_NUM.match(line):
+                in_expl = False
+            else:
+                explanation += (" " if explanation else "") + line
+                continue
         am = _PER_Q_ANS.match(line)
         if am:
             current = None
+            in_expl = False
             correct_answer = am.group(1).upper()
             continue
         em = _PER_Q_EXPL.match(line)
         if em:
             current = None
+            in_expl = True
             explanation = em.group(1).strip()
             continue
         om = _OPTION_LINE.match(line)
@@ -188,9 +214,50 @@ def _resolve_my_answers(
     if tail and len(tail) == len(questions):
         return tail
     by_num = state.get("by_num", {})
-    if len(questions) >= 2 and all(str(q["num"]) in by_num for q in questions):
-        return "".join(by_num[str(q["num"])].get("my_answer", "") for q in questions)
+    if len(questions) >= 1 and all(str(q["num"]) in by_num for q in questions):
+        got = "".join(by_num[str(q["num"])].get("my_answer", "") for q in questions)
+        if got and len(got) == len(questions):
+            return got
     return None
+
+
+def is_app_question_text(text: str) -> bool:
+    t = _normalize_input(text)
+    return bool(re.search(r"(?:^|\n)\d+[\.．、]\s*\S", t) and re.search(r"(?:^|\n)[A-D][、\.．:：]", t, re.I))
+
+
+def is_breakfast_question_input(text: str) -> bool:
+    return len(parse_breakfast_questions(text)) >= 1
+
+
+def is_batch_question_input(text: str) -> bool:
+    t = _normalize_input(text)
+    if is_breakfast_question_input(t):
+        return True
+    if parse_solution_only(t) and not parse_batch_questions(t):
+        return True
+    qs = parse_batch_questions(t)
+    if qs and extract_answer_string(t):
+        return len(qs) >= 1
+    if qs and not extract_answer_string(t):
+        return len(qs) >= 1
+    return False
+
+
+def is_batch_answer_followup(text: str) -> bool:
+    t = text.strip()
+    if not extract_my_answer_only(t):
+        return False
+    if re.search(r"(?:^|\n)\d+[\.．、]", t):
+        return False
+    if _OPTION_LINE.search(t):
+        return False
+    state = _load_batch_state()
+    if state.get("pending_questions"):
+        return True
+    by_num = state.get("by_num", {})
+    pending = [v for v in by_num.values() if v.get("correct_answer") and v.get("pending") and not v.get("bank_id")]
+    return len(pending) >= 1
 
 
 def _find_bank_by_dedup(stem: str) -> dict | None:
@@ -257,32 +324,236 @@ def _sync_wrong_to_error_log(record: dict, explanation: str = "") -> int | None:
     return error_id
 
 
+def parse_solution_only(text: str) -> list[dict[str, Any]]:
+    """仅答案+解析块：1、答案： B \\n 【解析】…"""
+    raw = _normalize_input(text)
+    if extract_answer_string(raw) and not _PER_Q_ANS.search(raw):
+        return []
+    items: list[dict[str, Any]] = []
+    for block in _Q_BLOCK_SPLIT.split(raw):
+        block = block.strip()
+        if not block:
+            continue
+        m = _Q_NUM.match(block)
+        if not m:
+            continue
+        num = int(m.group(1))
+        am = _PER_Q_ANS.search(block)
+        if not am:
+            continue
+        expl = ""
+        em = _PER_Q_EXPL.search(block)
+        if em:
+            expl = em.group(1).strip()
+        items.append({"num": num, "correct_answer": am.group(1).upper(), "explanation": expl})
+    return items
+
+
+def _store_pending_questions(questions: list[dict[str, Any]]) -> dict[str, Any]:
+    state = _load_batch_state()
+    state["pending_questions"] = questions
+    by_num = state.setdefault("by_num", {})
+    for q in questions:
+        by_num[str(q["num"])] = {
+            "num": q["num"],
+            "bank_id": None,
+            "my_answer": "",
+            "correct_answer": "",
+            "explanation": "",
+            "pending": True,
+            "question": q["question"],
+        }
+    state["by_num"] = by_num
+    _save_batch_state(state)
+    nums = "、".join(str(q["num"]) for q in questions)
+    n = len(questions)
+    return {
+        "status": "ok",
+        "total": n,
+        "text": (
+            f"📋 已收录 {n} 题（#{nums}）\n"
+            "请回复：我的答案是 A（单题）或 我的答案是：CCCAB（多题）"
+        ),
+    }
+
+
+def _pending_from_state(state: dict[str, Any]) -> list[dict[str, Any]]:
+    pending: list[dict[str, Any]] = list(state.get("pending_questions", []))
+    if pending:
+        return pending
+    rebuilt: list[dict[str, Any]] = []
+    for num_str, entry in sorted(state.get("by_num", {}).items(), key=lambda x: int(x[0])):
+        if not entry.get("question"):
+            continue
+        if entry.get("correct_answer"):
+            continue
+        qtext = entry["question"]
+        lines = qtext.split("\n")
+        options: dict[str, str] = {}
+        for line in lines[1:]:
+            om = _OPTION_LINE.match(line.strip())
+            if om:
+                options[om.group(1).upper()] = om.group(2).strip()
+        rebuilt.append(
+            {
+                "num": entry.get("num") or int(num_str),
+                "stem": lines[0],
+                "options": options,
+                "question": qtext,
+                "correct_answer": entry.get("correct_answer", ""),
+                "explanation": entry.get("explanation", ""),
+            }
+        )
+    return rebuilt
+
+
+def _merge_solutions(solutions: list[dict[str, Any]]) -> dict[str, Any]:
+    state = _load_batch_state()
+    pending = _pending_from_state(state)
+    if not pending:
+        return {
+            "status": "error",
+            "text": "⚠️ 收到标准答案，但没有待合并的题目。请先发送题干+选项。",
+        }
+    sol_map = {s["num"]: s for s in solutions}
+    by_num = state.setdefault("by_num", {})
+    merged_my: list[str] = []
+    for q in pending:
+        s = sol_map.get(q["num"])
+        if not s:
+            continue
+        q["correct_answer"] = s["correct_answer"]
+        q["explanation"] = s.get("explanation", "")
+        entry = by_num.get(str(q["num"]), {})
+        my = entry.get("my_answer", "")
+        if my:
+            merged_my.append(my)
+        by_num[str(q["num"])] = {
+            "num": q["num"],
+            "bank_id": entry.get("bank_id"),
+            "my_answer": my,
+            "correct_answer": q["correct_answer"],
+            "explanation": q["explanation"],
+            "pending": not my,
+            "question": q["question"],
+        }
+    state["pending_questions"] = pending
+    state["by_num"] = by_num
+    _save_batch_state(state)
+
+    if merged_my and len(merged_my) == len(pending):
+        return _batch_grade_questions(
+            "",
+            pending,
+            "".join(merged_my),
+            answer_key="".join(q.get("correct_answer", "") for q in pending),
+            explanations=[q.get("explanation", "") for q in pending],
+        )
+
+    nums = "、".join(str(s["num"]) for s in solutions)
+    return {
+        "status": "ok",
+        "text": f"📋 已补录 #{nums} 标准答案+解析\n请回复：我的答案是 X",
+    }
+
+
+def batch_answer_followup(text: str) -> dict[str, Any] | None:
+    """纯跟答：我的答案是A / 我选B"""
+    t = text.strip()
+    if re.search(r"(?:^|\n)\d+[\.．、]", t):
+        return None
+    if _OPTION_LINE.search(t) or _PER_Q_ANS.search(t):
+        return None
+
+    my = extract_my_answer_only(t)
+    if not my:
+        return None
+
+    state = _load_batch_state()
+    pending: list[dict[str, Any]] = state.get("pending_questions", [])
+    if not pending:
+        done = batch_complete_pending(t)
+        return done
+
+    if len(my) != len(pending):
+        return {
+            "status": "error",
+            "text": f"⚠️ 待答 {len(pending)} 题，收到 {len(my)} 个答案。",
+        }
+
+    by_num = state.get("by_num", {})
+    has_key = all(
+        by_num.get(str(q["num"]), {}).get("correct_answer") or q.get("correct_answer")
+        for q in pending
+    )
+    if has_key:
+        for q in pending:
+            ca = q.get("correct_answer") or by_num.get(str(q["num"]), {}).get("correct_answer", "")
+            q["correct_answer"] = ca
+            q["explanation"] = q.get("explanation") or by_num.get(str(q["num"]), {}).get("explanation", "")
+        result = _batch_grade_questions(
+            t,
+            pending,
+            my,
+            answer_key="".join(q["correct_answer"] for q in pending),
+            explanations=[q.get("explanation", "") for q in pending],
+        )
+    else:
+        result = _batch_grade_questions(t, pending, my, answer_key=None)
+
+    state = _load_batch_state()
+    state["pending_questions"] = []
+    _save_batch_state(state)
+    return result
+
+
 def batch_ingest(text: str, *, answer_key: str | None = None) -> dict[str, Any]:
     """
     批量收录/判卷。
     - 无标准答案：收录待补录
     - 有标准答案（--key 或早餐题逐题答案）：立即判卷
     """
+    followup = batch_answer_followup(text)
+    if followup:
+        return followup
+
+    sol_only = parse_solution_only(text)
+    questions_in_text = parse_batch_questions(text)
+    if sol_only and not questions_in_text:
+        return _merge_solutions(sol_only)
+
+    only_ans = extract_my_answer_only(text)
+    if only_ans and not questions_in_text and not sol_only:
+        return {
+            "status": "error",
+            "text": (
+                f"📌 已识别你的答案 {only_ans}，请先发送题目\n"
+                "格式：1、题干…\\nA、…\\nB、…\\nC、…\\nD、…"
+            ),
+        }
+
     breakfast = parse_breakfast_questions(text)
-    if len(breakfast) >= 2:
+    if len(breakfast) >= 1:
         return _batch_ingest_with_solutions(text, breakfast, answer_key=answer_key)
 
-    questions = parse_batch_questions(text)
-    if not questions:
-        return {"status": "error", "text": "⚠️ 未能解析题目，请确认格式：41.题干\\nA.xx\\n...\\n我的答案是：CCCAB"}
+    if not questions_in_text:
+        return {"status": "error", "text": "⚠️ 未能解析题目，请确认格式：1、题干\\nA、…\\n我的答案是：A"}
 
     answers = extract_answer_string(text)
     if not answers:
-        return {"status": "error", "text": "⚠️ 未找到答案串，请在末尾加：我的答案是：CCCAB"}
+        return _store_pending_questions(questions_in_text)
 
-    if len(answers) != len(questions):
+    if len(answers) != len(questions_in_text):
         return {
             "status": "error",
-            "text": f"⚠️ 题目 {len(questions)} 道，答案 {len(answers)} 个，数量不一致。",
+            "text": f"⚠️ 题目 {len(questions_in_text)} 道，答案 {len(answers)} 个，数量不一致。",
         }
 
     key = answer_key.upper().replace(" ", "") if answer_key else None
-    return _batch_grade_questions(text, questions, answers, answer_key=key)
+    state = _load_batch_state()
+    state["pending_questions"] = []
+    _save_batch_state(state)
+    return _batch_grade_questions(text, questions_in_text, answers, answer_key=key)
 
 
 def _batch_ingest_with_solutions(
@@ -363,14 +634,22 @@ def _batch_grade_questions(
         std_ans = key[idx] if key else ""
         expl = (explanations[idx] if explanations and idx < len(explanations) else "") or q.get("explanation", "")
 
+        def _by_entry(*, bank_id, my: str, ca: str, pending: bool) -> dict[str, Any]:
+            return {
+                "num": num,
+                "bank_id": bank_id,
+                "my_answer": my,
+                "correct_answer": ca,
+                "explanation": expl,
+                "pending": pending,
+                "question": q["question"],
+            }
+
         existing = _find_bank_by_dedup(q["stem"])
         if existing and existing.get("my_answer") == my_ans.upper() and existing.get("correct_answer") == std_ans:
-            by_num[str(num)] = {
-                "bank_id": existing["id"],
-                "my_answer": my_ans.upper(),
-                "correct_answer": std_ans,
-                "pending": False,
-            }
+            by_num[str(num)] = _by_entry(
+                bank_id=existing["id"], my=my_ans.upper(), ca=std_ans, pending=False
+            )
             skipped.append(num)
             continue
 
@@ -399,21 +678,15 @@ def _batch_grade_questions(
                 )
                 wrong_nums.append(num)
             bank_id = rec.get("bank_id") or rec.get("id")
-            by_num[str(num)] = {
-                "bank_id": bank_id,
-                "my_answer": my_ans.upper(),
-                "correct_answer": std_ans,
-                "pending": False,
-            }
+            by_num[str(num)] = _by_entry(
+                bank_id=bank_id, my=my_ans.upper(), ca=std_ans, pending=False
+            )
         else:
             rec = _add_bank_pending(q, my_ans, is_correct=None)
             pending_nums.append(num)
-            by_num[str(num)] = {
-                "bank_id": rec["id"],
-                "my_answer": my_ans.upper(),
-                "correct_answer": "",
-                "pending": True,
-            }
+            by_num[str(num)] = _by_entry(
+                bank_id=rec["id"], my=my_ans.upper(), ca="", pending=True
+            )
 
     state.setdefault("sessions", []).append(
         {
@@ -464,7 +737,7 @@ def batch_complete_pending(text: str) -> dict[str, Any] | None:
         if v.get("correct_answer") and v.get("pending") and not v.get("bank_id")
     ]
     pending_items.sort(key=lambda x: x[0])
-    if len(pending_items) < 2:
+    if len(pending_items) < 1:
         return None
 
     questions: list[dict[str, Any]] = []
@@ -581,20 +854,6 @@ def parse_batch_update_command(text: str) -> dict[str, Any] | None:
         "correct_answer": am.group(1).upper(),
         "explanation": expl,
     }
-
-
-def is_breakfast_question_input(text: str) -> bool:
-    return len(parse_breakfast_questions(text)) >= 2
-
-
-def is_batch_question_input(text: str) -> bool:
-    t = _normalize_input(text)
-    if is_breakfast_question_input(t):
-        return True
-    if not extract_answer_string(t):
-        return False
-    qs = parse_batch_questions(t)
-    return len(qs) >= 2
 
 
 def is_batch_update_input(text: str) -> bool:

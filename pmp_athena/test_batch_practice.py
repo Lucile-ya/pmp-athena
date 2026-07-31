@@ -12,10 +12,12 @@ if str(_ROOT) not in sys.path:
 
 from pmp_athena.batch_practice import (  # noqa: E402
     extract_answer_string,
+    extract_my_answer_only,
     is_batch_question_input,
     is_batch_update_input,
     parse_batch_questions,
     parse_batch_update_command,
+    parse_solution_only,
 )
 
 SAMPLE = """
@@ -79,12 +81,48 @@ def test_parse_update_command() -> None:
     assert is_batch_update_input("更新 45 题 正确答案是 B 解析 xxx")
 
 
+def test_cn_enum_question_format() -> None:
+    text = """
+1、项目发起人启动了一个新项目，该项目涉及他们的客户。
+A、项目发起人和赞助公司
+B、客户和项目团队
+C、分包商和项目团队
+D、项目经理和赞助公司
+我的答案是A
+"""
+    qs = parse_batch_questions(text)
+    assert len(qs) == 1
+    assert qs[0]["num"] == 1
+    assert "项目发起人" in qs[0]["stem"]
+    assert extract_answer_string(text) == "A"
+    assert is_batch_question_input(text)
+
+
+def test_breakfast_solution_format() -> None:
+    text = """
+1、答案： B
+【解析】项目章程在需求组织与执行组织之间建立伙伴关系。
+"""
+    sol = parse_solution_only(text)
+    assert len(sol) == 1
+    assert sol[0]["correct_answer"] == "B"
+    assert "项目章程" in sol[0]["explanation"]
+
+
+def test_my_answer_only_phrase() -> None:
+    assert extract_my_answer_only("我的答案是A") == "A"
+    assert extract_my_answer_only("我选B") == "B"
+
+
 def main() -> int:
     tests = [
         test_parse_five_questions,
         test_extract_answer,
         test_is_batch_input,
         test_parse_update_command,
+        test_cn_enum_question_format,
+        test_breakfast_solution_format,
+        test_my_answer_only_phrase,
     ]
     failed = 0
     for fn in tests:
