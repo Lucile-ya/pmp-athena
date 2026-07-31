@@ -72,35 +72,240 @@ def _load_exam_records() -> list[dict]:
         return []
 
 
+def _prev_month_year(year: int, month: int) -> tuple[int, int]:
+    if month <= 1:
+        return year - 1, 12
+    return year, month - 1
+
+
+def _month_prefix(year: int, month: int) -> str:
+    return f"{year}-{month:02d}"
+
+
+def _exams_in_month(exams: list[dict], year: int, month: int) -> list[dict]:
+    prefix = _month_prefix(year, month)
+    return [e for e in exams if str(e.get("exam_date", "")).startswith(prefix)]
+
+
+def _exam_rate(e: dict) -> float:
+    rate = float(e.get("correct_rate") or 0)
+    if rate <= 1:
+        rate *= 100
+    if rate <= 1 and e.get("correct_count") and e.get("total_questions"):
+        rate = _accuracy(e["correct_count"], e["total_questions"])
+    return round(rate, 1)
+
+
+def _exam_avg_rate(exams: list[dict]) -> float | None:
+    if not exams:
+        return None
+    return round(sum(_exam_rate(e) for e in exams) / len(exams), 1)
+
+
+def _delta_label(
+    curr: float,
+    prev: float,
+    *,
+    higher_is_better: bool = True,
+    unit: str = "",
+) -> tuple[str, str, str]:
+    """
+    返回 (箭头, 差值文案, 状态 emoji)。
+    例: ("↑", "+5.2%", "🎉")
+    """
+    diff = round(curr - prev, 1)
+    if abs(diff) < 0.5:
+        return "→", "持平", ""
+    improved = diff > 0 if higher_is_better else diff < 0
+    arrow = "↑" if diff > 0 else "↓"
+    sign = f"+{diff}" if diff > 0 else str(diff)
+    if improved:
+        emoji = "🎉" if abs(diff) >= 10 else "✅"
+    else:
+        emoji = "⚠️" if abs(diff) >= 10 else ""
+    return arrow, f"{sign}{unit}", emoji
+
+
+def _collect_month_stats(
+    bank: QuestionBank,
+    year: int,
+    month: int,
+) -> dict[str, Any]:
+    start, end = _month_bounds(year, month)
+    records = bank.list_by_date_range(start, end)
+    graded = [r for r in records if r.get("is_correct") is not None]
+    total = len(graded)
+    correct = sum(1 for r in graded if r.get("is_correct"))
+    return {
+        "year": year,
+        "month": month,
+        "total": total,
+        "correct": correct,
+        "accuracy": _accuracy(correct, total),
+        "active_days": len({r.get("date") for r in graded if r.get("date")}),
+        "by_area": _area_stats(graded),
+        "exams": _exams_in_month(_load_exam_records(), year, month),
+    }
+
+
+def _format_month_compare(
+    curr: dict[str, Any],
+    prev: dict[str, Any],
+    *,
+    has_prev_practice: bool,
+    has_prev_exams: bool,
+) -> tuple[list[str], dict[str, Any]]:
+    """生成「月度对比」区块。"""
+    cy, cm = curr["year"], curr["month"]
+    py, pm = prev["year"], prev["month"]
+
+    lines = [
+        "",
+        "══════════════════════",
+        f"📊 月度对比（vs {pm}月）",
+        "══════════════════════",
+        "",
+    ]
+
+    compare_meta: dict[str, Any] = {
+        "prev_month": pm,
+        "prev_year": py,
+        "has_prev_data": has_prev_practice or has_prev_exams,
+    }
+
+    if not has_prev_practice and not has_prev_exams:
+        lines.append("📌 首月记录，暂无对比")
+        return lines, compare_meta
+
+    # ── 刷题量 / 正确率 / 活跃天数 ──
+    if has_prev_practice:
+        if curr["total"] or prev["total"]:
+            arr, diff, em = _delta_label(curr["total"], prev["total"])
+            lines.append(
+                f"📝 刷题量：{curr['total']} 题  {arr} {diff}（上月 {prev['total']} 题） {em}".rstrip()
+            )
+            compare_meta["volume_delta"] = curr["total"] - prev["total"]
+
+        if curr["total"] and prev["total"]:
+            arr, diff, em = _delta_label(curr["accuracy"], prev["accuracy"])
+            lines.append(
+                f"📈 正确率：{curr['accuracy']}%  {arr} {diff}%（上月 {prev['accuracy']}%） {em}".rstrip()
+            )
+            compare_meta["accuracy_delta"] = round(curr["accuracy"] - prev["accuracy"], 1)
+        elif curr["total"] and not prev["total"]:
+            tag = "✅" if curr["accuracy"] >= 70 else ("⚠️" if curr["accuracy"] < 50 else "")
+            lines.append(f"📈 正确率：{curr['accuracy']}%（上月无刷题） {tag}".rstrip())
+
+        if curr["active_days"] or prev["active_days"]:
+            arr, diff, _ = _delta_label(float(curr["active_days"]), float(prev["active_days"]))
+            lines.append(
+                f"📅 活跃天数：{curr['active_days']} 天  {arr} {diff}（上月 {prev['active_days']} 天）"
+            )
+    elif has_prev_exams:
+        lines.append("📝 刷题量：本月暂无（上月亦无）")
+
+    # ── 各领域正确率对比 ──
+    curr_areas = curr.get("by_area") or {}
+    prev_areas = prev.get("by_area") or {}
+    all_areas = sorted(set(curr_areas) | set(prev_areas))
+
+    area_changes: list[tuple[str, float, float, float]] = []
+    for area in all_areas:
+        cs = curr_areas.get(area, {"total": 0, "correct": 0})
+        ps = prev_areas.get(area, {"total": 0, "correct": 0})
+        if cs["total"] < 2 and ps["total"] < 2:
+            continue
+        ca = _accuracy(cs["correct"], cs["total"]) if cs["total"] else 0.0
+        pa = _accuracy(ps["correct"], ps["total"]) if ps["total"] else 0.0
+        area_changes.append((area, ca, pa, round(ca - pa, 1)))
+
+    if area_changes:
+        lines.append("")
+        lines.append("📋 领域正确率变化：")
+        area_changes.sort(key=lambda x: -abs(x[3]))
+        for area, ca, pa, delta in area_changes[:8]:
+            cs = curr_areas.get(area, {"total": 0})
+            ps = prev_areas.get(area, {"total": 0})
+            if cs["total"] >= 2 and ps["total"] >= 2:
+                arr, _, em = _delta_label(ca, pa)
+                delta_str = "持平" if abs(delta) < 0.5 else f"{delta:+.1f}%"
+                lines.append(
+                    f"  {em or '·'} [{area}] {pa}% → {ca}%  {arr} {delta_str}"
+                )
+            elif cs["total"] >= 2:
+                tag = "🎉" if ca >= 70 else ("⚠️" if ca < 50 else "✅")
+                lines.append(f"  {tag} [{area}] 新增 {ca}%（{cs['correct']}/{cs['total']}）")
+            elif ps["total"] >= 2:
+                lines.append(f"  · [{area}] 上月 {pa}% → 本月未练习")
+
+    # ── 模考成绩对比 ──
+    curr_exams = curr.get("exams") or []
+    prev_exams = prev.get("exams") or []
+    curr_exam_avg = _exam_avg_rate(curr_exams)
+    prev_exam_avg = _exam_avg_rate(prev_exams)
+
+    lines.append("")
+    lines.append("🏁 模考成绩：")
+    if curr_exams:
+        for e in curr_exams:
+            rate = _exam_rate(e)
+            name = e.get("exam_id", "模考")
+            cc = e.get("correct_count", "?")
+            tq = e.get("total_questions", "?")
+            lines.append(f"  本月 · {name}: {rate}%（{cc}/{tq}）")
+    else:
+        lines.append("  本月 · 无模考记录")
+
+    if prev_exams:
+        for e in prev_exams:
+            rate = _exam_rate(e)
+            name = e.get("exam_id", "模考")
+            cc = e.get("correct_count", "?")
+            tq = e.get("total_questions", "?")
+            lines.append(f"  上月 · {name}: {rate}%（{cc}/{tq}）")
+    else:
+        lines.append("  上月 · 无模考记录")
+
+    if curr_exam_avg is not None and prev_exam_avg is not None:
+        arr, diff, em = _delta_label(curr_exam_avg, prev_exam_avg)
+        lines.append(
+            f"  对比 · 平均 {curr_exam_avg}%  {arr} {diff}%（上月 {prev_exam_avg}%） {em}".rstrip()
+        )
+        compare_meta["exam_avg_delta"] = round(curr_exam_avg - prev_exam_avg, 1)
+    elif curr_exam_avg is not None and prev_exam_avg is None:
+        tag = "🎉" if curr_exam_avg >= 65 else "⚠️"
+        lines.append(f"  对比 · 本月首次模考 {curr_exam_avg}% {tag}")
+    elif curr_exam_avg is None and prev_exam_avg is not None:
+        lines.append(f"  对比 · 上月 {prev_exam_avg}%，本月未模考 ⚠️")
+
+    return lines, compare_meta
+
+
 def month_summary(*, year: int | None = None, month: int) -> dict[str, Any]:
     y = year or EXAM_YEAR
     bank = QuestionBank()
-    start, end = _month_bounds(y, month)
-    records = bank.list_by_date_range(start, end)
-    graded = [r for r in records if r.get("is_correct") is not None]
 
-    total = len(graded)
-    correct = sum(1 for r in graded if r.get("is_correct"))
+    curr_stats = _collect_month_stats(bank, y, month)
+    total = curr_stats["total"]
+    correct = curr_stats["correct"]
     wrong = total - correct
-    acc = _accuracy(correct, total)
+    acc = curr_stats["accuracy"]
+    by_area = curr_stats["by_area"]
+    graded = bank.list_by_date_range(*_month_bounds(y, month))
+    graded = [r for r in graded if r.get("is_correct") is not None]
 
-    # vs 上月
-    prev_month = month - 1
-    prev_year = y
-    if prev_month < 1:
-        prev_month = 12
-        prev_year -= 1
-    p_start, p_end = _month_bounds(prev_year, prev_month)
-    prev_graded = [
-        r for r in bank.list_by_date_range(p_start, p_end)
-        if r.get("is_correct") is not None
-    ]
-    prev_total = len(prev_graded)
-    prev_correct = sum(1 for r in prev_graded if r.get("is_correct"))
-    prev_acc = _accuracy(prev_correct, prev_total)
-    vs_prev = round(acc - prev_acc, 1) if prev_total else None
+    # 上月数据
+    prev_y, prev_m = _prev_month_year(y, month)
+    prev_stats = _collect_month_stats(bank, prev_y, prev_m)
+    has_prev_practice = prev_stats["total"] > 0
+    has_prev_exams = len(prev_stats["exams"]) > 0
 
-    by_area = _area_stats(graded)
+    vs_prev = (
+        round(acc - prev_stats["accuracy"], 1)
+        if has_prev_practice and total
+        else None
+    )
+
     area_rows = sorted(
         by_area.items(),
         key=lambda x: _accuracy(x[1]["correct"], x[1]["total"]),
@@ -110,6 +315,7 @@ def month_summary(*, year: int | None = None, month: int) -> dict[str, Any]:
     strong = [a for a, s in area_rows if s["total"] >= 3 and _accuracy(s["correct"], s["total"]) >= 70]
 
     gap_questions = max(0, round(TARGET_ACCURACY * total) - correct) if total else 0
+    active_days = curr_stats["active_days"]
 
     lines = [
         f"📊 {y}年{month}月刷题总结（{total} 题）",
@@ -118,11 +324,22 @@ def month_summary(*, year: int | None = None, month: int) -> dict[str, Any]:
     ]
     if vs_prev is not None:
         arrow = "↑" if vs_prev > 0 else ("↓" if vs_prev < 0 else "→")
-        lines.append(f"📉 vs 上月：{arrow} {abs(vs_prev)}%（上月 {prev_acc}%）")
-    elif prev_total == 0:
-        lines.append("📉 vs 上月：暂无上月数据")
+        emoji = "🎉" if vs_prev >= 10 else ("✅" if vs_prev > 0 else ("⚠️" if vs_prev <= -10 else ""))
+        lines.append(
+            f"📉 vs 上月：{arrow} {abs(vs_prev)}%（上月 {prev_stats['accuracy']}%） {emoji}".rstrip()
+        )
+    elif not has_prev_practice and not has_prev_exams:
+        lines.append("📉 vs 上月：首月记录，暂无对比")
+    elif not total and has_prev_practice:
+        lines.append(
+            f"📉 vs 上月：本月暂无刷题（上月 {prev_stats['accuracy']}% / {prev_stats['total']} 题） ⚠️"
+        )
+    elif total and not has_prev_practice:
+        tag = "✅" if acc >= 70 else ""
+        lines.append(f"📉 vs 上月：上月无刷题，本月 {acc}% {tag}".rstrip())
+    else:
+        lines.append("📉 vs 上月：数据不足，详见下方月度对比")
 
-    active_days = len({r.get("date") for r in graded if r.get("date")})
     lines.append(f"📅 活跃刷题：{active_days} 天")
 
     if by_area:
@@ -130,7 +347,20 @@ def month_summary(*, year: int | None = None, month: int) -> dict[str, Any]:
         lines.append("📋 按知识领域：")
         for area, s in sorted(by_area.items(), key=lambda x: -x[1]["total"]):
             a = _accuracy(s["correct"], s["total"])
-            lines.append(f"  [{area}]: {s['correct']}/{s['total']}（{a}%） {_bar(a)}")
+            tag = "🔴" if a < 50 else ("🟡" if a < 70 else "🟢")
+            lines.append(f"  {tag} [{area}]: {s['correct']}/{s['total']}（{a}%） {_bar(a)}")
+
+    # 本月模考摘要
+    curr_exams = curr_stats["exams"]
+    if curr_exams:
+        lines.append("")
+        lines.append(f"🏁 本月模考：{len(curr_exams)} 次")
+        for e in curr_exams:
+            rate = _exam_rate(e)
+            lines.append(
+                f"  · {e.get('exam_date', '?')[:10]} {e.get('exam_id', '模考')}: "
+                f"{rate}%（{e.get('correct_count', '?')}/{e.get('total_questions', '?')}）"
+            )
 
     lines.extend([
         "",
@@ -140,7 +370,16 @@ def month_summary(*, year: int | None = None, month: int) -> dict[str, Any]:
         if acc >= 70:
             lines.append("✅ 本月已达训练目标，继续保持！")
         else:
-            lines.append(f"差距：差约 {gap_questions} 题（按本月题量折算）")
+            lines.append(f"⚠️ 差距：差约 {gap_questions} 题（按本月题量折算）")
+
+    # 月度对比详细区块
+    compare_lines, compare_meta = _format_month_compare(
+        curr_stats,
+        prev_stats,
+        has_prev_practice=has_prev_practice,
+        has_prev_exams=has_prev_exams,
+    )
+    lines.extend(compare_lines)
 
     lines.append("")
     lines.append("💡 建议：")
@@ -154,7 +393,7 @@ def month_summary(*, year: int | None = None, month: int) -> dict[str, Any]:
         lines.append("  · 各域表现均衡，可加大模考频率")
 
     return {
-        "status": "ok" if graded else "empty",
+        "status": "ok" if graded or curr_exams else "empty",
         "year": y,
         "month": month,
         "total": total,
@@ -163,6 +402,7 @@ def month_summary(*, year: int | None = None, month: int) -> dict[str, Any]:
         "accuracy": acc,
         "vs_prev": vs_prev,
         "by_area": by_area,
+        "month_compare": compare_meta,
         "text": "\n".join(lines),
     }
 
@@ -306,7 +546,7 @@ def parse_user_query(text: str) -> tuple[str, int | None]:
     prep_triggers = (
         "备考总结", "备考刷题", "刷题总结", "做题总结", "做题情况总结",
         "总结一下做题", "总结做题", "备考情况", "备考刷题情况",
-        "这几个月", "全程总结", "刷题总览",
+        "这几个月", "全程总结",
     )
     if any(k in t for k in prep_triggers):
         return "prep", None

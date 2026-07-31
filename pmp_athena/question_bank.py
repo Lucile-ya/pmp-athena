@@ -165,6 +165,22 @@ class QuestionBank:
             confidence=validation_result.get("confidence"),
         )
 
+    def find_by_question(
+        self,
+        question: str,
+        *,
+        wrong_only: bool = False,
+    ) -> dict | None:
+        """按题干去重键查找最近一条记录（可选仅错题）。"""
+        key = question_dedup_key(normalize_question_text(question))
+        for record in reversed(self._read()):
+            if question_dedup_key(record.get("question", "")) != key:
+                continue
+            if wrong_only and record.get("is_correct") is not False:
+                continue
+            return record
+        return None
+
     def update(
         self,
         record_id: int,

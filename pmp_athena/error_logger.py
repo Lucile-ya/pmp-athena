@@ -89,6 +89,33 @@ class ErrorLogger:
                 return record
         return None
 
+    def update(self, record_id: int, **kwargs) -> dict | None:
+        """更新已有错题（同题干重复录入时刷新答案/解析）。"""
+        data = self._read()
+        for record in data:
+            if record.get("id") != record_id:
+                continue
+            updatable = [
+                "question", "my_answer", "correct_answer",
+                "knowledge_area", "explanation",
+            ]
+            for key in updatable:
+                if key in kwargs and kwargs[key] is not None:
+                    val = kwargs[key]
+                    if key == "question":
+                        val = normalize_question_text(val)
+                    elif key in ("my_answer", "correct_answer"):
+                        val = val.strip().upper()
+                    else:
+                        val = str(val).strip()
+                    record[key] = val
+            record["timestamp"] = datetime.now().isoformat()
+            self._write(data)
+            logger.info("Error record #%d updated", record_id)
+            return record
+        logger.warning("Error record #%d not found", record_id)
+        return None
+
     def add(
         self,
         question: str,

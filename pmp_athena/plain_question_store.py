@@ -251,6 +251,30 @@ def followup_user_text(text: str) -> dict[str, Any]:
     my, correct = parse_both_answers(text)
     if not my:
         my = parse_my_answer(text)
+
+    pending = _load()
+    if pending and my and correct:
+        stem = pending.get("question") or ""
+        opts = pending.get("options") or {}
+        try:
+            from pmp_athena.batch_explain import auto_explanation, format_explain_reply
+        except ModuleNotFoundError:
+            from batch_explain import auto_explanation, format_explain_reply
+        expl = auto_explanation(stem, opts, correct)
+        result = try_record(my_answer=my, correct_answer=correct, explanation=expl)
+        if result.get("status") == "logged":
+            result["explain_text"] = format_explain_reply(
+                correct=correct,
+                explanation=expl,
+                stem=stem,
+                my_answer=my,
+                error_log_id=result.get("error_log_id"),
+                updated=not result.get("error_is_new", True),
+            )
+        elif result.get("status") == "correct":
+            result["explain_text"] = f"✅ 你选的 {my} 正确，无需录入错题。\n解析：{expl}"
+        return result
+
     return try_record(my_answer=my, correct_answer=correct)
 
 
@@ -263,6 +287,8 @@ def apply_claude_parse(text: str) -> dict[str, Any]:
 
 
 def format_log_reply(data: dict[str, Any]) -> str:
+    if data.get("explain_text"):
+        return data["explain_text"]
     if data.get("status") == "logged":
         q = data.get("question_preview") or "（题干）"
         return "\n".join([

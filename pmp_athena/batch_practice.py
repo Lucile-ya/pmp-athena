@@ -507,12 +507,217 @@ def batch_answer_followup(text: str) -> dict[str, Any] | None:
     return result
 
 
-def batch_ingest(text: str, *, answer_key: str | None = None) -> dict[str, Any]:
+def _set_last_activity(
+    q: dict[str, Any],
+    my: str,
+    correct: str,
+    explanation: str,
+    *,
+    error_log_id: int | None = None,
+    bank_id: int | None = None,
+) -> None:
+    state = _load_batch_state()
+    state["last_activity"] = {
+        "num": q.get("num"),
+        "stem": q.get("stem", ""),
+        "options": q.get("options", {}),
+        "question": q.get("question", ""),
+        "my_answer": my.upper(),
+        "correct_answer": correct.upper(),
+        "explanation": explanation,
+        "error_log_id": error_log_id,
+        "bank_id": bank_id,
+        "date": date.today().isoformat(),
+    }
+    _save_batch_state(state)
+
+
+def batch_inline_grade(text: str) -> dict[str, Any] | None:
+    """我的答案是C,正确答案是B — 结合 pending 题干入库并附解析。"""
+    try:
+        from pmp_athena.batch_explain import auto_explanation, format_explain_reply, memory_tip
+        from pmp_athena.plain_question_store import get_pending, parse_both_answers, try_record
+    except ModuleNotFoundError:
+        from batch_explain import auto_explanation, format_explain_reply, memory_tip
+        from plain_question_store import get_pending, parse_both_answers, try_record
+
+    my, correct = parse_both_answers(text)
+    if not my or not correct:
+        return None
+
+    pending_plain = get_pending()
+    if pending_plain:
+        stem = pending_plain.get("question") or ""
+        opts = pending_plain.get("options") or {}
+        expl = auto_explanation(stem, opts, correct)
+        r = try_record(my_answer=my, correct_answer=correct, explanation=expl)
+        if r.get("status") == "logged":
+            _set_last_activity(
+                {
+                    "stem": stem,
+                    "options": opts,
+                    "question": pending_plain.get("formatted_question") or stem,
+                },
+                my,
+                correct,
+                expl,
+                error_log_id=r.get("error_log_id"),
+                bank_id=r.get("bank_id"),
+            )
+            return {
+                "status": "ok",
+                "text": format_explain_reply(
+                    correct=correct,
+                    explanation=expl,
+                    stem=stem,
+                    my_answer=my,
+                    error_log_id=r.get("error_log_id"),
+                    updated=not r.get("error_is_new", True),
+                ),
+            }
+        if r.get("status") == "correct":
+            return {
+                "status": "ok",
+                "text": f"✅ 你选的 {my} 正确，无需录入错题。\n解析：{expl}",
+            }
+
+    pending = _pending_from_state(_load_batch_state())
+    if len(pending) == 1:
+        q = pending[0]
+        expl = auto_explanation(q["stem"], q["options"], correct)
+        result = _batch_grade_questions(
+            text, pending, my, answer_key=correct, explanations=[expl]
+        )
+        _set_last_activity(
+            q, my, correct, expl,
+            bank_id=(result.get("wrong") or result.get("correct") and None),
+        )
+        tip = memory_tip(q["stem"], correct)
+        result["text"] = (
+            f"{result.get('text', '')}\n\n"
+            f"解析：{expl}\n"
+            f"记忆口诀：{tip}"
+        )
+        state = _load_batch_state()
+        state["pending_questions"] = []
+        _save_batch_state(state)
+        return result
+
+    return {
+        "status": "error",
+        "text": (
+            f"📌 已识别你的答案 {my} → 标准 {correct}\n"
+            "请先发送题干（截图或 10、题干 A、… B、…），再发本条。"
+        ),
+    }
+
+
+def batch_explain_last() -> dict[str, Any]:
+    """给我解析一下 — 解释最近一题。"""
+    try:
+        from pmp_athena.batch_explain import auto_explanation, format_explain_reply
+        from pmp_athena.plain_question_store import get_pending
+    except ModuleNotFoundError:
+        from batch_explain import auto_explanation, format_explain_reply
+        from plain_question_store import get_pending
+
+    state = _load_batch_state()
+    la = state.get("last_activity")
+    if la and la.get("stem"):
+        expl = la.get("explanation") or auto_explanation(
+            la["stem"], la.get("options", {}), la.get("correct_answer", "A")
+        )
+        return {
+            "status": "ok",
+            "text": format_explain_reply(
+                correct=la.get("correct_answer", ""),
+                explanation=expl,
+                stem=la["stem"],
+                my_answer=la.get("my_answer", ""),
+                error_log_id=la.get("error_log_id"),
+            ),
+        }
+
+    pending_plain = get_pending()
+    if pending_plain:
+        stem = pending_plain.get("question") or ""
+        opts = pending_plain.get("options") or {}
+        ca = pending_plain.get("correct_answer") or "?"
+        expl = pending_plain.get("explanation") or (
+            auto_explanation(stem, opts, ca) if ca != "?" else "请先发送「我的答案是X，正确答案是Y」完成判卷。"
+        )
+        return {
+            "status": "ok",
+            "text": format_explain_reply(
+                correct=ca,
+                explanation=expl,
+                stem=stem,
+                my_answer=pending_plain.get("my_answer") or "",
+            ),
+        }
+
+    pending = _pending_from_state(state)
+    if len(pending) == 1:
+        q = pending[0]
+        ca = q.get("correct_answer") or "?"
+        expl = q.get("explanation") or "请先发送你的答案和标准答案，我再解析入库。"
+        return {
+            "status": "ok",
+            "text": format_explain_reply(correct=ca, explanation=expl, stem=q["stem"]),
+        }
+
+    bank = _read_bank()
+    if bank:
+        r = bank[-1]
+        stem = (r.get("question") or "").split("\n")[0]
+        opts: dict[str, str] = {}
+        for line in (r.get("question") or "").split("\n")[1:]:
+            om = _OPTION_LINE.match(line.strip())
+            if om:
+                opts[om.group(1).upper()] = om.group(2).strip()
+        ca = r.get("correct_answer") or "?"
+        expl = r.get("explanation") or auto_explanation(stem, opts, ca)
+        return {
+            "status": "ok",
+            "text": format_explain_reply(
+                correct=ca,
+                explanation=expl,
+                stem=stem,
+                my_answer=r.get("my_answer") or "",
+                error_log_id=r.get("error_log_id"),
+            ),
+        }
+
+    return {"status": "error", "text": "⚠️ 暂无最近题目，请先发送题干或截图。"}
+
+
+def is_inline_grade_input(text: str) -> bool:
+    try:
+        from pmp_athena.plain_question_store import parse_both_answers
+    except ModuleNotFoundError:
+        from plain_question_store import parse_both_answers
+    my, correct = parse_both_answers(text.strip())
+    return bool(my and correct)
+
+
+def is_explain_request(text: str) -> bool:
+    try:
+        from pmp_athena.batch_explain import parse_explain_request
+    except ModuleNotFoundError:
+        from batch_explain import parse_explain_request
+    return parse_explain_request(text)
+
+
+def batch_ingest(text: str, answer_key: str | None = None) -> dict[str, Any]:
     """
     批量收录/判卷。
     - 无标准答案：收录待补录
     - 有标准答案（--key 或早餐题逐题答案）：立即判卷
     """
+    inline = batch_inline_grade(text)
+    if inline:
+        return inline
+
     followup = batch_answer_followup(text)
     if followup:
         return followup

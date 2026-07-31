@@ -131,6 +131,7 @@ class ExamRecorder:
         status: str = "completed",
         exam_type: str | None = None,
         source: str | None = None,
+        exam_date: str | None = None,
     ) -> dict:
         """
         添加一条完整的模考/练习记录。
@@ -163,7 +164,7 @@ class ExamRecorder:
 
         record = {
             "exam_id": exam_id,
-            "exam_date": date.today().isoformat(),
+            "exam_date": exam_date or date.today().isoformat(),
             "status": status,
             "total_questions": total_questions,
             "correct_count": correct_count,
@@ -196,6 +197,14 @@ class ExamRecorder:
             correct_rate * 100, time_used_minutes,
             ", ".join(weak_areas or []) or "none",
         )
+
+        # 完整模考 → 调度分析推送
+        if status == "completed" and total_questions >= 100:
+            try:
+                from pmp_athena.prep_push import schedule_mock_analysis
+                schedule_mock_analysis(record)
+            except Exception:
+                pass
 
         return record
 

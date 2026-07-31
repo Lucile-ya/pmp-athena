@@ -1209,6 +1209,9 @@ def main() -> None:
     p_bupd_t.add_argument("--stdin", action="store_true")
     p_bupd_t.add_argument("--json", action="store_true")
 
+    p_bexp = sub.add_parser("batch-explain", help="解析最近一题（给我解析一下）")
+    p_bexp.add_argument("--json", action="store_true")
+
     args = parser.parse_args()
 
     try:
@@ -1297,6 +1300,12 @@ def main() -> None:
                 correct_answer=parsed["correct_answer"],
                 explanation=parsed["explanation"],
             )
+    elif args.command == "batch-explain":
+        try:
+            from pmp_athena.batch_practice import batch_explain_last
+        except ModuleNotFoundError:
+            from batch_practice import batch_explain_last
+        result = batch_explain_last()
     else:
         result = menu()
 

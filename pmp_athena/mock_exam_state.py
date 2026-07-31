@@ -231,6 +231,14 @@ class MockExamState:
             state.get("exam_id"), final_correct, total_q,
             correct_rate * 100, int(total_minutes),
         )
+
+        # 调度模考分析推送（10 分钟后）
+        try:
+            from pmp_athena.prep_push import schedule_mock_analysis
+            schedule_mock_analysis(record)
+        except Exception:
+            pass
+
         return record
 
     def abandon(self) -> dict | None:

@@ -1017,12 +1017,21 @@ class AnswerValidator:
     def classify_screenshot_type(self, text: str) -> str:
         """
         截图类型：
+        - exam_result: 模考成绩截图
         - error_result: 刷题 App 作答结果（含正确答案/我的答案）
         - plain_question: 纯题干+选项（PDF/文档/题库截图）
         - unknown: 无法判定
         """
         if not text or not text.strip():
             return "unknown"
+
+        try:
+            from pmp_athena.analyze_exam import detect_exam_screenshot
+        except ImportError:
+            from analyze_exam import detect_exam_screenshot
+
+        if detect_exam_screenshot(text):
+            return "exam_result"
 
         error_markers = (
             "作答错误", "作答正确", "正确答案", "我的答案", "我的答家",
@@ -1374,6 +1383,21 @@ def process_and_validate(
 
     if not result["success"]:
         return result
+
+    ocr_text = result.get("ocr_text") or ""
+    if ocr_text:
+        try:
+            from pmp_athena.analyze_exam import detect_exam_screenshot, analyze_exam_screenshot
+        except ImportError:
+            from analyze_exam import detect_exam_screenshot, analyze_exam_screenshot
+
+        if detect_exam_screenshot(ocr_text):
+            exam_result = analyze_exam_screenshot(input_path, save=True)
+            result["screenshot_type"] = "exam_result"
+            result["exam_analysis"] = exam_result
+            if exam_result.get("success"):
+                result["exam_report"] = exam_result.get("report")
+            return result
 
     if validate_answer:
         try:

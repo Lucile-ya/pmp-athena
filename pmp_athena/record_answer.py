@@ -103,7 +103,13 @@ def record_wrong_answer(
     error_is_new = existing is None
 
     if existing:
-        error_record = existing
+        error_record = error_logger.update(
+            existing["id"],
+            my_answer=my_answer,
+            correct_answer=correct_answer,
+            knowledge_area=knowledge_area or existing.get("knowledge_area", ""),
+            explanation=explanation or existing.get("explanation", ""),
+        ) or existing
     else:
         error_record = error_logger.add(
             question=question,
@@ -114,17 +120,33 @@ def record_wrong_answer(
             parsed_by=parsed_by,
         )
 
-    bank_record = question_bank.add(
-        question=question,
-        my_answer=my_answer,
-        correct_answer=correct_answer,
-        is_correct=False,
-        knowledge_area=knowledge_area,
-        explanation=explanation,
-        parsed_by=parsed_by,
-        source=src,
-        error_log_id=error_record["id"],
-    )
+    bank_existing = question_bank.find_by_question(question, wrong_only=True)
+    bank_is_new = bank_existing is None
+
+    if bank_existing:
+        bank_record = question_bank.update(
+            bank_existing["id"],
+            my_answer=my_answer,
+            correct_answer=correct_answer,
+            is_correct=False,
+            knowledge_area=knowledge_area or bank_existing.get("knowledge_area", ""),
+            explanation=explanation or bank_existing.get("explanation", ""),
+            error_log_id=error_record["id"],
+        )
+        if not bank_record:
+            bank_record = bank_existing
+    else:
+        bank_record = question_bank.add(
+            question=question,
+            my_answer=my_answer,
+            correct_answer=correct_answer,
+            is_correct=False,
+            knowledge_area=knowledge_area,
+            explanation=explanation,
+            parsed_by=parsed_by,
+            source=src,
+            error_log_id=error_record["id"],
+        )
 
     _ensure_review_queue(error_record["id"])
 
@@ -132,6 +154,7 @@ def record_wrong_answer(
         "error_log_id": error_record["id"],
         "bank_id": bank_record["id"],
         "error_is_new": error_is_new,
+        "bank_is_new": bank_is_new,
         "source": src,
     }
 
