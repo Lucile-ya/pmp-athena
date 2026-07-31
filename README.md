@@ -44,15 +44,17 @@ pip install pytesseract Pillow
 ```
 pmp-athena/
 ├── pmp_athena/          # Python 核心代码
-├── pmp_notes/           # 笔记 + 做题数据（部分不上传 Git）
+├── tests/               # 单元测试（unittest discover）
+├── pmp_notes/           # 笔记 + 做题数据（大部分不上传 Git）
 │   ├── *.md             # 学习笔记
-│   ├── 每日一练/        # 培训机构 PDF（题目 + 答案解析）
-│   ├── 模考/            # 模考 PDF
-│   ├── config.json      # 每日一练完成日期等
+│   ├── 每日一练/        # 培训机构 PDF（本地，*.pdf 已 gitignore）
+│   ├── 模考/            # 模考 PDF（本地）
+│   ├── config.json      # 每日一练完成日期（本地）
 │   ├── question_bank.json
 │   ├── error_log.json
 │   └── error_review_state.json
 ├── data/                # ChromaDB 持久化（不上传 Git）
+├── pmp_knowledge_index.json  # 知识点索引（可重建）
 ├── CLAUDE.md            # Agent 行为规则（微信 / Cursor 共用）
 ├── restart_bridge.ps1   # 重启微信桥接（Windows）
 └── docs/                # 桥接补丁说明
@@ -124,12 +126,6 @@ A. … B. … C. … D. …
 
 题号映射保存在 `pmp_notes/batch_practice_state.json`（本地，不上传 Git）。
 
-演示脚本：
-
-```bash
-python pmp_athena/demo_batch_q41_45.py
-```
-
 ---
 
 ## 💬 微信接入
@@ -182,6 +178,8 @@ python pmp_athena/demo_batch_q41_45.py
 | `daily_practice_state.json` | 进行中的每日一练会话 |
 | `mock_exam_state.json` | 进行中的模考进度 |
 | `batch_practice_state.json` | App 批量题号 → 题库 ID 映射 |
+| `prep_push_queue.json` | 备考推送队列（本地） |
+| `knowledge_query_state.json` | 知识点追问上下文（本地） |
 
 **入库规则**：错题必须 `error_logger.py add` → `question_bank.py add --error-log-id N` 两步同步；推荐使用 `record_answer.py` 统一封装。
 
@@ -190,9 +188,8 @@ python pmp_athena/demo_batch_q41_45.py
 ## 🏗️ 项目结构
 
 ```
-pmp_athena/
+pmp_athena/                   # 核心业务代码
 ├── cli.py                    # 主 CLI：ingest / plan / analyze / stats
-├── config.py                 # 路径、领域权重
 ├── daily_practice.py         # 每日一练 PDF 解析、判卷、batch 子命令
 ├── batch_practice.py         # App 批量刷题解析与两阶段入库
 ├── question_bank.py          # 题库 CRUD
@@ -202,16 +199,23 @@ pmp_athena/
 ├── study_advisor.py          # 薄弱点 / 复习 / 计划
 ├── mock_exam_state.py        # 模考断点续做
 ├── exam_recorder.py          # 模考记录
-├── sprint_planner.py         # 冲刺计划
+├── practice_overview.py      # 刷题总览（含时间线）
+├── practice_summary.py       # 月度 / 备考汇总
+├── prep_analytics.py         # 周月总结、错题专项计划
+├── prep_push.py              # 备考推送队列
+├── pre_exam_analysis.py      # 考前深度分析
+├── dynamic_knowledge.py      # 动态知识点检索（L1/L2/L3）
+├── knowledge_retriever.py    # 向量库领域速查
+├── analyze_exam.py           # 模考成绩截图 OCR 入库
 ├── image_processor.py        # 截图压缩 + OCR + 结构化入库
-├── analyze_exam.py           # 模考成绩截图分析
-├── practice_summary.py       # 刷题汇总（月度等）
+├── sprint_planner.py         # 冲刺计划
 ├── chapter_practice_recorder.py
 ├── error_insights.py         # 高频错题解读
 ├── db/vector_store.py        # ChromaDB
 ├── ingestion/                # md / pdf / ocr 导入
-├── modules/                    # 情绪触发、通过率、日计划
-└── utils/                      # embedding、题干规范化
+└── utils/                    # embedding、题干规范化
+
+tests/                        # 单元测试（见下方命令）
 ```
 
 ### 测试
@@ -257,8 +261,12 @@ python pmp_athena/daily_practice.py audit-content # 全部每日一练 PDF 内�
 
 ## 🔒 隐私与 Git
 
-- 所有做题数据、向量库 **仅存本地**
-- `.gitignore` 已排除 `data/`、`question_bank.json`、`error_log.json` 等个人数据
+- 所有做题数据、向量库、培训机构 PDF **仅存本地**
+- `.gitignore` 已排除：
+  - `data/`（ChromaDB）
+  - `question_bank.json`、`error_log.json`、`exam_records.json` 等做题数据
+  - `config.json`、`prep_push_queue.json` 等运行时状态
+  - `pmp_notes/每日一练/*.pdf`、`pmp_notes/模考/*.pdf`
 - 微信 Token 在 `~/.wechat-claude-code/`，不在本仓库
 
 ---

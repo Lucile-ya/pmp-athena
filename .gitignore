@@ -8,6 +8,7 @@ pmp_notes/error_review_state.json
 pmp_notes/exam_records.json
 pmp_notes/sprint_plans.json
 pmp_notes/exam_config.json
+pmp_notes/config.json
 pmp_notes/batch_practice_state.json
 pmp_notes/daily_practice_state.json
 pmp_notes/mock_exam_state.json
@@ -15,6 +16,16 @@ pmp_notes/knowledge_mastery.json
 pmp_notes/bedtime_tracker.json
 pmp_notes/chapter_practice_pending.json
 pmp_notes/plain_question_pending.json
+pmp_notes/pending_plain_question.json
+
+# ── 运行时状态 / 推送队列 ─────────────────────────────────
+pmp_notes/prep_push_queue.json
+pmp_notes/knowledge_query_state.json
+pmp_notes/_test_plain_e2e/
+
+# ── 培训机构 PDF（本地题库，不上传）──────────────────────
+pmp_notes/每日一练/*.pdf
+pmp_notes/模考/*.pdf
 
 # ── Python ────────────────────────────────────────────────
 __pycache__/
@@ -30,6 +41,7 @@ venv/
 .idea/
 *.swp
 *.swo
+.claude/
 
 # ── OS ────────────────────────────────────────────────────
 .DS_Store
