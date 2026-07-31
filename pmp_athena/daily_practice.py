@@ -1193,6 +1193,11 @@ def main() -> None:
     p_batch.add_argument("--key", help="标准答案串，如 CCCAB（可选；无则先收录待补录）")
     p_batch.add_argument("--json", action="store_true")
 
+    p_bcomp = sub.add_parser("batch-complete", help="待判早餐题 + 仅答案串")
+    p_bcomp.add_argument("--questions", nargs="?", default="")
+    p_bcomp.add_argument("--stdin", action="store_true")
+    p_bcomp.add_argument("--json", action="store_true")
+
     p_bupd = sub.add_parser("batch-update", help="补录批量题标准答案")
     p_bupd.add_argument("num", type=int, help="题号，如 41")
     p_bupd.add_argument("--correct-answer", "-c", required=True)
@@ -1242,9 +1247,9 @@ def main() -> None:
         result = audit_content(expect_count=args.expect)
     elif args.command == "batch":
         try:
-            from pmp_athena.batch_practice import batch_ingest
+            from pmp_athena.batch_practice import batch_complete_pending, batch_ingest
         except ModuleNotFoundError:
-            from batch_practice import batch_ingest
+            from batch_practice import batch_complete_pending, batch_ingest
         body = args.questions or ""
         if args.stdin:
             body = sys.stdin.read()
@@ -1252,6 +1257,19 @@ def main() -> None:
             result = {"status": "error", "text": "⚠️ 请提供题目文本（--questions 或 --stdin）"}
         else:
             result = batch_ingest(body, answer_key=args.key)
+    elif args.command == "batch-complete":
+        try:
+            from pmp_athena.batch_practice import batch_complete_pending
+        except ModuleNotFoundError:
+            from batch_practice import batch_complete_pending
+        body = sys.stdin.read() if args.stdin else (args.questions or "")
+        if not body.strip():
+            result = {"status": "error", "text": "⚠️ 请提供「我的答案是：XXX」"}
+        else:
+            result = batch_complete_pending(body) or {
+                "status": "error",
+                "text": "⚠️ 无待判批量题，请先发送早餐题或题目+答案串。",
+            }
     elif args.command == "batch-update":
         try:
             from pmp_athena.batch_practice import batch_update
