@@ -192,10 +192,27 @@ class SpacedRepetition:
             # 缓存题目摘要，避免每次重新读 error_log
             "question_preview": error.get("question", "")[:80],
             "knowledge_area": error.get("knowledge_area", ""),
+            # 高频错题追踪
+            "high_frequency": False,
+            "consecutive_correct": 0,
+            "skip_count": 0,           # 连续跳过次数（连续 3 次 → 降级为知识回顾）
+            "consecutive_skips": 0,    # 从上次答题后累计跳过次数
+            "variant_pass_count": 0,
+            "variant_total": 0,
         }
 
         self._write_state(state)
         logger.info("Error #%d added to review queue → next: %s", error_id, state[key]["next_date"])
+        return True
+
+    def update_high_frequency_status(self, error_id: int, is_hf: bool) -> bool:
+        """更新高频错题标记。"""
+        state = self._read_state()
+        key = str(error_id)
+        if key not in state:
+            return False
+        state[key]["high_frequency"] = is_hf
+        self._write_state(state)
         return True
 
     def add_all_errors(self) -> int:
@@ -305,6 +322,24 @@ class SpacedRepetition:
         card["next_date"] = result["next_date"]
         card["last_quality"] = quality
         card["total_reviews"] += 1
+
+        # 高频错题追踪：连续正确计数
+        if "consecutive_correct" not in card:
+            card["consecutive_correct"] = 0
+        if quality >= 4:
+            card["consecutive_correct"] = card["consecutive_correct"] + 1
+        else:
+            card["consecutive_correct"] = 0
+
+        # 只要用户有答题行为 → 重置跳过计数（用户已经认真对待了）
+        card["skip_count"] = 0
+        card["consecutive_skips"] = 0
+
+        # 确保高频相关字段存在（向后兼容旧卡）
+        for _f, _d in [("high_frequency", False), ("skip_count", 0), ("consecutive_skips", 0),
+                        ("variant_pass_count", 0), ("variant_total", 0)]:
+            if _f not in card:
+                card[_f] = _d
 
         # 记录历史
         if "history" not in card:

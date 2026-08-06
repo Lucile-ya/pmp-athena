@@ -1357,6 +1357,25 @@ class AnswerValidator:
 # 一键处理：压缩 + OCR + 答题验证 + 错题记录（集成入口）
 # ═══════════════════════════════════════════════════════════
 
+_ATTEMPT_KEYWORDS_IMG: dict[str, int] = {
+    "一刷": 1, "首次": 1, "第一次": 1,
+    "二刷": 2, "第二次": 2, "重刷": 2,
+    "三刷": 3, "第三次": 3,
+    "四刷": 4, "第四次": 4,
+    "五刷": 5, "第五次": 5,
+}
+
+
+def _parse_attempt_from_caption(caption: str | None) -> int:
+    """从配文提取 attempt 关键词，未匹配返回 1。"""
+    if not caption:
+        return 1
+    c = caption.lower()
+    for kw, n in sorted(_ATTEMPT_KEYWORDS_IMG.items(), key=lambda x: -len(x[0])):
+        if kw in c:
+            return n
+    return 1
+
 def process_and_validate(
     input_path: str | Path,
     output_path: str | Path | None = None,
@@ -1434,6 +1453,7 @@ def process_and_validate(
                             explanation=ext.get("explanation", ""),
                             source="screenshot",
                             parsed_by="ocr_validator",
+                            attempt=_parse_attempt_from_caption(user_caption),
                         )
                         validation["error_log_record_id"] = rec["error_log_id"]
                         validation["question_bank_record_id"] = rec["bank_id"]
@@ -1475,6 +1495,7 @@ def process_and_validate(
                             explanation=ext.get("explanation", ""),
                             source="screenshot",
                             parsed_by="ocr_validator",
+                            attempt=_parse_attempt_from_caption(user_caption),
                         )
                         validation["question_bank_record_id"] = rec["bank_id"]
                     except Exception as e:

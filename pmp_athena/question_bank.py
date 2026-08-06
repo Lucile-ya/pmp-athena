@@ -79,25 +79,29 @@ class QuestionBank:
         source: str = "manual",
         error_log_id: int | None = None,
         confidence: float | None = None,
+        attempt: int = 1,
     ) -> dict:
         """
         追加一条题目记录。
 
-        自动去重：如果相同题目（规范化题干前 50 字匹配）在 24 小时内已存在，
-        则仅更新 times_seen 和 last_review_date，不创建新记录。
+        自动去重：如果相同题目（规范化题干前 50 字匹配）在 24 小时内已存在
+        且 attempt 相同，则仅更新 times_seen 和 last_review_date，不创建新记录。
         """
         data = self._read()
         now = datetime.now()
         question = normalize_question_text(question)
         question_stub = question_dedup_key(question)
 
-        # 去重：24 小时内同题且做对的记录合并 times_seen；错题每次作答单独一条
+        # 去重：24 小时内同题且做对且同 attempt 的记录合并 times_seen；错题每次作答单独一条
         if is_correct is not False:
             for record in reversed(data):
                 if question_dedup_key(record.get("question", "")) == question_stub:
                     try:
                         record_time = datetime.fromisoformat(record["timestamp"])
                         if (now - record_time).total_seconds() < 86400:
+                            # 不同 attempt 不合并
+                            if record.get("attempt", 1) != attempt:
+                                continue
                             record["times_seen"] = record.get("times_seen", 1) + 1
                             record["last_review_date"] = now.strftime("%Y-%m-%d")
                             self._write(data)
@@ -128,6 +132,7 @@ class QuestionBank:
             "last_review_date": now.strftime("%Y-%m-%d"),
             "error_log_id": error_log_id,
             "confidence": confidence,
+            "attempt": attempt,
         }
         data.append(record)
         self._write(data)
@@ -141,6 +146,7 @@ class QuestionBank:
         validation_result: dict,
         parsed_by: str = "ocr_validator",
         error_log_id: int | None = None,
+        attempt: int = 1,
     ) -> dict | None:
         """
         从 AnswerValidator.validate() 的结果中添加记录。
@@ -163,6 +169,7 @@ class QuestionBank:
             source="screenshot",
             error_log_id=error_log_id,
             confidence=validation_result.get("confidence"),
+            attempt=attempt,
         )
 
     def find_by_question(
@@ -256,6 +263,47 @@ class QuestionBank:
             r for r in self._read()
             if area.lower() in r.get("knowledge_area", "").lower()
         ]
+
+    def list_by_area_excluding(
+        self,
+        area: str,
+        exclude_error_log_id: int,
+        limit: int = 3,
+    ) -> list[dict]:
+        """查找同知识领域的题目，排除指定 error_log_id 关联的记录。
+
+        用于高频错题的「同类变式」推送。优先选择含选项（A/B/C/D）的题目，
+        按题干前 80 字去重，返回最多 limit 条。
+        """
+        import re
+        data = self._read()
+        area_lower = area.lower()
+        candidates = [
+            r for r in data
+            if area_lower in r.get("knowledge_area", "").lower()
+            and r.get("error_log_id") != exclude_error_log_id
+        ]
+
+        # 优先：有选项的题目在前
+        _opt_re = re.compile(r"[A-D][\.、．\)]", re.IGNORECASE)
+        candidates.sort(
+            key=lambda r: (
+                -1 if _opt_re.search(r.get("question", "")) else 0,
+                -(len(r.get("question", ""))),
+            )
+        )
+
+        seen_keys: set[str] = set()
+        result: list[dict] = []
+        for r in candidates:
+            key = (r.get("question", "")[:80]).strip()
+            if not key or key in seen_keys:
+                continue
+            seen_keys.add(key)
+            result.append(r)
+            if len(result) >= limit:
+                break
+        return result
 
     # ── 统计 ───────────────────────────────────────────────
 

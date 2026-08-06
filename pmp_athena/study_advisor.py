@@ -410,7 +410,90 @@ def _format_review_question(error_id: int, record: dict) -> str:
     lines = [f"📝 复习 #{error_id} [{area}]", question]
     if not _has_options(question):
         lines.append("")
-        lines.append("⚠️ 本题录入时未保存选项。请凭记忆作答，或发「查看题目#N」补录。")
+        lines.append("⚠️ 本题选项缺失，无法作答")
+        lines.append("  ① 回复「补录 #{}」手动补录选项".format(error_id))
+        lines.append("  ② 回复「跳过」暂时跳过，排到队列末尾")
+    return "\n".join(lines)
+
+
+def _format_option_missing_knowledge(error_id: int, record: dict) -> str:
+    """选项缺失时的「知识点回顾」模式降级输出。"""
+    try:
+        from pmp_athena.error_insights import build_summary, build_mnemonic
+    except ImportError:
+        from error_insights import build_summary, build_mnemonic
+    area = record.get("knowledge_area", "综合")
+    summary = build_summary(record)
+    mnemonic = build_mnemonic(record)
+    lines = [
+        f"📖 本题选项缺失，转为知识点回顾",
+        f"📌 核心考点：[{area}]",
+        f"💡 正确思路：{summary}",
+        f"🎯 口诀：{mnemonic}",
+        "",
+        "💬 回复「已掌握」继续下一题，回复「未掌握」标记明天再复习。",
+    ]
+    return "\n".join(lines)
+
+
+def _enhance_high_frequency_question(error_id: int, record: dict) -> str:
+    """高频错题增强格式：等级 + 错误记录 + 根因诊断 + 口诀 + 变式预告"""
+    try:
+        from pmp_athena.error_insights import (
+            count_mistakes, build_mnemonic, is_high_frequency_marked,
+        )
+    except ImportError:
+        from error_insights import (
+            count_mistakes, build_mnemonic, is_high_frequency_marked,
+        )
+    try:
+        from pmp_athena.root_cause_engine import diagnose as rc_diagnose, format_root_cause_card
+    except ImportError:
+        from root_cause_engine import diagnose as rc_diagnose, format_root_cause_card
+
+    mistake_info = count_mistakes(error_id)
+    total_wrong = mistake_info["total"]
+
+    # 上次错误记录
+    bank = load_json(QUESTION_BANK)
+    if not isinstance(bank, list):
+        bank = []
+    wrong_records = sorted(
+        [r for r in bank if r.get("error_log_id") == error_id and r.get("is_correct") is False],
+        key=lambda r: r.get("date", ""),
+        reverse=True,
+    )
+    last_wrong = wrong_records[0] if wrong_records else record
+
+    # 根因诊断
+    root_cause = rc_diagnose(record, wrong_records)
+
+    # 口诀
+    mnemonic = build_mnemonic(record)
+
+    area = record.get("knowledge_area", "综合")
+    question = record.get("question", "").strip()
+
+    lines = [
+        f"📌 错题等级：🔥 高频错题（已错 {total_wrong} 次）",
+        f"📖 你的错误记录：上次错选 {last_wrong.get('my_answer', '?')}"
+        f"（正确 {last_wrong.get('correct_answer', '?')}）",
+    ]
+    if root_cause:
+        lines.append(f"⚠️ 根因诊断：{format_root_cause_card(root_cause)}")
+    lines.append(f"🎯 破解口诀：{mnemonic}")
+    lines.append("")
+    lines.append(f"📝 复习 #{error_id} [{area}]")
+    lines.append(question)
+    if not _has_options(question):
+        lines.append("")
+        lines.append("⚠️ 本题选项缺失，无法作答")
+        lines.append("  ① 回复「补录 #{}」手动补录选项".format(error_id))
+        lines.append("  ② 回复「跳过」暂时跳过，排到队列末尾")
+    else:
+        lines.append("")
+        lines.append("💡 同类变式（必做）：本题为高频错题，答对后将推送 3 道同领域变式题巩固。")
+
     return "\n".join(lines)
 
 
@@ -467,14 +550,34 @@ def review_next(*, include_header: bool = False) -> dict:
             "text": f"⚠️ 错题 #{error_id} 未找到题目内容",
         }
 
-    body = _format_review_question(error_id, record)
+    # 高频错题检测
+    try:
+        from pmp_athena.error_insights import (
+            is_high_frequency, is_high_frequency_marked, mark_high_frequency,
+        )
+    except ImportError:
+        from error_insights import (
+            is_high_frequency, is_high_frequency_marked, mark_high_frequency,
+        )
+    is_hf = is_high_frequency_marked(error_id) or is_high_frequency(error_id, threshold=3)
+
+    if is_hf:
+        if not is_high_frequency_marked(error_id):
+            mark_high_frequency(error_id)
+        body = _enhance_high_frequency_question(error_id, record)
+    else:
+        body = _format_review_question(error_id, record)
+
+    # 进度行：已完成 / 总到期数
+    done_count = len(due_ids) - len(pending)
+    progress = f"[{done_count}/{len(due_ids)}]"
     if include_header:
         text = (
             f"📚 今日待复习错题: {len(due_ids)} 道（还剩 {len(pending)} 道）\n\n"
             f"{body}"
         )
     else:
-        text = body
+        text = f"{progress}\n{body}"
 
     return {
         "status": "question",
@@ -482,11 +585,15 @@ def review_next(*, include_header: bool = False) -> dict:
         "total_due": len(due_ids),
         "remaining": len(pending),
         "text": text,
+        "is_high_frequency": is_hf,
     }
 
 
 def grade_review(error_id: int, user_answer: str) -> dict:
-    """判卷并返回下一题（微信硬路由用）"""
+    """判卷并返回下一题（微信硬路由用）。
+
+    支持高频错题变式触发、选项缺失知识回顾、跳过等子模式。
+    """
     import sys
     from pathlib import Path
     _pkg = Path(__file__).resolve().parent
@@ -497,6 +604,9 @@ def grade_review(error_id: int, user_answer: str) -> dict:
     errors = load_json(ERROR_LOG)
     if not isinstance(errors, list):
         errors = []
+    bank = load_json(QUESTION_BANK)
+    if not isinstance(bank, list):
+        bank = []
 
     error = next((e for e in errors if e.get("id") == error_id), None)
     if error is None:
@@ -511,6 +621,28 @@ def grade_review(error_id: int, user_answer: str) -> dict:
     correct_ans = str(error.get("correct_answer", "")).strip().upper()
     is_correct = user_ans == correct_ans
 
+    # ── 特殊模式：知识回顾（选项缺失时用户回复「已掌握」/「未掌握」）──
+    if user_ans in ("已掌握", "未掌握"):
+        sr = SpacedRepetition()
+        quality = 5 if user_ans == "已掌握" else 1
+        sr.grade(error_id, quality)
+        lines = ["✅ 已记录！" if user_ans == "已掌握" else "📌 已标记，明天再复习。"]
+        nxt = review_next(include_header=False)
+        if nxt["status"] == "question":
+            lines.append("")
+            lines.append(nxt["text"])
+        else:
+            lines.append("")
+            lines.append(nxt["text"])
+        return {
+            "status": "graded",
+            "correct": user_ans == "已掌握",
+            "error_id": error_id,
+            "next_error_id": nxt.get("error_id"),
+            "done": nxt["status"] in ("done", "empty"),
+            "text": "\n".join(lines),
+        }
+
     sr = SpacedRepetition()
     sr.grade(error_id, 5 if is_correct else 1)
 
@@ -524,13 +656,54 @@ def grade_review(error_id: int, user_answer: str) -> dict:
             from error_insights import format_wrong_feedback
         lines.append(format_wrong_feedback(error, user_answer=user_ans))
 
+    # ── 高频错题变式触发 ──
+    if is_correct:
+        try:
+            from pmp_athena.error_insights import is_high_frequency_marked, unmark_high_frequency
+        except ImportError:
+            from error_insights import is_high_frequency_marked, unmark_high_frequency
+        if is_high_frequency_marked(error_id):
+            state = sr._read_state()
+            card = state.get(str(error_id), {})
+            consec = card.get("consecutive_correct", 0)
+
+            # 连续正确 ≥2 且题库有变式 → 直接 unmark，跳过变式
+            if consec >= 2:
+                unmark_high_frequency(error_id)
+                sr.update_high_frequency_status(error_id, False)
+                lines.append("🏆 连续 2 次正确，已取消高频错题标记！")
+            else:
+                # 触发变式子模式
+                variant_result = _review_variant_start(error_id)
+                if variant_result["status"] == "variant_question":
+                    lines.append("")
+                    lines.append(variant_result["text"])
+                    return {
+                        "status": "graded_variant_pending",
+                        "correct": True,
+                        "error_id": error_id,
+                        "variant_ids": variant_result.get("variant_ids", []),
+                        "variant_index": variant_result.get("variant_index", 0),
+                        "variant_correct": variant_result.get("variant_correct", 0),
+                        "variant_total": variant_result.get("variant_total", 0),
+                        "text": "\n".join(lines),
+                    }
+                elif variant_result["status"] == "insufficient":
+                    lines.append("")
+                    lines.append(variant_result["text"])
+                    # 变式题不足 → 降级：连续 2 次正确即可 unmark
+                    if consec >= 1:
+                        unmark_high_frequency(error_id)
+                        sr.update_high_frequency_status(error_id, False)
+                        lines.append("🏆 该领域变式题不足，已按连续正确判定，取消高频标记！")
+
     nxt = review_next(include_header=False)
     if nxt["status"] == "question":
         lines.append("")
         lines.append(nxt["text"])
-    elif nxt["status"] == "done":
+    elif nxt["status"] in ("done", "empty"):
         lines.append("")
-        lines.append(nxt["text"])
+        lines.append(_build_done_summary(nxt))
 
     return {
         "status": "graded",
@@ -538,6 +711,269 @@ def grade_review(error_id: int, user_answer: str) -> dict:
         "error_id": error_id,
         "next_error_id": nxt.get("error_id"),
         "done": nxt["status"] in ("done", "empty"),
+        "text": "\n".join(lines),
+    }
+
+
+# ── 辅助：今日复习完成汇总 ──────────────────────────────────
+
+
+def _build_done_summary(nxt: dict) -> str:
+    """生成复习完毕的正确率统计行。"""
+    review_state = load_json(REVIEW_STATE)
+    nxt_text = nxt.get("text", "")
+    if isinstance(review_state, dict):
+        today_reviews = []
+        for card in review_state.values():
+            if isinstance(card, dict):
+                for h in card.get("history", []):
+                    if h.get("date") == date.today().isoformat() and h.get("quality", 0) > 0:
+                        today_reviews.append(h["quality"])
+        if today_reviews:
+            correct = sum(1 for q in today_reviews if q >= 4)
+            total = len(today_reviews)
+            pct = correct / total * 100 if total > 0 else 0
+            if "复习完毕" in nxt_text:
+                nxt_text = nxt_text.replace("复习完毕", f"复习完毕！正确率 {pct:.0f}%（{correct}/{total}）")
+    return nxt_text
+
+
+# ── 高频错题变式巩固 ─────────────────────────────────────────
+
+
+def _review_variant_start(error_id: int) -> dict:
+    """启动高频错题的同类变式巩固流程。返回 3 道同领域变式题的第一道。"""
+    errors = load_json(ERROR_LOG)
+    if not isinstance(errors, list):
+        errors = []
+    error = next((e for e in errors if e.get("id") == error_id), None)
+    if error is None:
+        return {"status": "error", "text": f"⚠️ 错题 #{error_id} 不存在"}
+
+    area = error.get("knowledge_area", "")
+    if not area:
+        return {"status": "insufficient", "text": "⚠️ 该题无知识领域标记，无法生成变式题。"}
+
+    try:
+        from pmp_athena.question_bank import QuestionBank
+    except ImportError:
+        from question_bank import QuestionBank
+
+    qb = QuestionBank()
+    variants = qb.list_by_area_excluding(area, error_id, limit=3)
+
+    if len(variants) < 2:
+        return {
+            "status": "insufficient",
+            "text": f"⚠️ 该领域({area})变式题不足（仅{len(variants)}道），跳过变式环节。",
+            "variant_count": len(variants),
+        }
+
+    variant_ids = [v.get("id") for v in variants]
+    first = variants[0]
+    q_text = first.get("question", "").strip()
+    lines = [
+        "💡 同类变式巩固（第 1/3 题）",
+        f"[{area}] {q_text}",
+        "",
+        "请回复 A/B/C/D 作答。",
+    ]
+
+    return {
+        "status": "variant_question",
+        "error_id": error_id,
+        "variant_ids": variant_ids,
+        "variant_index": 0,
+        "variant_total": len(variants),
+        "variant_correct": 0,
+        "text": "\n".join(lines),
+    }
+
+
+def review_variant_start(error_id: int) -> dict:
+    """CLI 入口：与 _review_variant_start 相同。"""
+    return _review_variant_start(error_id)
+
+
+def grade_variant_answer(
+    error_id: int,
+    variant_index: int,
+    user_answer: str,
+    variant_ids: list[int],
+    variant_correct: int,
+) -> dict:
+    """判卷一道变式题，返回下一道变式题或完成结果。"""
+    import sys
+    from pathlib import Path
+    _pkg = Path(__file__).resolve().parent
+    if str(_pkg) not in sys.path:
+        sys.path.insert(0, str(_pkg))
+
+    try:
+        from pmp_athena.question_bank import QuestionBank
+        from pmp_athena.spaced_repetition import SpacedRepetition
+        from pmp_athena.error_insights import is_high_frequency_marked, unmark_high_frequency
+    except ImportError:
+        from question_bank import QuestionBank
+        from spaced_repetition import SpacedRepetition
+        from error_insights import is_high_frequency_marked, unmark_high_frequency
+
+    qb = QuestionBank()
+    sr = SpacedRepetition()
+
+    if variant_index >= len(variant_ids):
+        return {"status": "error", "text": "⚠️ 变式题序号超出范围"}
+
+    current_variant_id = variant_ids[variant_index]
+    variant_record = qb.get_by_id(current_variant_id)
+
+    if not variant_record:
+        return {"status": "error", "text": f"⚠️ 变式题 #{current_variant_id} 未找到"}
+
+    correct_ans = str(variant_record.get("correct_answer", "")).strip().upper()
+    my_ans = user_answer.strip().upper()
+    is_correct = my_ans == correct_ans
+    new_correct = variant_correct + (1 if is_correct else 0)
+
+    if is_correct:
+        feedback = "✅ 正确！"
+    else:
+        expl = str(variant_record.get("explanation", ""))[:200]
+        feedback = (
+            f"❌ 正确答案是 {correct_ans}（你选了 {my_ans}）\n"
+            f"💡 {expl}"
+        )
+
+    next_index = variant_index + 1
+
+    if next_index >= len(variant_ids):
+        # 全部变式完成 → 判定
+        passed = new_correct >= 2
+        total = len(variant_ids)
+        lines = [feedback]
+        lines.append(f"\n📊 变式巩固完成：正确 {new_correct}/{total}")
+
+        if passed:
+            lines.append("✅ 变式通过！")
+            # 检查是否可以 unmark
+            state = sr._read_state()
+            card = state.get(str(error_id), {})
+            consec = card.get("consecutive_correct", 0)
+            if consec >= 2 and is_high_frequency_marked(error_id):
+                unmark_high_frequency(error_id)
+                sr.update_high_frequency_status(error_id, False)
+                lines.append("🏆 连续 2 次正确 + 变式通过，已取消高频错题标记！")
+            else:
+                lines.append(f"💡 再答对 {2 - consec} 次即可取消高频标记。")
+        else:
+            lines.append("⚠️ 变式未达标（需 ≥2/3 正确），保留高频标记，继续加油！")
+
+        # 返回下一道复习题
+        nxt = review_next(include_header=False)
+        if nxt["status"] == "question":
+            lines.append("")
+            lines.append(nxt["text"])
+        else:
+            lines.append("")
+            lines.append(_build_done_summary(nxt))
+
+        return {
+            "status": "variant_done",
+            "correct": is_correct,
+            "variant_correct": new_correct,
+            "variant_total": total,
+            "passed": passed,
+            "next_error_id": nxt.get("error_id"),
+            "done": nxt["status"] in ("done", "empty"),
+            "text": "\n".join(lines),
+        }
+
+    # 还有下一道变式题
+    next_variant = qb.get_by_id(variant_ids[next_index])
+    if next_variant:
+        area = next_variant.get("knowledge_area", "综合")
+        q_text = next_variant.get("question", "").strip()
+        lines = [feedback]
+        lines.append(f"\n💡 同类变式巩固（第 {next_index + 1}/{len(variant_ids)} 题）")
+        lines.append(f"[{area}] {q_text}")
+        lines.append("\n请回复 A/B/C/D 作答。")
+    else:
+        lines = [feedback, "⚠️ 下一道变式题未找到"]
+
+    return {
+        "status": "variant_question",
+        "correct": is_correct,
+        "variant_ids": variant_ids,
+        "variant_index": next_index,
+        "variant_correct": new_correct,
+        "variant_total": len(variant_ids),
+        "text": "\n".join(lines),
+    }
+
+
+def review_skip_current(error_id: int) -> dict:
+    """跳过当前题（排到明天），返回下一道复习题。
+
+    连续跳过 3 次 → 自动降级为「知识点回顾」模式。
+    """
+    import sys
+    from pathlib import Path
+    _pkg = Path(__file__).resolve().parent
+    if str(_pkg) not in sys.path:
+        sys.path.insert(0, str(_pkg))
+    from spaced_repetition import SpacedRepetition
+
+    sr = SpacedRepetition()
+    state = sr._read_state()
+    key = str(error_id)
+
+    # 跟踪跳过次数
+    if key in state:
+        state[key]["next_date"] = (date.today() + timedelta(days=1)).isoformat()
+        state[key]["skip_count"] = state[key].get("skip_count", 0) + 1
+        state[key]["consecutive_skips"] = state[key].get("consecutive_skips", 0) + 1
+        total_skips = state[key]["skip_count"]
+        sr._write_state(state)
+    else:
+        total_skips = 1
+
+    # 连续跳过 3 次 → 降级为知识回顾
+    is_knowledge_review = total_skips >= 3
+    errors = load_json(ERROR_LOG)
+    if not isinstance(errors, list):
+        errors = []
+    error = next((e for e in errors if e.get("id") == error_id), None)
+
+    nxt = review_next(include_header=False)
+    lines = [
+        f"⏭️ 已跳过 #{error_id}，排到明天复习。",
+    ]
+
+    if is_knowledge_review and error:
+        # 降级为知识回顾模式
+        from pmp_athena.error_insights import build_summary, build_mnemonic
+        area = error.get("knowledge_area", "综合")
+        summary = build_summary(error)
+        mnemonic = build_mnemonic(error)
+        lines.append(f"\n⚠️ 已连续跳过 {total_skips} 次，降级为知识点回顾：")
+        lines.append(f"📌 核心考点：[{area}]")
+        lines.append(f"💡 正确思路：{summary}")
+        lines.append(f"🎯 口诀：{mnemonic}")
+        lines.append("\n💬 回复「已掌握」继续，回复「未掌握」标记明天再复习。")
+    else:
+        if nxt["status"] == "question":
+            lines.append("")
+            lines.append(nxt["text"])
+        elif nxt["status"] in ("done", "empty"):
+            lines.append("")
+            lines.append(_build_done_summary(nxt))
+
+    return {
+        "status": "skipped",
+        "error_id": error_id,
+        "next_error_id": nxt.get("error_id"),
+        "done": nxt["status"] in ("done", "empty") if not is_knowledge_review else False,
+        "is_knowledge_review": is_knowledge_review,
         "text": "\n".join(lines),
     }
 
@@ -697,6 +1133,22 @@ def main():
     p_freq.add_argument("--top", type=int, default=5, help="显示 Top N")
     p_freq.add_argument("--json", action="store_true")
 
+    p_vstart = sub.add_parser("variant-start", help="启动高频错题的变式巩固")
+    p_vstart.add_argument("error_id", type=int, help="高频错题 ID")
+    p_vstart.add_argument("--json", action="store_true")
+
+    p_vgrade = sub.add_parser("variant-grade", help="变式题判卷")
+    p_vgrade.add_argument("error_id", type=int, help="原高频错题 ID")
+    p_vgrade.add_argument("variant_index", type=int, help="当前变式题序号（0 起）")
+    p_vgrade.add_argument("answer", help="答案 A/B/C/D")
+    p_vgrade.add_argument("variant_ids_json", help="变式题 ID 列表 JSON，如 [1,2,3]")
+    p_vgrade.add_argument("variant_correct", type=int, help="当前已正确数")
+    p_vgrade.add_argument("--json", action="store_true")
+
+    p_skip = sub.add_parser("review-skip", help="跳过当前复习题（排到明天）")
+    p_skip.add_argument("error_id", type=int, help="错题 ID")
+    p_skip.add_argument("--json", action="store_true")
+
     args = parser.parse_args()
 
     if args.command == "weakness":
@@ -725,6 +1177,19 @@ def main():
             output = json.dumps({"status": "ok", "text": output}, ensure_ascii=False)
     elif args.command == "plan":
         output = generate_plan(custom_days=args.days)
+    elif args.command == "variant-start":
+        result = review_variant_start(args.error_id)
+        output = json.dumps(result, ensure_ascii=False) if args.json else result["text"]
+    elif args.command == "variant-grade":
+        variant_ids = json.loads(args.variant_ids_json)
+        result = grade_variant_answer(
+            args.error_id, args.variant_index, args.answer,
+            variant_ids, args.variant_correct,
+        )
+        output = json.dumps(result, ensure_ascii=False) if args.json else result["text"]
+    elif args.command == "review-skip":
+        result = review_skip_current(args.error_id)
+        output = json.dumps(result, ensure_ascii=False) if args.json else result["text"]
     else:
         output = analyze_weakness()
 

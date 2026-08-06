@@ -10,10 +10,13 @@ App / 培训机构批量题：一次发多题 + 答案串 → 收录 → 补录�
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import date
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 try:
     from pmp_athena.config import NOTES_DIR
@@ -31,13 +34,33 @@ _BANK_PATH = NOTES_DIR / "question_bank.json"
 
 _OPTION_LINE = re.compile(r"^([A-D])[\.．、:：]\s*(.*)$", re.I)
 _ANSWER_TAIL = re.compile(
-    r"(?:我的答案(?:是)?|我选(?:了)?)[：:\s]*([A-E]+)\s*$",
+    r"(?:我的答案(?:是)?|我选(?:了)?)[：:\s]*([A-E,、和\s]+)\s*$",
     re.I | re.M,
 )
 _Q_NUM = re.compile(r"^(\d+)[\.．、]\s*")
 _Q_BLOCK_SPLIT = re.compile(r"(?=(?:^|\n)\d+[\.．、]\s*)")
-_PER_Q_ANS = re.compile(r"^(?:\d+[\.．、]\s*)?答案[：:\s]*([A-E])\s*$", re.I | re.M)
+_PER_Q_ANS = re.compile(r"^(?:\d+[\.．、]\s*)?答案[：:\s]*([A-E,\s]+)\s*$", re.I | re.M)
 _PER_Q_EXPL = re.compile(r"^(?:【解析】|解析[：:\s]*)(.*)", re.I | re.M)
+
+# ── 多选题检测 ──
+_MULTI_MARKERS = (
+    "选择两",
+    "选择三",
+    "选两项",
+    "选三项",
+    "choose two",
+    "choose 2",
+    "choose three",
+    "choose 3",
+)
+_MULTI_COUNT_MAP: dict[str, int] = {
+    "选择两": 2, "选两项": 2,
+    "选择三": 3, "选三项": 3,
+    "choose two": 2, "choose 2": 2,
+    "choose three": 3, "choose 3": 3,
+}
+_COUNT_CN = {2: "二", 3: "三", 4: "四", 5: "五"}
+_DELIM_RE = re.compile(r"[,、和&\s]+")
 _BATCH_UPDATE = re.compile(
     r"更新\s*#?(\d+)\s*题",
     re.I,
@@ -51,6 +74,86 @@ _BATCH_UPDATE_EXPL = re.compile(
     re.I | re.S,
 )
 _PREFIX_STRIP = re.compile(r"^(?:早餐题|早题)[：:\s]*", re.I)
+
+
+# ── 多选题检测与答案拆分 ──
+
+def _is_multichoice_question(text: str) -> bool:
+    """检测题干是否含「选择两项」「选择三项」等标记。"""
+    lower = text.lower()
+    return any(m.lower() in lower for m in _MULTI_MARKERS)
+
+
+def _get_answer_count(text: str) -> int:
+    """返回单题期望答案数（单选=1，多选=2/3）。"""
+    lower = text.lower()
+    for marker, count in _MULTI_COUNT_MAP.items():
+        if marker.lower() in lower:
+            return count
+    return 1
+
+
+def _normalize_answer_string(raw: str) -> str:
+    """去除答案串中的分隔符：A,E → AE，A、E → AE，A和E → AE"""
+    return _DELIM_RE.sub("", raw.strip().upper())
+
+
+def _get_per_question_answer_counts(questions: list[dict[str, Any]]) -> list[int]:
+    """返回每题的期望答案数列表。"""
+    return [_get_answer_count(q.get("question", "")) for q in questions]
+
+
+def _split_answers_for_questions(
+    answer_str: str,
+    questions: list[dict[str, Any]],
+) -> list[str] | None:
+    """按每题期望答案数拆分答案串，返回每题答案列表；长度不匹配返回 None。"""
+    counts = _get_per_question_answer_counts(questions)
+    normalized = _normalize_answer_string(answer_str)
+    expected = sum(counts)
+    if len(normalized) != expected:
+        return None
+    result: list[str] = []
+    pos = 0
+    for count in counts:
+        result.append(normalized[pos:pos + count])
+        pos += count
+    return result
+
+
+def _format_answer_mapping(
+    questions: list[dict[str, Any]],
+    answer_str: str,
+) -> str:
+    """格式化答案与题目对应关系，用于数量不匹配时展示给用户确认。"""
+    counts = _get_per_question_answer_counts(questions)
+    normalized = _normalize_answer_string(answer_str)
+    expected = sum(counts)
+
+    lines = [f"📋 题目 {len(questions)} 道，期望 {expected} 个答案，收到 {len(normalized)} 个"]
+    if any(c > 1 for c in counts):
+        multi_nums = [str(q.get("num", i + 1)) for i, (q, c) in enumerate(zip(questions, counts)) if c > 1]
+        lines.append(f"   （{'、'.join(multi_nums)} 为多选题）")
+
+    pos = 0
+    for i, (q, count) in enumerate(zip(questions, counts)):
+        num = q.get("num", i + 1)
+        if pos + count <= len(normalized):
+            ans = normalized[pos:pos + count]
+        else:
+            ans = normalized[pos:] if pos < len(normalized) else "?"
+        pos += count
+        tag = f" [选择{_COUNT_CN.get(count, str(count))}项]" if count > 1 else ""
+        lines.append(f"  Q{num}{tag}: {ans}")
+
+    if len(normalized) != expected:
+        delta = expected - len(normalized)
+        if delta > 0:
+            lines.append(f"\n⚠️  缺少 {delta} 个答案，请补充后重新提交。")
+        else:
+            lines.append(f"\n⚠️  多了 {-delta} 个答案，请确认后重新提交。")
+
+    return "\n".join(lines)
 
 
 def _load_json(path: Path, default: Any) -> Any:
@@ -94,20 +197,21 @@ def extract_answer_string(text: str) -> str | None:
     t = text.strip()
     m = _ANSWER_TAIL.search(t)
     if m:
-        return m.group(1).upper()
+        return _normalize_answer_string(m.group(1))
     # 整句仅「我的答案是A」（无冒号、无换行）
-    m2 = re.match(r"^(?:我的答案(?:是)?|我选(?:了)?)[：:\s]*([A-E]+)\s*$", t, re.I)
-    return m2.group(1).upper() if m2 else None
+    m2 = re.match(r"^(?:我的答案(?:是)?|我选(?:了)?)[：:\s]*([A-E,、和\s]+)\s*$", t, re.I)
+    return _normalize_answer_string(m2.group(1)) if m2 else None
 
 
 def extract_my_answer_only(text: str) -> str | None:
-    """纯跟答：我的答案是A / 我选B / 单字母（需外部判定有 pending）。"""
+    """纯跟答：我的答案是A / 我选B / 单字母（需外部判定有 pending）。支持 AE, A,E, A、E 等多选格式。"""
     t = text.strip()
     ans = extract_answer_string(t)
     if ans:
         return ans
-    if re.match(r"^[A-E]$", t, re.I):
-        return t.upper()
+    # 支持单字母或多字母（无分隔符也可）
+    if re.match(r"^[A-E,、和\s]+$", t, re.I):
+        return _normalize_answer_string(t)
     return None
 
 
@@ -146,7 +250,7 @@ def _parse_question_block(block: str) -> dict[str, Any] | None:
         if am:
             current = None
             in_expl = False
-            correct_answer = am.group(1).upper()
+            correct_answer = _normalize_answer_string(am.group(1))
             continue
         em = _PER_Q_EXPL.match(line)
         if em:
@@ -209,15 +313,30 @@ def _resolve_my_answers(
     questions: list[dict[str, Any]],
     state: dict[str, Any],
 ) -> str | None:
-    """从文末答案串或 batch_state 还原我的作答。"""
+    """从文末答案串或 batch_state 还原我的作答。支持多选。"""
     tail = extract_answer_string(text)
-    if tail and len(tail) == len(questions):
+    if tail and len(tail) == sum(_get_per_question_answer_counts(questions)):
         return tail
     by_num = state.get("by_num", {})
     if len(questions) >= 1 and all(str(q["num"]) in by_num for q in questions):
         got = "".join(by_num[str(q["num"])].get("my_answer", "") for q in questions)
-        if got and len(got) == len(questions):
+        if got and len(got) == sum(_get_per_question_answer_counts(questions)):
             return got
+    # 容错：即使 num 不完全匹配，按 question 数量宽松匹配
+    if len(questions) >= 1 and by_num:
+        pending_with_answers = {
+            k: v for k, v in by_num.items()
+            if v.get("my_answer") and v.get("pending")
+        }
+        if len(pending_with_answers) == len(questions):
+            sorted_keys = sorted(pending_with_answers.keys(), key=int)
+            got = "".join(pending_with_answers[k]["my_answer"] for k in sorted_keys)
+            expected = sum(_get_per_question_answer_counts(questions))
+            if len(got) == expected:
+                logger.info("_resolve_my_answers: matched by count (relaxed)", extra={
+                    "question_count": len(questions), "got_len": len(got)
+                })
+                return got
     return None
 
 
@@ -475,7 +594,16 @@ def batch_answer_followup(text: str) -> dict[str, Any] | None:
         done = batch_complete_pending(t)
         return done
 
-    if len(my) != len(pending):
+    expected_len = sum(_get_per_question_answer_counts(pending))
+    if len(my) != expected_len:
+        # 检查是否仅因为多选题导致不匹配 — 提供详细映射
+        has_multi = any(_is_multichoice_question(q.get("question", "")) for q in pending)
+        if has_multi or len(my) != len(pending):
+            return {
+                "status": "error",
+                "text": _format_answer_mapping(pending, my),
+            }
+        # 无多选但长度≠题数：旧版简单提示
         return {
             "status": "error",
             "text": f"⚠️ 待答 {len(pending)} 题，收到 {len(my)} 个答案。",
@@ -739,7 +867,16 @@ def batch_ingest(text: str, answer_key: str | None = None) -> dict[str, Any]:
 
     breakfast = parse_breakfast_questions(text)
     if len(breakfast) >= 1:
-        return _batch_ingest_with_solutions(text, breakfast, answer_key=answer_key)
+        result = _batch_ingest_with_solutions(text, breakfast, answer_key=answer_key)
+        # 容错：如果返回"请补发作答"但 state 中已有 pending my_answer，尝试 _merge_solutions
+        if result.get("status") == "ok" and "请补发你的作答" in result.get("text", ""):
+            pending = _pending_from_state(_load_batch_state())
+            if pending and all(q.get("my_answer") for q in pending):
+                sols = parse_solution_only(text)
+                if sols:
+                    logger.info("batch_ingest: fallback _merge_solutions after breakfast parse mismatch")
+                    return _merge_solutions(sols)
+        return result
 
     if not questions_in_text:
         return {"status": "error", "text": "⚠️ 未能解析题目，请确认格式：1、题干\\nA、…\\n我的答案是：A"}
@@ -748,10 +885,11 @@ def batch_ingest(text: str, answer_key: str | None = None) -> dict[str, Any]:
     if not answers:
         return _store_pending_questions(questions_in_text)
 
-    if len(answers) != len(questions_in_text):
+    expected_len = sum(_get_per_question_answer_counts(questions_in_text))
+    if len(answers) != expected_len:
         return {
             "status": "error",
-            "text": f"⚠️ 题目 {len(questions_in_text)} 道，答案 {len(answers)} 个，数量不一致。",
+            "text": _format_answer_mapping(questions_in_text, answers),
         }
 
     key = answer_key.upper().replace(" ", "") if answer_key else None
@@ -794,11 +932,16 @@ def _batch_ingest_with_solutions(
             ),
         }
 
-    if len(my_answers) != len(questions):
-        return {
-            "status": "error",
-            "text": f"⚠️ 题目 {len(questions)} 道，你的答案 {len(my_answers)} 个，数量不一致。",
-        }
+    expected_len = sum(_get_per_question_answer_counts(questions))
+    if len(my_answers) != expected_len:
+        # 旧代码兼容：若非多选题且长度=题数，不报警
+        if len(my_answers) == len(questions) and expected_len == len(questions):
+            pass  # 兼容旧行为
+        else:
+            return {
+                "status": "error",
+                "text": _format_answer_mapping(questions, my_answers),
+            }
 
     return _batch_grade_questions(
         text,
@@ -817,15 +960,32 @@ def _batch_grade_questions(
     answer_key: str | None = None,
     explanations: list[str] | None = None,
 ) -> dict[str, Any]:
-    """统一判卷入库。"""
-    key = answer_key.upper().replace(" ", "") if answer_key else None
-    if not key:
-        key = None
-    elif len(key) != len(questions):
-        return {
-            "status": "error",
-            "text": f"⚠️ 标准答案 {len(key)} 个，与题目数 {len(questions)} 不一致。",
-        }
+    """统一判卷入库。支持多选（按每题期望答案数拆分）。"""
+    # ── 拆分用户答案 ──
+    my_chunks = _split_answers_for_questions(my_answer_str, questions)
+    if my_chunks is None:
+        # 兼容旧行为：若无法按多选拆分，尝试逐字符匹配
+        if len(my_answer_str) == len(questions):
+            my_chunks = list(my_answer_str)
+        else:
+            return {
+                "status": "error",
+                "text": _format_answer_mapping(questions, my_answer_str),
+            }
+
+    # ── 拆分标准答案 ──
+    raw_key = answer_key.upper().replace(" ", "") if answer_key else None
+    key_chunks: list[str] | None = None
+    if raw_key:
+        key_chunks = _split_answers_for_questions(raw_key, questions)
+        if key_chunks is None:
+            if len(raw_key) == len(questions):
+                key_chunks = list(raw_key)
+            else:
+                return {
+                    "status": "error",
+                    "text": f"⚠️ 标准答案 {len(raw_key)} 个，与题目期望数不一致。",
+                }
 
     state = _load_batch_state()
     by_num: dict[str, Any] = state.setdefault("by_num", {})
@@ -834,10 +994,16 @@ def _batch_grade_questions(
     pending_nums: list[int] = []
     skipped: list[int] = []
 
-    for idx, (q, my_ans) in enumerate(zip(questions, my_answer_str)):
+    for idx, q in enumerate(questions):
         num = q["num"]
-        std_ans = key[idx] if key else ""
+        my_ans = my_chunks[idx]
+        std_ans = key_chunks[idx] if key_chunks else ""
         expl = (explanations[idx] if explanations and idx < len(explanations) else "") or q.get("explanation", "")
+
+        # 多选答案排序归一化（CE 和 EC 等价）
+        is_multi = _is_multichoice_question(q.get("question", ""))
+        my_normalized = "".join(sorted(my_ans.upper())) if is_multi else my_ans.upper()
+        std_normalized = "".join(sorted(std_ans)) if is_multi and std_ans else std_ans
 
         def _by_entry(*, bank_id, my: str, ca: str, pending: bool) -> dict[str, Any]:
             return {
@@ -853,14 +1019,14 @@ def _batch_grade_questions(
         existing = _find_bank_by_dedup(q["stem"])
         if (
             existing
-            and existing.get("my_answer") == my_ans.upper()
-            and std_ans
-            and existing.get("correct_answer") == std_ans
+            and existing.get("my_answer") == my_normalized
+            and std_normalized
+            and existing.get("correct_answer") == std_normalized
         ):
             by_num[str(num)] = _by_entry(
-                bank_id=existing["id"], my=my_ans.upper(), ca=std_ans, pending=False
+                bank_id=existing["id"], my=my_normalized, ca=std_normalized, pending=False
             )
-            if my_ans.upper() == std_ans:
+            if my_normalized == std_normalized:
                 correct_nums.append(num)
             else:
                 wrong_nums.append(num)
@@ -869,26 +1035,26 @@ def _batch_grade_questions(
 
         if (
             existing
-            and existing.get("my_answer") == my_ans.upper()
-            and not std_ans
+            and existing.get("my_answer") == my_normalized
+            and not std_normalized
             and existing.get("bank_id")
         ):
             by_num[str(num)] = _by_entry(
                 bank_id=existing["id"],
-                my=my_ans.upper(),
+                my=my_normalized,
                 ca=existing.get("correct_answer", ""),
                 pending=not existing.get("correct_answer"),
             )
             skipped.append(num)
             continue
 
-        if key:
-            is_ok = my_ans.upper() == std_ans
+        if key_chunks is not None:
+            is_ok = my_normalized == std_normalized
             if is_ok:
                 rec = record_correct_answer(
                     question=q["question"],
-                    my_answer=my_ans,
-                    correct_answer=std_ans,
+                    my_answer=my_normalized,
+                    correct_answer=std_normalized,
                     knowledge_area=_guess_knowledge_area(q["stem"]),
                     explanation=expl,
                     source="batch_practice",
@@ -898,8 +1064,8 @@ def _batch_grade_questions(
             else:
                 rec = record_wrong_answer(
                     question=q["question"],
-                    my_answer=my_ans,
-                    correct_answer=std_ans,
+                    my_answer=my_normalized,
+                    correct_answer=std_normalized,
                     knowledge_area=_guess_knowledge_area(q["stem"]),
                     explanation=expl[:200] if expl else "",
                     source="batch_practice",
@@ -908,13 +1074,13 @@ def _batch_grade_questions(
                 wrong_nums.append(num)
             bank_id = rec.get("bank_id") or rec.get("id")
             by_num[str(num)] = _by_entry(
-                bank_id=bank_id, my=my_ans.upper(), ca=std_ans, pending=False
+                bank_id=bank_id, my=my_normalized, ca=std_normalized, pending=False
             )
         else:
-            rec = _add_bank_pending(q, my_ans, is_correct=None)
+            rec = _add_bank_pending(q, my_normalized, is_correct=None)
             pending_nums.append(num)
             by_num[str(num)] = _by_entry(
-                bank_id=rec["id"], my=my_ans.upper(), ca="", pending=True
+                bank_id=rec["id"], my=my_normalized, ca="", pending=True
             )
 
     state.setdefault("sessions", []).append(
@@ -922,15 +1088,16 @@ def _batch_grade_questions(
             "date": date.today().isoformat(),
             "count": len(questions),
             "answers": my_answer_str,
-            "has_key": bool(key),
+            "has_key": bool(key_chunks),
         }
     )
     state["by_num"] = by_num
     _save_batch_state(state)
 
-    lines = [f"📋 批量{'判卷' if key else '收录'}完成（{len(questions)} 题）"]
-    lines.append(f"你的答案：{my_answer_str}")
-    if key:
+    lines = [f"📋 批量{'判卷' if key_chunks else '收录'}完成（{len(questions)} 题）"]
+    display_answers = "、".join(my_chunks)
+    lines.append(f"你的答案：{display_answers}")
+    if key_chunks:
         if wrong_nums:
             lines.append(f"❌ 错题：{'、'.join(str(n) for n in wrong_nums)}（{len(wrong_nums)} 题）")
         if correct_nums:
@@ -944,7 +1111,7 @@ def _batch_grade_questions(
     else:
         lines.append("⏳ 标准答案待补录（发：更新1题，正确答案是 B，解析：xxx）")
         lines.append("💾 做题记录已写入 question_bank（待判卷）")
-    if skipped and key and (wrong_nums or correct_nums):
+    if skipped and key_chunks and (wrong_nums or correct_nums):
         dup = [n for n in skipped if n not in wrong_nums and n not in correct_nums]
         if dup:
             lines.append(f"📌 已存在同题同答，跳过：{'、'.join(str(n) for n in dup)}")
@@ -1001,10 +1168,11 @@ def batch_complete_pending(text: str) -> dict[str, Any] | None:
         )
         explanations.append(entry.get("explanation", ""))
 
-    if len(my_answers) != len(questions):
+    expected_len = sum(_get_per_question_answer_counts(questions))
+    if len(my_answers) != expected_len:
         return {
             "status": "error",
-            "text": f"⚠️ 待判 {len(questions)} 题，答案串 {len(my_answers)} 个，数量不一致。",
+            "text": _format_answer_mapping(questions, my_answers),
         }
 
     return _batch_grade_questions(

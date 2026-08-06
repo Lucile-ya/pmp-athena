@@ -84,6 +84,7 @@ def record_wrong_answer(
     *,
     source: str = "manual",
     parsed_by: str = "claude",
+    attempt: int = 1,
 ) -> dict:
     """
     错题三文件同步（error_log + error_review_state + question_bank）。
@@ -146,6 +147,7 @@ def record_wrong_answer(
             parsed_by=parsed_by,
             source=src,
             error_log_id=error_record["id"],
+            attempt=attempt,
         )
 
     _ensure_review_queue(error_record["id"])
@@ -168,6 +170,7 @@ def record_correct_answer(
     *,
     source: str = "manual",
     parsed_by: str = "claude",
+    attempt: int = 1,
 ) -> dict:
     """做对：只写 question_bank，不进错题本。"""
     _, question_bank = _import_loggers()
@@ -183,6 +186,7 @@ def record_correct_answer(
         parsed_by=parsed_by,
         source=src,
         error_log_id=None,
+        attempt=attempt,
     )
 
     return {

@@ -57,6 +57,9 @@ pmp-athena/
 ├── pmp_knowledge_index.json  # 知识点索引（可重建）
 ├── CLAUDE.md            # Agent 行为规则（微信 / Cursor 共用）
 ├── restart_bridge.ps1   # 重启微信桥接（Windows）
+├── bridge_guard.ps1     # 桥接自动守护脚本（防锁屏断连）
+├── bridge_guard.vbs     # VBS 隐身启动壳
+├── start_bridge.bat     # 手动启动桥接
 └── docs/                # 桥接补丁说明
 ```
 
@@ -163,6 +166,37 @@ A. … B. … C. … D. …
 ```
 
 脚本会：停止旧进程 → `npm run build`（桥接目录）→ 启动单实例守护。
+
+### 桥接自动守护（防锁屏断连）
+
+Windows Modern Standby（锁屏）会切断用户态 TCP 连接，导致桥接长轮询断开。`bridge_guard.ps1` + Windows 计划任务实现自动恢复：
+
+```powershell
+# 一次性配置计划任务（每 5 分钟检测，桥接死了自动拉起）
+schtasks /Create `
+  /TN "PMP-Athena-Bridge" `
+  /SC MINUTE /MO 5 `
+  /TR 'wscript.exe "D:\pmp-athena\bridge_guard.vbs"' `
+  /IT /F
+```
+
+| 文件 | 用途 |
+|------|------|
+| `bridge_guard.ps1` | 检测桥接存活 → 清了残留锁 → `npm build` → 启动 |
+| `bridge_guard.vbs` | VBS 隐身壳（`Run(…, 0)`），计划任务零窗口弹出 |
+| `bridge_guard.log` | 只记录拉起操作（桥接正常时静默，不写日志） |
+
+**工作原理**：
+
+```
+计划任务(每5分钟) → wscript.exe(无窗口)
+  → bridge_guard.vbs → Run(..., 0, False)
+    → bridge_guard.ps1
+      ├─ 桥接活着 → exit 0（静默）
+      └─ 桥接死了 → 清 bridge.pid → tsc 编译 → 启动 → 写 log
+```
+
+锁屏 → Modern Standby → TCP 断连 → 桥接挂 → 最多 5 分钟后自动恢复。
 
 图片 OCR 集成见 [docs/wechat-bridge-patch.md](docs/wechat-bridge-patch.md)。
 

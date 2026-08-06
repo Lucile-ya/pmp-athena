@@ -116,8 +116,50 @@ def count_mistakes(error_id: int) -> dict[str, int]:
     }
 
 
-def is_high_frequency(error_id: int, *, threshold: int = 2) -> bool:
+def is_high_frequency(error_id: int, *, threshold: int = 3) -> bool:
     return count_mistakes(error_id)["total"] >= threshold
+
+
+# ── 高频错题标记管理（持久化到 error_review_state.json）──────────
+
+
+def mark_high_frequency(error_id: int) -> bool:
+    """标记为高频错题。返回 True 表示新标记，False 表示已存在。"""
+    review = _load_json(REVIEW_STATE)
+    if not isinstance(review, dict):
+        review = {}
+    key = str(error_id)
+    if key not in review:
+        review[key] = {"error_id": error_id, "high_frequency": True}
+    elif review[key].get("high_frequency"):
+        return False
+    else:
+        review[key]["high_frequency"] = True
+    REVIEW_STATE.parent.mkdir(parents=True, exist_ok=True)
+    REVIEW_STATE.write_text(json.dumps(review, ensure_ascii=False, indent=2), encoding="utf-8")
+    return True
+
+
+def unmark_high_frequency(error_id: int) -> bool:
+    """取消高频标记。返回 True 表示之前有标记，False 表示本就没有。"""
+    review = _load_json(REVIEW_STATE)
+    if not isinstance(review, dict):
+        review = {}
+    key = str(error_id)
+    if key in review and review[key].get("high_frequency"):
+        review[key]["high_frequency"] = False
+        REVIEW_STATE.parent.mkdir(parents=True, exist_ok=True)
+        REVIEW_STATE.write_text(json.dumps(review, ensure_ascii=False, indent=2), encoding="utf-8")
+        return True
+    return False
+
+
+def is_high_frequency_marked(error_id: int) -> bool:
+    """检查 error_review_state.json 中是否已有高频标记。"""
+    review = _load_json(REVIEW_STATE)
+    if not isinstance(review, dict):
+        return False
+    return bool(review.get(str(error_id), {}).get("high_frequency"))
 
 
 def _match_scenario(text: str) -> tuple[str, str] | None:
@@ -185,7 +227,7 @@ def format_wrong_feedback(error: dict, *, user_answer: str | None = None) -> str
     counts = count_mistakes(int(eid)) if eid else {"total": 1}
 
     lines = [f"❌ 正确答案是 {correct}（你选了 {my}）"]
-    if counts["total"] >= 2:
+    if counts["total"] >= 3:
         lines.append(f"🔥 高频错题 · 累计错 {counts['total']} 次")
 
     lines.append(f"📌 总结: {build_summary(error)}")
@@ -197,7 +239,7 @@ def format_wrong_feedback(error: dict, *, user_answer: str | None = None) -> str
 def rank_high_frequency_errors(
     *,
     top_n: int = 5,
-    min_mistakes: int = 2,
+    min_mistakes: int = 3,
 ) -> list[dict]:
     """按错误频次排序，返回 enriched 列表。"""
     errors = _load_json(ERROR_LOG)
@@ -231,7 +273,7 @@ def format_high_frequency_report(*, top_n: int = 5) -> str:
     items = rank_high_frequency_errors(top_n=top_n)
     if not items:
         return (
-            "📋 暂无高频错题（同一题错 ≥2 次才会上榜）。\n"
+            "📋 暂无高频错题（同一题错 ≥3 次才会上榜）。\n"
             "继续刷题积累，或发送「复习错题」开始复习。"
         )
 

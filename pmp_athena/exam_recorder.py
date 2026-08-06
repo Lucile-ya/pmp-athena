@@ -132,6 +132,7 @@ class ExamRecorder:
         exam_type: str | None = None,
         source: str | None = None,
         exam_date: str | None = None,
+        attempt: int = 1,
     ) -> dict:
         """
         添加一条完整的模考/练习记录。
@@ -177,6 +178,7 @@ class ExamRecorder:
                 "business_environment": (scores or {}).get("business_environment", 0),
             },
             "weak_areas": weak_areas or [],
+            "attempt": attempt,
         }
 
         # 可选：详细知识领域正确率

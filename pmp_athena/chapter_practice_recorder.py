@@ -321,13 +321,111 @@ def format_confirm_reply(area: str, record: dict) -> str:
     correct = record.get("correct_count") or 0
     rate = record.get("correct_rate") or 0
     mins = record.get("time_used_minutes") or 0
+    attempt = record.get("attempt", 1)
     pct = rate * 100 if rate <= 1 else rate
-    return "\n".join([
+    lines = [
         f"✅ 已录入 {area} 章节练习",
         f"📊 正确率：{pct:.0f}%（{correct}/{total}）",
         f"⏱️ 用时：{mins} 分钟",
-        "💾 已同步到 exam_records.json，将参与趋势分析",
-    ])
+    ]
+    if attempt >= 2:
+        comparison = build_comparison_text(area, record)
+        if comparison:
+            lines.append("")
+            lines.append(comparison)
+    lines.append("💾 已同步到 exam_records.json，将参与趋势分析")
+    return "\n".join(lines)
+
+
+# ── attempt 检测关键词 ──────────────────────────────────────────
+_ATTEMPT_KEYWORDS: dict[str, int] = {
+    "一刷": 1, "首次": 1, "第一次": 1,
+    "二刷": 2, "第二次": 2, "重刷": 2,
+    "三刷": 3, "第三次": 3,
+    "四刷": 4, "第四次": 4,
+    "五刷": 5, "第五次": 5,
+    "六刷": 6, "第六次": 6,
+}
+
+
+def detect_attempt(chapter: str, caption: str | None = None) -> int:
+    """三优先级判断第几次做该章节练习。
+
+    Priority:
+    1. 用户配文关键词（一刷/二刷/重刷等）
+    2. 查 exam_records.json 中同 exam_id 的历史最大 attempt + 1
+    3. 默认首次（返回 1）
+    """
+    # 优先级1：配文关键词
+    caption_lower = (caption or "").lower()
+    for kw, n in sorted(_ATTEMPT_KEYWORDS.items(), key=lambda x: -len(x[0])):
+        if kw in caption_lower:
+            return n
+
+    # 优先级2：历史记录
+    recorder = ExamRecorder()
+    exam_id_prefix = f"章节练习_{chapter}"
+    history_attempts: list[int] = []
+    for e in recorder.list_all():
+        if isinstance(e, dict) and (e.get("exam_id") or "").startswith(exam_id_prefix):
+            history_attempts.append(e.get("attempt", 1))
+    if history_attempts:
+        return max(history_attempts) + 1
+
+    # 优先级3：默认
+    return 1
+
+
+def build_comparison_text(area: str, current_record: dict) -> str:
+    """根据历史记录生成多刷对比文本。"""
+    recorder = ExamRecorder()
+    exam_id_prefix = f"章节练习_{area}"
+    history: list[dict] = sorted(
+        [e for e in recorder.list_all()
+         if isinstance(e, dict) and (e.get("exam_id") or "").startswith(exam_id_prefix)],
+        key=lambda e: e.get("attempt", 1),
+    )
+    if len(history) < 2:
+        return ""
+
+    attempt = current_record.get("attempt", 1) or 1
+
+    if attempt == 2:
+        prev = history[-2] if len(history) >= 2 else history[0]
+        prev_rate = prev.get("correct_rate") or 0
+        cur_rate = current_record.get("correct_rate") or 0
+        if prev_rate <= 1:
+            prev_pct = prev_rate * 100
+        else:
+            prev_pct = prev_rate
+        if cur_rate <= 1:
+            cur_pct = cur_rate * 100
+        else:
+            cur_pct = cur_rate
+        prev_total = prev.get("total_questions") or 0
+        prev_correct = prev.get("correct_count") or 0
+        diff = cur_pct - prev_pct
+        emoji = "🎉" if diff > 0 else ("📉" if diff < 0 else "➡️")
+        return "\n".join([
+            f"📊 {area} · 章节练习",
+            f"📈 本次：{current_record.get('total_questions')} 题，正确率 {cur_pct:.0f}%（{current_record.get('correct_count')}/{current_record.get('total_questions')}）",
+            f"📈 上次：{prev_total} 题，正确率 {prev_pct:.0f}%（{prev_correct}/{prev_total}）",
+            f"📈 提升：{diff:+.0f}% {emoji}",
+        ])
+
+    # attempt ≥ 3：趋势线
+    rates: list[float] = []
+    for e in history:
+        r = e.get("correct_rate") or 0
+        rates.append(r * 100 if r <= 1 else r)
+    trend = " → ".join(f"{r:.0f}%" for r in rates)
+    lines = [
+        f"📊 {area} · 章节练习（第{attempt}次）",
+        f"📈 趋势：{trend}",
+    ]
+    target = max(rates[-1] + 10, 90)
+    lines.append(f"🎯 下次目标：≥ {target:.0f}%")
+    return "\n".join(lines)
 
 
 def save_chapter_pending(image_path: str, parsed: dict[str, Any]) -> None:
@@ -441,6 +539,8 @@ def record_chapter_practice(
 
     weak_areas = [area] if (rate or 0) < 0.6 else []
 
+    attempt = detect_attempt(area, caption)
+
     recorder = ExamRecorder()
     record = recorder.add(
         exam_id=f"章节练习_{area}",
@@ -455,6 +555,7 @@ def record_chapter_practice(
         status="completed",
         exam_type="chapter_practice",
         source="截图录入",
+        attempt=attempt,
     )
 
     return {
