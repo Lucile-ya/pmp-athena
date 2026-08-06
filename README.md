@@ -1,6 +1,6 @@
 # 🦉 PMP Athena — 本地 PMP 备考复盘 Agent
 
-完全本地运行的 PMP 备考助手：**向量知识库 + 每日一练/模考判卷 + 错题 SM-2 复习 + 微信硬路由**。基于 ChromaDB + sentence-transformers，无需 LLM API Key 即可完成核心刷题流程。
+完全本地运行的 PMP 备考助手：**结构化知识引擎 + 每日一练/模考判卷 + SM-2 错题复习 + PMP 判题推理框架 + 微信硬路由**。基于 ChromaDB + sentence-transformers，无需 LLM API Key 即可完成核心刷题流程。
 
 **考试目标**：2026-09-12 PMP | 日常训练正确率目标 70%（126/180）
 
@@ -10,14 +10,147 @@
 
 | 模块 | 说明 | 入口 |
 |------|------|------|
+| 🧠 **知识领域引擎** | 13 领域结构化知识（定义/49过程/工具/输出/易错点） | `knowledge_domain_engine.py` |
+| 📖 **动态知识查询** | L1(框架速查) / L2(全领域展开) / L3(情景套路) / 关联(邻接矩阵) | `dynamic_knowledge.py` |
 | 📚 **向量知识库** | 导入 `.md` / `.pdf` 笔记，语义检索 | `python -m pmp_athena.cli ingest` |
 | 📝 **每日一练** | 解析培训机构 PDF，互动出题 / 批量对账 / 判卷 | `daily_practice.py` |
 | 📱 **App 批量刷题** | 一次发多题 + 答案串 → 收录 → 补录解析后判卷入库 | `daily_practice.py batch` |
 | ❌ **错题本 + SM-2** | 三文件同步（`error_log` / `error_review_state` / `question_bank`） | `error_logger.py` / `spaced_repetition.py` |
+| 🎯 **PMP 判题推理框架** | 六步推理链 + P1-P6 优先级 + 12 陷阱模式 | `CLAUDE.md` |
 | 🎯 **学习顾问** | 薄弱点诊断、今日错题复习、备考计划 | `study_advisor.py` |
-| 📊 **模考** | PDF 模考 / 状态持久化 / 成绩写入 / 趋势分析 | `mock_exam_state.py` / `exam_recorder.py` |
+| 📊 **模考** | PDF 模考 / 状态持久化 / 成绩写入 / 时间·速度·精度三维诊断 | `mock_exam_state.py` / `exam_recorder.py` |
 | 🖼️ **截图 OCR** | 题目截图、模考成绩、章节练习统计图识别入库 | `image_processor.py` |
-| 💬 **微信桥接** | 硬路由绕过 LLM，直接调 Python CLI | [wechat-claude-code](https://github.com/Wechat-ggGitHub/wechat-claude-code) + `athena-router.ts` |
+| 🗺️ **思维导图结构化** | PNG 思维导图 OCR → PMBOK 标准表格 MD | `mindmap_ocr.py` / `build_mindmap_md.py` |
+| 💬 **微信桥接** | 硬路由绕过 LLM，25+ 指令直接调 Python CLI | [wechat-claude-code](https://github.com/Wechat-ggGitHub/wechat-claude-code) + `athena-router.ts` |
+
+---
+
+## 🧠 知识领域引擎 · 分层查询
+
+### 架构
+
+```
+用户查询 "资源管理知识点"
+  │
+  ├─ L1 (速查)  → 13 领域引擎 → 核心定义 + 过程框架 + 高频考点 + 关联领域
+  ├─ L2 (详细)  → 全领域 PMBOK 49 过程展开 + 工具/技术 + 易错点
+  ├─ L3 (套路)  → 领域映射过滤 36 种套路 → 只返回相关情景题套路
+  └─ 关联        → 子模块 + PMBOK 邻接矩阵（强度柱 + 原因）
+```
+
+### L1 速查示例
+
+```markdown
+📚 资源管理 · 速查
+
+📖 资源管理是识别、获取和管理所需资源以成功完成项目的各个过程。
+
+🎯 核心目标：确保项目在正确的时间有正确的人力和物力资源。
+
+📋 核心过程：
+  9.1 规划资源管理（规划）→ 资源管理计划、团队章程
+  9.2 估算活动资源（规划）→ 资源需求、估算依据
+  9.3 获取资源（执行）→ 物质资源分配单、项目团队派工单
+  9.4 建设团队（执行）→ 团队绩效评价
+  9.5 管理团队（执行）→ 变更请求、更新的项目管理计划
+  9.6 控制资源（监控）→ 工作绩效信息
+
+⭐ 考试高频：冲突解决策略选择 / RACI 矩阵 / Tuckman 模型 / 仆人式领导
+
+🔗 关联领域：沟通管理 / 领导力/人员 / 干系人管理
+
+💡 回复「详细」看全领域工具与技术 | 「套路」看情景题套路 | 「关联」看相邻领域
+```
+
+### L2 详细示例
+
+全领域 PMBOK 过程展开，按五大过程组组织，含工具/技术、输出、关键概念、易错点。
+
+```markdown
+📖 资源管理 · 详解
+
+◆ 规划过程组
+  9.1 规划资源管理
+  主要输出：资源管理计划、团队章程
+  关键工具：RACI 矩阵、组织图、文本型岗位描述
+  ...
+◆ 执行过程组
+  9.3 获取资源 → 谈判、预分派、虚拟团队、多标准决策分析
+  9.4 建设团队 → 团队建设活动、培训、集中办公、认可与奖励
+  9.5 管理团队 → 冲突管理、情商、影响力、领导力
+  ...
+
+⚠️ 常见易错点：冲突解决优先选合作/解决问题；不要跳过震荡期直接到规范
+```
+
+### 三十六种套路 ↔ 知识领域映射
+
+| 知识领域 | 关联套路编号 |
+|----------|-------------|
+| 资源管理 | #9 冲突管理 / #10 团队组建 / #11 干系人需求 / #27 启动大会 |
+| 风险管理 | #14 风险情景 / #15 EMV / #32 风险工具 |
+| 干系人管理 | #17-20 相关方情景 |
+| 整合管理 | #1 章程 / #4-6 变更 / #21 问题处理 / #24 参考文件 |
+
+### 查询方式
+
+```bash
+# 微信 / CLI 通用
+python retrieve_knowledge.py query 资源管理 --level L1
+python retrieve_knowledge.py query 资源管理 --level L2
+python retrieve_knowledge.py query 资源管理 --level L3
+python retrieve_knowledge.py message --text "详细 挣值"
+python retrieve_knowledge.py message --text "套路 沟通管理"
+```
+
+---
+
+## 🎯 PMP 判题推理框架
+
+所有判卷场景统一使用**六步推理链 + P1-P6 优先级 + 12 陷阱模式**：
+
+### 六步推理链
+
+```
+Step 1: 项目类型 → Predictive / Agile / Hybrid
+Step 2: 项目阶段 → Initiating / Planning / Executing / Monitoring / Closing
+Step 3: ECO 领域 → People / Process / Business Environment
+Step 4: 问题类型 → 变更 / 风险 / Issue / 干系人 / 质量 / 资源 / 采购 / 整合
+Step 5: 问法意图 → First / Next / Best / Most Appropriate / Should
+Step 6: 优先级仲裁 → P1-P6 逐层过滤
+```
+
+### P1-P6 优先级
+
+```
+P1  Analysis Before Action      先分析，再行动
+P2  Collaborate Before Escalate 先协作沟通，再升级
+P3  Follow Process Before Changing 先走流程，再变更
+P4  Root Cause Before Solution  先找根因，再解决
+P5  Preventive Before Corrective 预防优于纠正
+P6  Team Participation          团队参与优于 PM 独断
+```
+
+### 12 陷阱模式 (T01-T12)
+
+| ID | 陷阱 | ID | 陷阱 |
+|----|------|----|------|
+| T01 | 过早行动（未分析即执行） | T07 | Risk/Issue 混淆 |
+| T02 | 过早升级（第一步找高管） | T08 | 过度反应 |
+| T03 | 绕过流程（跳过 CCB/CR） | T09 | 反应不足 |
+| T04 | First 选 Best（流程顺序错） | T10 | 敏捷过度文档 |
+| T05 | 绝对化（always/never） | T11 | 预测型文档不足 |
+| T06 | 角色越权（SM 定优先级） | T12 | 镀金/范围蔓延 |
+
+### 判卷输出格式
+
+```
+❌ Q3 [干系人管理]: 你的答案 B → 正确答案 C
+   决策链: 预测型 · 启动 · People · 干系人 · First
+   B 触犯 T11（文档不足），C 符合 P2（先协作沟通再登记）
+```
+
+*Credit: 推理框架借鉴 [liedern/pmp-ai-coach-skill](https://github.com/liedern/pmp-ai-coach-skill) 的设计思想。*
 
 ---
 
@@ -43,24 +176,24 @@ pip install pytesseract Pillow
 
 ```
 pmp-athena/
-├── pmp_athena/          # Python 核心代码
-├── tests/               # 单元测试（unittest discover）
-├── pmp_notes/           # 笔记 + 做题数据（大部分不上传 Git）
-│   ├── *.md             # 学习笔记
-│   ├── 每日一练/        # 培训机构 PDF（本地，*.pdf 已 gitignore）
-│   ├── 模考/            # 模考 PDF（本地）
-│   ├── config.json      # 每日一练完成日期（本地）
+├── pmp_athena/              # Python 核心代码
+├── tests/                   # 单元测试（unittest discover）
+├── pmp_notes/               # 笔记 + 做题数据（大部分不上传 Git）
+│   ├── *.md                 # 结构化学习笔记（思维导图 × 13 份）
+│   ├── 每日一练/            # 培训机构 PDF（本地，*.pdf 已 gitignore）
+│   ├── 模考/                # 模考 PDF（本地）
+│   ├── config.json          # 每日一练完成日期（本地）
 │   ├── question_bank.json
 │   ├── error_log.json
 │   └── error_review_state.json
-├── data/                # ChromaDB 持久化（不上传 Git）
-├── pmp_knowledge_index.json  # 知识点索引（可重建）
-├── CLAUDE.md            # Agent 行为规则（微信 / Cursor 共用）
-├── restart_bridge.ps1   # 重启微信桥接（Windows）
-├── bridge_guard.ps1     # 桥接自动守护脚本（防锁屏断连）
-├── bridge_guard.vbs     # VBS 隐身启动壳
-├── start_bridge.bat     # 手动启动桥接
-└── docs/                # 桥接补丁说明
+├── data/                    # ChromaDB 持久化（不上传 Git）
+├── pmp_knowledge_index.json # 知识点索引（可重建）
+├── CLAUDE.md                # Agent 行为规则 + 判题推理框架（微信 / Cursor 共用）
+├── restart_bridge.ps1       # 重启微信桥接
+├── bridge_guard.ps1         # 桥接自动守护脚本（防锁屏断连）
+├── bridge_guard.vbs         # VBS 隐身启动壳（计划任务零窗口）
+├── start_bridge.bat         # 手动启动桥接
+└── docs/                    # 桥接补丁说明
 ```
 
 ### 3. 导入笔记
@@ -68,11 +201,18 @@ pmp-athena/
 ```bash
 python -m pmp_athena.cli ingest
 python -m pmp_athena.cli stats      # 查看向量库统计
+python build_knowledge_index.py     # 重建知识点索引
 ```
 
 ### 4. 常用 CLI
 
 ```bash
+# ── 知识查询（L1/L2/L3）──
+python retrieve_knowledge.py query 资源管理 --level L1
+python retrieve_knowledge.py query 挣值 --level L2
+python retrieve_knowledge.py message --text "详细 风险管理"
+python retrieve_knowledge.py message --text "套路 干系人管理"
+
 # ── 每日一练 ──
 python pmp_athena/daily_practice.py menu              # 未完成日期菜单
 python pmp_athena/daily_practice.py progress          # 扫描文件夹，完成/未完成进度
@@ -144,6 +284,7 @@ A. … B. … C. … D. …
 | 更新41题，正确答案是 B | `daily_practice.py batch-update-text` |
 | 复习错题 / 薄弱点 / 学习计划 | `study_advisor.py` |
 | 录入错题（截图） | `image_processor.py` + `record_answer.py` |
+| 资源管理知识点 / 挣值 / 敏捷速查 | `dynamic_knowledge.py` (L1/L2/L3) |
 
 ### 配置要点
 
@@ -185,18 +326,16 @@ schtasks /Create `
 | `bridge_guard.ps1` | 检测桥接存活 → 清了残留锁 → `npm build` → 启动 |
 | `bridge_guard.vbs` | VBS 隐身壳（`Run(…, 0)`），计划任务零窗口弹出 |
 | `bridge_guard.log` | 只记录拉起操作（桥接正常时静默，不写日志） |
+| `monitor_bridge.ps1` | 持续监控（30s 循环），Claude Monitor 后台运行 |
 
 **工作原理**：
 
 ```
-计划任务(每5分钟) → wscript.exe(无窗口)
-  → bridge_guard.vbs → Run(..., 0, False)
-    → bridge_guard.ps1
-      ├─ 桥接活着 → exit 0（静默）
-      └─ 桥接死了 → 清 bridge.pid → tsc 编译 → 启动 → 写 log
+三层防护：
+  Monitor(30s) → 计划任务(5min) → bridge_guard.ps1
+  ├─ 桥接活着 → exit 0（静默）
+  └─ 桥接死了 → 清 bridge.pid → tsc 编译 → 启动 → 写 log
 ```
-
-锁屏 → Modern Standby → TCP 断连 → 桥接挂 → 最多 5 分钟后自动恢复。
 
 图片 OCR 集成见 [docs/wechat-bridge-patch.md](docs/wechat-bridge-patch.md)。
 
@@ -214,8 +353,9 @@ schtasks /Create `
 | `daily_practice_state.json` | 进行中的每日一练会话 |
 | `mock_exam_state.json` | 进行中的模考进度 |
 | `batch_practice_state.json` | App 批量题号 → 题库 ID 映射 |
+| `knowledge_query_state.json` | 知识点追问上下文（L1→L2→L3 状态跟踪） |
+| `knowledge_mastery.json` | 各领域掌握度分数 + 趋势 |
 | `prep_push_queue.json` | 备考推送队列（本地） |
-| `knowledge_query_state.json` | 知识点追问上下文（本地） |
 
 **入库规则**：错题必须 `error_logger.py add` → `question_bank.py add --error-log-id N` 两步同步；推荐使用 `record_answer.py` 统一封装。
 
@@ -224,35 +364,61 @@ schtasks /Create `
 ## 🏗️ 项目结构
 
 ```
-pmp_athena/                   # 核心业务代码
-├── cli.py                    # 主 CLI：ingest / plan / analyze / stats
-├── daily_practice.py         # 每日一练 PDF 解析、判卷、batch 子命令
-├── batch_practice.py         # App 批量刷题解析与两阶段入库
-├── question_bank.py          # 题库 CRUD
-├── error_logger.py           # 错题本
-├── record_answer.py          # 做对/做错统一入库（三文件同步）
-├── spaced_repetition.py      # SM-2 间隔复习
-├── study_advisor.py          # 薄弱点 / 复习 / 计划
-├── mock_exam_state.py        # 模考断点续做
-├── exam_recorder.py          # 模考记录
-├── practice_overview.py      # 刷题总览（含时间线）
-├── practice_summary.py       # 月度 / 备考汇总
-├── prep_analytics.py         # 周月总结、错题专项计划
-├── prep_push.py              # 备考推送队列
-├── pre_exam_analysis.py      # 考前深度分析
-├── dynamic_knowledge.py      # 动态知识点检索（L1/L2/L3）
-├── knowledge_retriever.py    # 向量库领域速查
-├── analyze_exam.py           # 模考成绩截图 OCR 入库
-├── image_processor.py        # 截图压缩 + OCR + 结构化入库
-├── sprint_planner.py         # 冲刺计划
-├── chapter_practice_recorder.py
-├── error_insights.py         # 高频错题解读
-├── db/vector_store.py        # ChromaDB
-├── ingestion/                # md / pdf / ocr 导入
-└── utils/                    # embedding、题干规范化
+pmp_athena/                       # 核心业务代码
+├── knowledge_domain_engine.py    # [新] 13 领域结构化引擎（定义/过程/工具/输出/映射）
+├── dynamic_knowledge.py          # [重构] L1/L2/L3 动态知识检索
+├── build_mindmap_md.py           # [新] PNG 思维导图 → 结构化 MD 表格
+├── mindmap_ocr.py                # [新] 批量 OCR 工具
+├── cli.py                        # 主 CLI：ingest / plan / analyze / stats
+├── daily_practice.py             # 每日一练 PDF 解析、判卷、batch 子命令
+├── batch_practice.py             # App 批量刷题解析与两阶段入库
+├── question_bank.py              # 题库 CRUD
+├── error_logger.py               # 错题本
+├── record_answer.py              # 做对/做错统一入库（三文件同步）
+├── spaced_repetition.py          # SM-2 间隔复习
+├── study_advisor.py              # 薄弱点 / 复习 / 计划
+├── mock_exam_state.py            # 模考断点续做
+├── exam_recorder.py              # 模考记录
+├── practice_overview.py          # 刷题总览（含时间线）
+├── practice_summary.py           # 月度 / 备考汇总
+├── prep_analytics.py             # 周月总结、错题专项计划
+├── prep_push.py                  # 备考推送队列
+├── pre_exam_analysis.py          # 考前深度分析
+├── knowledge_retriever.py        # 向量库领域速查
+├── knowledge_fuzzy_match.py      # 知识点模糊匹配（别名/同义词/多级打分）
+├── knowledge_pdf_search.py       # PDF 深度检索（优先章节索引）
+├── knowledge_error_linkage.py    # 错题联动（知识点→历史错题）
+├── analyze_exam.py               # 模考成绩截图 OCR 入库
+├── image_processor.py            # 截图压缩 + OCR + 结构化入库
+├── sprint_planner.py             # 冲刺计划
+├── chapter_practice_recorder.py  # 章节练习统计入库
+├── error_insights.py             # 高频错题解读
+├── root_cause_engine.py          # 错题根因分析引擎
+├── db/vector_store.py            # ChromaDB
+├── db/knowledge_base.py          # 知识库管理
+├── ingestion/                    # md / pdf / ocr 导入
+└── utils/                        # embedding、题干规范化
 
-tests/                        # 单元测试（见下方命令）
+tests/                            # 单元测试（unittest discover）
 ```
+
+### pmp_notes/ 结构化笔记（13 份）
+
+| 文件 | 内容 |
+|------|------|
+| `1.1_项目的基本要素.md` | 项目定义、生命周期、5 大过程组、商业文件 |
+| `1.2_项目运行环境.md` | EEF/OPA、组织结构对比、PMO 类型 |
+| `1.3_项目经理角色.md` | 能力三角、领导力 vs 管理、核心技能 |
+| `2.1_项目的启动.md` | 章程、商业文件、干系人识别、kick-off |
+| `2.2_项目规划(上).md` | **范围/进度/成本** — WBS、CPM、EVM 公式、储备分析 |
+| `2.2_项目规划(下).md` | **质量/资源/沟通/风险/采购/干系人** — 6 领域完整表格 |
+| `2.3_项目执行.md` | 10 个执行过程、知识管理、关键决策点 |
+| `2.4_项目监控.md` | 12 个监控过程、变更控制流程 |
+| `2.5_项目收尾.md` | 收尾检查清单、合同收尾 vs 行政收尾 |
+| `3_敏捷.md` | Scrum 三角色/五事件、估算、12 原则 |
+| `了解23个常用模型.md` | Tuckman→蒙特卡洛→帕累托→PDCA |
+| `了解60个方法.md` | 数据收集→分析→决策→人际技能 |
+| `了解76个工件.md` | 规划文档→基准→登记册→绩效文档 |
 
 ### 测试
 
@@ -303,6 +469,7 @@ python pmp_athena/daily_practice.py audit-content # 全部每日一练 PDF 内�
   - `question_bank.json`、`error_log.json`、`exam_records.json` 等做题数据
   - `config.json`、`prep_push_queue.json` 等运行时状态
   - `pmp_notes/每日一练/*.pdf`、`pmp_notes/模考/*.pdf`
+  - `pmp_notes/*.png`、`pmp_notes/*.jpg`（思维导图原始图片）
 - 微信 Token 在 `~/.wechat-claude-code/`，不在本仓库
 
 ---
@@ -314,10 +481,12 @@ python pmp_athena/daily_practice.py audit-content # 全部每日一练 PDF 内�
 | 向量库 | ChromaDB（本地持久化） |
 | Embedding | paraphrase-multilingual-MiniLM-L12-v2 |
 | OCR | Tesseract + pytesseract |
-| PDF | pdfplumber |
+| PDF | pdfplumber + pypdf |
 | 间隔复习 | SM-2（`spaced_repetition.py`） |
 | 终端 UI | Rich |
 | 微信桥接 | wechat-claude-code（Node.js + 硬路由） |
+| 知识索引 | 本地 JSON（`pmp_knowledge_index.json`，113 条） |
+| 判题推理 | 六步推理链 + P1-P6 优先级 + T01-T12 陷阱模式 |
 
 ---
 
