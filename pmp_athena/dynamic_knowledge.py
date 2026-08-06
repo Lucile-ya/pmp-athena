@@ -39,6 +39,16 @@ try:
         format_pdf_source,
         is_priority_pdf,
     )
+    from pmp_athena.knowledge_domain_engine import (
+        DomainKnowledge,
+        DomainProcess,
+        get_domain,
+        guess_domain_from_query,
+        get_patterns_for_domain,
+        get_related_domains,
+        get_sub_modules,
+        list_all_domains,
+    )
 except ModuleNotFoundError:
     from knowledge_error_linkage import (
         append_error_hint_to_l1,
@@ -56,6 +66,16 @@ except ModuleNotFoundError:
         format_l1_pdf_header,
         format_pdf_source,
         is_priority_pdf,
+    )
+    from knowledge_domain_engine import (
+        DomainKnowledge,
+        DomainProcess,
+        get_domain,
+        guess_domain_from_query,
+        get_patterns_for_domain,
+        get_related_domains,
+        get_sub_modules,
+        list_all_domains,
     )
 
 Level = Literal["L1", "L2", "L3"]
@@ -331,9 +351,20 @@ def _extract_traps(content: str) -> list[str]:
 
 
 def format_l1(entry: dict, content: str, related: list[dict] | None = None, *, query: str = "") -> str:
+    # ── 知识领域级查询：使用结构化框架 ──
+    domain_name = guess_domain_from_query(query)
+    if domain_name:
+        dm = get_domain(domain_name)
+        if dm:
+            return _format_l1_domain(dm, entry, content)
+
     bullets = _pick_summary_lines(content, 5)
     if not bullets:
         bullets = [content[:100] + ("…" if len(content) > 100 else "")]
+
+    # MD 内容不足 5 行 → 自动从 PDF 补充
+    if len(bullets) < 3 and entry.get("file_type") != "pdf":
+        bullets = _supplement_from_pdf(query, bullets, entry)
 
     # PDF 深度检索来源格式
     if entry.get("file_type") == "pdf" or entry.get("is_priority_pdf"):
@@ -366,7 +397,79 @@ def format_l1(entry: dict, content: str, related: list[dict] | None = None, *, q
     return append_error_hint_to_l1(text, q, entry)
 
 
+def _format_l1_domain(dm: DomainKnowledge, entry: dict | None = None, content: str = "") -> str:
+    """L1 知识领域级输出：核心定义 + 过程框架 + 关键输出 + 关联。"""
+    lines = [
+        f"📚 {dm.name} · 速查",
+        "",
+        f"📖 {dm.definition}",
+        "",
+        f"🎯 核心目标：{dm.goal}",
+        "",
+        "📋 核心过程：",
+    ]
+    for p in dm.processes:
+        outputs = "、".join(p.key_outputs[:2])
+        lines.append(f"  {p.index} {p.name}（{p.process_group}）→ {outputs}")
+
+    # 关键考点
+    lines.append("")
+    lines.append("⭐ 考试高频：")
+    for i, focus in enumerate(dm.exam_focus[:4], 1):
+        lines.append(f"  {i}. {focus}")
+
+    # 关联领域（从 engine 拿，不以 index 关联为准）
+    adj = get_related_domains(dm.name, 3)
+    if adj:
+        names = [a[0] for a in adj]
+        lines.extend(["", f"🔗 关联领域：{' / '.join(names)}"])
+
+    # 来源标注
+    if entry and (entry.get("file_type") == "pdf" or entry.get("is_priority_pdf")):
+        lines.extend(["", format_pdf_source(entry)])
+    elif entry:
+        lines.extend(["", f"📍 来源：{Path(entry.get('file', '')).name}"])
+
+    lines.extend([
+        "",
+        "💡 回复「详细」看全领域工具与技术 | 「套路」看情景题套路 | 「关联」看相邻领域",
+    ])
+    return "\n".join(lines)
+
+
+def _supplement_from_pdf(query: str, bullets: list[str], entry: dict) -> list[str]:
+    """MD 笔记不足 5 行时，从 PDF 索引补充相关知识。"""
+    domain_name = guess_domain_from_query(query) or entry.get("domain", "")
+    dm = get_domain(domain_name)
+    if dm:
+        # 从 domain engine 补充核心定义
+        definition_short = dm.definition[:120] + ("…" if len(dm.definition) > 120 else "")
+        bullets.append(f"📖 核心定义：{definition_short}")
+        # 补充一个关键考点
+        if dm.exam_focus:
+            bullets.append(f"⭐ 高频考点：{dm.exam_focus[0]}")
+    else:
+        # 从 PDF 索引搜索补充
+        pdf_entries = search_entries(query, limit=3)
+        for pe in pdf_entries:
+            if pe.get("file_type") == "pdf" and pe.get("id") != entry.get("id"):
+                extra = _pick_summary_lines(load_entry_content(pe), 1)
+                if extra:
+                    bullets.append(f"📄 {pe.get('name', '')}: {extra[0][:80]}")
+                    break
+    return bullets[:5]
+
+
 def format_l2(entry: dict, content: str) -> str:
+    # ── 知识领域级查询：全领域展开 ──
+    state = _load_state()
+    query = state.get("last_query", entry.get("name", ""))
+    domain_name = guess_domain_from_query(query)
+    if domain_name:
+        dm = get_domain(domain_name)
+        if dm:
+            return _format_l2_domain(dm, entry, content)
+
     traps = _extract_traps(content)
     fname = Path(entry.get("file") or "").name
     if entry.get("file_type") == "pdf" or entry.get("is_priority_pdf"):
@@ -391,28 +494,176 @@ def format_l2(entry: dict, content: str) -> str:
     return "\n".join(lines)
 
 
+def _format_l2_domain(dm: DomainKnowledge, entry: dict | None = None, content: str = "") -> str:
+    """L2 知识领域级详细输出：全部过程 + 工具/技术 + 输出 + 易错点。"""
+    lines = [
+        f"📖 {dm.name} · 详解",
+        "",
+        f"📖 {dm.definition}",
+        "",
+        "━" * 30,
+        "",
+    ]
+
+    # 按五大过程组整理过程
+    pg_order = ["启动", "规划", "执行", "监控", "收尾", "启动+规划", "规划+执行+监控（持续）",
+                "启动+规划（持续）", "全周期", "启动前"]
+    for pg in pg_order:
+        group_processes = [p for p in dm.processes if p.process_group == pg]
+        if not group_processes:
+            continue
+        lines.append(f"◆ {pg}过程组")
+        for p in group_processes:
+            lines.append(f"")
+            lines.append(f"  {p.index} {p.name}")
+            lines.append(f"  主要输出：{'、'.join(p.key_outputs)}")
+            lines.append(f"  关键工具：{'、'.join(p.key_tools[:4])}")
+        lines.append("")
+
+    # 关键概念
+    lines.append("━" * 30)
+    lines.append("")
+    lines.append("📌 关键概念：")
+    for c in dm.key_concepts:
+        lines.append(f"  · {c}")
+
+    # 考试焦点
+    lines.append("")
+    lines.append("⭐ 考试高频考点：")
+    for i, f in enumerate(dm.exam_focus, 1):
+        lines.append(f"  {i}. {f}")
+
+    # 易错点
+    if dm.common_traps:
+        lines.append("")
+        lines.append("⚠️ 常见易错点/陷阱：")
+        for t in dm.common_traps:
+            lines.append(f"  · {t}")
+
+    # 关联领域
+    adj = get_related_domains(dm.name, 3)
+    if adj:
+        lines.append("")
+        lines.append("🔗 关联知识领域：")
+        for name, strength, reason in adj:
+            lines.append(f"  · {name}（强度{strength}/5 — {reason}）")
+
+    # 来源
+    if entry:
+        lines.extend(["", f"📍 来源：{Path(entry.get('file', '')).name}"])
+    lines.extend(["", "💡 回复「套路」看该领域考试情景套路"])
+    return "\n".join(lines)
+
+
 def format_l3(entries: list[dict]) -> str:
+    # ── 领域级 L3：按领域映射过滤套路 ──
+    state = _load_state()
+    query = state.get("last_query", "")
+    domain_name = guess_domain_from_query(query)
+    domain_patterns: list[int] = []
+    if domain_name:
+        domain_patterns = get_patterns_for_domain(domain_name)
+
+    if domain_patterns and entries:
+        # 按领域过滤+排序：领域匹配的排前面
+        scored: list[tuple[int, dict]] = []
+        for e in entries:
+            pnum = e.get("pattern_number")
+            if pnum is not None:
+                priority = 0 if pnum in domain_patterns else 1
+                scored.append((priority, e))
+        scored.sort(key=lambda x: (x[0], -(x[1].get("pattern_number") or 0)))
+        entries = [e for _, e in scored]
+
     if not entries:
-        return "⚠️ 未找到相关情景套路。试试「套路 变更」或「套路 挣值」。"
+        if domain_name and domain_patterns:
+            # 有领域映射但 index 中未匹配到 → 从 index 按 pattern_number 精确查找
+            all_entries = _load_index().get("entries") or []
+            for pn in domain_patterns[:4]:
+                for e in all_entries:
+                    if e.get("is_pattern") and e.get("pattern_number") == pn:
+                        entries.append(e)
+        else:
+            return _format_l3_no_match(query, domain_name)
+
+    if not entries:
+        return _format_l3_no_match(query, domain_name)
 
     lines = ["🎯 PMP 情景分析套路", ""]
-    for e in entries[:2]:
+    if domain_name:
+        lines = [f"🎯 {domain_name} · 情景分析套路", ""]
+    for e in entries[:3]:
         content = load_entry_content(e)
         preview = _pick_summary_lines(content, 4)
         lines.append(f"【{e.get('name')}】")
         for p in preview:
             lines.append(f"· {p}")
+        # PDF 来源
+        fname = Path(e.get("file") or "").name
+        ps = e.get("page_start")
+        if ps:
+            lines.append(f"  📍 {fname} 第{ps}页")
         lines.append("")
     lines.append("💡 完整版见：PMP考试情景分析题的三十六种套路.pdf")
     return "\n".join(lines)
 
 
+def _format_l3_no_match(query: str, domain_name: str | None = None) -> str:
+    """L3 无匹配套路时的提示。"""
+    if domain_name:
+        adj = get_related_domains(domain_name, 3)
+        if adj:
+            adj_names = [a[0] for a in adj]
+            adj_patterns: dict[str, list[int]] = {}
+            for aname in adj_names:
+                pns = get_patterns_for_domain(aname)
+                if pns:
+                    adj_patterns[aname] = pns[:2]
+            return (
+                f"⚠️「{domain_name}」暂无直接关联的情景套路。\n\n"
+                f"建议查看关联领域的套路：\n" +
+                "\n".join(
+                    f"  · {aname}：套路{'、'.join(map(str, pns))}"
+                    for aname, pns in adj_patterns.items() if pns
+                ) +
+                f"\n\n💡 回复「套路 <领域名>」如「套路 {adj_names[0] if adj_names else '变更'}」查看"
+            )
+    return "⚠️ 未找到相关情景套路。试试「套路 变更」或「套路 挣值」。"
+
+
 def format_related(query: str, entries: list[dict]) -> str:
+    """关联推荐：子模块 + 关联知识领域（按 PMBOK 逻辑依赖排序）。"""
+    domain_name = guess_domain_from_query(query)
+    dm = get_domain(domain_name) if domain_name else None
+
     lines = [f"🔗 「{query}」关联知识点", ""]
-    for i, e in enumerate(entries[:5], 1):
-        domain = e.get("domain", "")
-        lines.append(f"{i}. [{domain}] {e.get('name', '')[:40]}")
-    lines.extend(["", "💡 回复序号或「详细 XXX」深入查看"])
+
+    # 1. 同领域子模块
+    if dm:
+        sub_modules = get_sub_modules(dm.name)
+        lines.append("📂 本领域子模块：")
+        for i, sm in enumerate(sub_modules[:6], 1):
+            lines.append(f"  {i}. {sm}")
+        lines.append("")
+
+    # 2. 关联知识领域（PMBOK 逻辑依赖）
+    if dm:
+        adj = get_related_domains(dm.name, 5)
+        if adj:
+            lines.append("🔗 关联知识领域：")
+            for name, strength, reason in adj:
+                strength_bar = "█" * strength + "░" * (5 - strength)
+                lines.append(f"  · {name} [{strength_bar}] {reason}")
+            lines.append("")
+    elif entries:
+        # 降级：用 search 结果
+        lines.append("📂 相关条目：")
+        for i, e in enumerate(entries[:5], 1):
+            domain = e.get("domain", "")
+            lines.append(f"  {i}. [{domain}] {e.get('name', '')[:40]}")
+        lines.append("")
+
+    lines.append("💡 回复「<领域名>知识点」深入查看 | 「套路 <领域名>」看情景套路")
     return "\n".join(lines)
 
 
@@ -437,18 +688,40 @@ def retrieve_knowledge(query: str, level: Level = "L1") -> dict[str, Any]:
         }
 
     if level == "L3":
-        patterns = search_entries(query, pattern_only=True, limit=2)
-        # 套路条目额外加权
+        # 领域级：优先按领域映射过滤套路，再降级文本搜索
+        domain_name = guess_domain_from_query(query)
+        domain_patterns = get_patterns_for_domain(domain_name) if domain_name else []
+        all_entries = _load_index().get("entries") or []
+
+        # 1. 领域映射的套路（最高优先级）
+        patterns: list[dict] = []
+        if domain_patterns:
+            for pn in domain_patterns:
+                for e in all_entries:
+                    if e.get("is_pattern") and e.get("pattern_number") == pn:
+                        if e not in patterns:
+                            patterns.append(e)
+            patterns = patterns[:4]
+
+        # 2. 文本搜索补充
+        if len(patterns) < 3:
+            text_matches = search_entries(query, pattern_only=True, limit=3)
+            for tm in text_matches:
+                if tm not in patterns:
+                    patterns.append(tm)
+            patterns = patterns[:4]
+
+        # 3. 兜底
         if not patterns:
-            patterns = [e for e in (_load_index().get("entries") or []) if e.get("is_pattern")]
+            patterns = [e for e in all_entries if e.get("is_pattern")]
             patterns = sorted(
                 patterns,
                 key=lambda e: _score_entry(query, e),
                 reverse=True,
             )[:2]
+        _save_state({"last_query": query, "last_level": "L3"})
         text = format_l3(patterns)
-        _save_state({"last_query": query, "last_level": "L3", "entry_ids": [p["id"] for p in patterns]})
-        return {"status": "ok", "level": "L3", "text": text, "entries": [p["id"] for p in patterns]}
+        return {"status": "ok", "level": "L3", "text": text, "entries": [p.get("id", "") for p in patterns]}
 
     if level == "L1" and query.endswith("关联"):
         q = query.replace("关联", "").strip() or _load_state().get("last_query", "")
@@ -458,6 +731,26 @@ def retrieve_knowledge(query: str, level: Level = "L1") -> dict[str, Any]:
 
     # 模糊匹配分流
     resolved = fuzzy_resolve(query)
+    hits = search_entries(query, limit=3)
+
+    # ── 知识领域直接识别（跳过模糊匹配歧义，L1/L2 走领域引擎）──
+    if level in ("L1", "L2"):
+        domain_name = guess_domain_from_query(query)
+        if domain_name:
+            dm = get_domain(domain_name)
+            if dm:
+                entry = hits[0] if hits else {"file": "", "name": dm.name, "domain": dm.name, "file_type": "md"}
+                content = load_entry_content(entry) if hits else ""
+                if level == "L2":
+                    text = _format_l2_domain(dm, entry if hits else None, content)
+                else:
+                    text = _format_l1_domain(dm, entry if hits else None, content)
+                    # 领域模式时不附加模糊匹配的 header（避免误标）
+                _save_state({"last_query": query, "last_level": level,
+                             "entry_name": dm.name, "domain_mode": True})
+                return {"status": "ok", "level": level, "text": text,
+                        "entry_name": dm.name, "domain_mode": True}
+
     if resolved["ambiguous"] and not resolved["direct"]:
         fm = FuzzyMatchResult(
             query=query,
@@ -472,7 +765,6 @@ def retrieve_knowledge(query: str, level: Level = "L1") -> dict[str, Any]:
         })
         return {"status": "ambiguous", "level": "L1", "text": text}
 
-    hits = search_entries(query, limit=3)
     if not hits:
         if resolved["score"] < 50:
             return {
