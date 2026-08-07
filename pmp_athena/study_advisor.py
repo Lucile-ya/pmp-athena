@@ -227,7 +227,7 @@ def analyze_weakness() -> str:
 # ═══════════════════════════════════════════════════════════
 
 def review_today() -> str:
-    """汇总今日需要复习的错题（不含答案，供交互出题使用）"""
+    """汇总今日需要复习的错题 — 智能排期版（分层 + 限量 + 进度）。"""
     errors = load_json(ERROR_LOG)
     review = load_json(REVIEW_STATE)
     bank = load_json(QUESTION_BANK)
@@ -240,28 +240,39 @@ def review_today() -> str:
         bank = []
 
     today_str = date.today().isoformat()
+
+    # ── 使用 ReviewScheduler 做分层 + 限量 ──
+    try:
+        from pmp_athena.review_scheduler import ReviewScheduler
+    except ImportError:
+        from review_scheduler import ReviewScheduler
+
+    sched = ReviewScheduler()
+    is_sprint = sched.should_activate_sprint()
+    plan = sched.build_daily_plan(is_pre_exam=is_sprint)
+    progress = sched.format_progress_bar()
+
     lines = []
     lines.append(f"📅 今日复习清单（{today_str}）")
     lines.append("=" * 30)
+    lines.append("")
+    lines.append(progress)
+    lines.append("")
 
-    # ── 收集所有到期错题 ──
+    if is_sprint:
+        lines.append(f"🔥 考前冲刺模式 · 今日配额 {plan['daily_quota']} 题")
+        lines.append("")
+
+    # ── 收集所有到期错题（原始逻辑）──
     due_ids: set[int] = set()
-
-    # 今天新增的错题
     today_errors = [e for e in errors if e.get("date") == today_str]
     for e in today_errors:
         due_ids.add(e["id"])
 
-    # SM-2 今日到期
-    due_cards = []
-    for key, card in review.items():
+    for _key, card in review.items():
         if card.get("next_date", "9999") <= today_str:
-            eid = card.get("error_id")
-            due_ids.add(eid)
-            error = next((e for e in errors if e.get("id") == eid), None)
-            due_cards.append({**card, "error": error})
+            due_ids.add(card.get("error_id"))
 
-    # 题库中今日做错的
     today_wrong_in_bank = [
         r for r in bank
         if r.get("date") == today_str and r.get("is_correct") is False
@@ -272,30 +283,74 @@ def review_today() -> str:
             due_ids.add(eid)
 
     if not due_ids:
-        lines.append("\n✅ 今日暂无待复习错题，继续保持！")
+        lines.append("✅ 今日暂无待复习错题，继续保持！")
+        tiers = sched.classify_all()
+        t3_count = len(tiers["T3"])
+        if t3_count > 0:
+            lines.append(f"📦 {t3_count} 道低频错题已归入考前冲刺包，考前 7 天自动推送。")
         return "\n".join(lines)
+
+    # ── 分层过滤：T1（高频）不限量 + T2（近期）限量 + T3（低频）考前推送 ──
+    tiers = sched.classify_all()
+    t1_ids = {t.error_id for t in tiers["T1"]}
+    t2_ids = {t.error_id for t in tiers["T2"]}
+    t3_ids = {t.error_id for t in tiers["T3"]}
+    t0_ids = {t.error_id for t in tiers["T0"]}  # 粗心 - 排除
+
+    # 剔除粗心
+    due_ids -= t0_ids
+
+    # 非冲刺模式：T3 不推送
+    if not is_sprint:
+        due_ids -= t3_ids
+
+    # T1 优先排前面 + T2 限量
+    t1_due = sorted(due_ids & t1_ids)
+    t2_due = sorted(due_ids & t2_ids)
+    t3_due = sorted(due_ids & t3_ids)
+
+    # 按优先级排序：T1 → T2 → T3
+    ordered_ids = t1_due + t2_due + t3_due
+
+    # 每日上限
+    limit = sched.get_daily_limit() if not is_sprint else plan["daily_quota"]
+    ordered_ids = ordered_ids[:limit]
 
     # ── 按知识领域分组 ──
     area_groups: dict[str, list[dict]] = {}
-    for eid in due_ids:
+    for eid in ordered_ids:
         error = next((e for e in errors if e.get("id") == eid), None)
         if error is None:
             continue
         area = error.get("knowledge_area", "未分类")
-        if area not in area_groups:
-            area_groups[area] = []
-        area_groups[area].append(error)
+        area_groups.setdefault(area, []).append(error)
 
-    lines.insert(2, f"📌 共 {len(due_ids)} 题需要复习，按领域分布：\n")
+    lines.insert(3, f"📌 今日推送 {len(ordered_ids)}/{len(due_ids)} 题（上限 {limit} 题）")
+    lines.insert(4, "")
 
-    # 输出按领域分组（只显示 ID + 题干摘要，不泄露答案和解析）
+    # ── 分层标记 ──
+    tier_labels: dict[int, str] = {}
+    for t in tiers["T1"]:
+        tier_labels[t.error_id] = "🔴"
+    for t in tiers["T2"]:
+        tier_labels[t.error_id] = "🟡"
+    for t in tiers["T3"]:
+        tier_labels[t.error_id] = "🟢"
+
     for area in sorted(area_groups.keys(), key=lambda a: -len(area_groups[a])):
         items = area_groups[area]
         lines.append(f"\n### {area}（{len(items)} 题）")
         for e in items:
             q = e.get("question", "")[:60]
-            lines.append(f"- #{e['id']} {q}...")
+            tier_mark = tier_labels.get(e["id"], "")
+            lines.append(f"- {tier_mark} #{e['id']} {q}...")
         lines.append("")
+
+    # ── 非冲刺模式：提示 T3 低频错题数量 ──
+    if not is_sprint and t3_ids:
+        t3_due_today = len(t3_ids & due_ids)
+        if t3_due_today > 0:
+            lines.append(f"📦 {t3_due_today} 道低频错题已推迟到考前冲刺包（考前 7 天推送）")
 
     lines.append("---")
     lines.append("以上为题号清单。交互出题时逐题展示，不泄露答案。")
@@ -604,9 +659,36 @@ def review_next(*, include_header: bool = False) -> dict:
     # 进度行：已完成 / 总到期数
     done_count = len(due_ids) - len(pending)
     progress = f"[{done_count}/{len(due_ids)}]"
+
+    # ── 每日上限检查 ──
+    try:
+        from pmp_athena.review_scheduler import ReviewScheduler
+    except ImportError:
+        from review_scheduler import ReviewScheduler
+    sched = ReviewScheduler()
+    limit = sched.get_daily_limit()
+    is_sprint = sched.should_activate_sprint()
+    if is_sprint:
+        plan = sched.build_daily_plan(is_pre_exam=True)
+        limit = plan["daily_quota"]
+    completed_today = sched.get_today_completed_count()
+
+    if completed_today >= limit and include_header:
+        # 已达上限：显示完成卡片
+        text = sched.format_daily_done_card()
+        text += "\n\n" + sched.format_progress_bar()
+        return {
+            "status": "limit_reached",
+            "error_id": None,
+            "total_due": len(due_ids),
+            "remaining": len(pending),
+            "text": text,
+        }
+
     if include_header:
+        limit_hint = f"（今日上限 {limit} 题，已完成 {completed_today}/{limit}）"
         text = (
-            f"📚 今日待复习错题: {len(due_ids)} 道（还剩 {len(pending)} 道）\n\n"
+            f"📚 今日待复习错题: {len(due_ids)} 道（还剩 {len(pending)} 道）{limit_hint}\n\n"
             f"{body}"
         )
     else:
@@ -760,7 +842,7 @@ def grade_review(error_id: int, user_answer: str) -> dict:
 
 
 def _build_done_summary(nxt: dict) -> str:
-    """生成复习完毕的正确率统计行。"""
+    """生成复习完毕的统计行，含进度预估。"""
     review_state = load_json(REVIEW_STATE)
     nxt_text = nxt.get("text", "")
     if isinstance(review_state, dict):
@@ -776,6 +858,15 @@ def _build_done_summary(nxt: dict) -> str:
             pct = correct / total * 100 if total > 0 else 0
             if "复习完毕" in nxt_text:
                 nxt_text = nxt_text.replace("复习完毕", f"复习完毕！正确率 {pct:.0f}%（{correct}/{total}）")
+
+    # ── 附加进度预估 ──
+    try:
+        from pmp_athena.review_scheduler import ReviewScheduler
+    except ImportError:
+        from review_scheduler import ReviewScheduler
+    sched = ReviewScheduler()
+    nxt_text += "\n\n" + sched.format_progress_bar()
+
     return nxt_text
 
 
@@ -1247,9 +1338,57 @@ def main():
     p_skip.add_argument("error_id", type=int, help="错题 ID")
     p_skip.add_argument("--json", action="store_true")
 
+    p_sprint = sub.add_parser("sprint-plan", help="考前错题清零计划")
+    p_sprint.add_argument("--json", action="store_true")
+
+    p_layers = sub.add_parser("error-tiers", help="错题分层统计")
+    p_layers.add_argument("--json", action="store_true")
+
+    p_careless = sub.add_parser("mark-careless", help="标记为粗心错题（排除出队列）")
+    p_careless.add_argument("error_id", type=int, help="错题 ID")
+
     args = parser.parse_args()
 
-    if args.command == "weakness":
+    if args.command == "sprint-plan":
+        try:
+            from pmp_athena.review_scheduler import ReviewScheduler
+        except ImportError:
+            from review_scheduler import ReviewScheduler
+        sched = ReviewScheduler()
+        if args.json:
+            output = json.dumps(sched.build_sprint_plan(), ensure_ascii=False)
+        else:
+            output = sched.format_sprint_plan()
+    elif args.command == "error-tiers":
+        try:
+            from pmp_athena.review_scheduler import ReviewScheduler
+        except ImportError:
+            from review_scheduler import ReviewScheduler
+        sched = ReviewScheduler()
+        tiers = sched.classify_all()
+        if args.json:
+            output = json.dumps({
+                k: [{"error_id": t.error_id, "label": t.label, "mistakes": t.mistake_count}
+                    for t in v]
+                for k, v in tiers.items()
+            }, ensure_ascii=False)
+        else:
+            lines = []
+            for t, label in [("T1", "🔴 高频"), ("T2", "🟡 近期"), ("T3", "🟢 低频"), ("T0", "⚪ 粗心")]:
+                items = tiers[t]
+                lines.append(f"\n{label}（{len(items)} 题）")
+                for it in items[:10]:
+                    lines.append(f"  #{it.error_id} 错{it.mistake_count}次")
+            output = "\n".join(lines)
+    elif args.command == "mark-careless":
+        try:
+            from pmp_athena.review_scheduler import ReviewScheduler
+        except ImportError:
+            from review_scheduler import ReviewScheduler
+        sched = ReviewScheduler()
+        ok = sched.mark_as_careless(args.error_id)
+        output = f"✅ 错题 #{args.error_id} 已标记为粗心，排除出复习队列" if ok else "❌ 失败"
+    elif args.command == "weakness":
         output = analyze_weakness()
     elif args.command == "review-today":
         output = review_today()

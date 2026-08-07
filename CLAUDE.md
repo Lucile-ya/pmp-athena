@@ -671,35 +671,66 @@ d:\miniconda\python.exe pmp_athena/record_answer.py wrong --question "..." --my-
 **执行：** `python pmp_athena/study_advisor.py weakness`（需加 `PYTHONIOENCODING=utf-8` 前缀）
 **输出：** 薄弱领域排行、错误模式、敏捷专项诊断、SM-2 复习状态、一句话建议。
 
-### 今日复习错题（互动出题模式，硬性要求）
+### 今日复习错题（智能排期 + 每日限量，硬性要求）
 **触发词：** "复习错题" / "今日复习错题" / "今天错题复习" / "今日错题复习" / "今天复习什么" / "复习今天错题"
 
 **执行流程：**
 
-**第1步：筛选到期错题**
-执行 `python pmp_athena/study_advisor.py review-today` 获取待复习清单，同时读取 `error_review_state.json`，筛选所有 `next_date` <= 今天日期的错题。
+**第0步：分层 + 限量**
+执行 `python pmp_athena/review_scheduler.py plan` 获取分层计划：
+- 🔴 高频错题（错 ≥3 次）：每天优先推送，不限量
+- 🟡 近期错题（7 天内）：每天推送 ≤10 道
+- 🟢 低频错题（错 1-2 次，>30 天）：归入考前冲刺包，考前 7 天推送
+- ⚪ 粗心错题（标记为"粗心"）：不计入复习队列，仅记录
 
-**第2步：逐题出题**
+**第1步：筛选到期错题（分层版）**
+执行 `python pmp_athena/study_advisor.py review-today` 获取待复习清单（已按分层过滤 + 每日上限裁剪）。
+
+**第2步：逐题出题（锚点优先）**
 对每道到期错题，从 `error_log.json` 中查出完整题干，逐题发给用户。格式：
 ```
+🔑 [语义锚点话术]（高频错题时优先显示）
+📌 错题等级：🔥 高频错题（已错 N 次）
 📝 复习 #N [领域]
 <题干 + 选项>
 ```
 每道题发完等用户回复。不要一口气发完。
 
-**第3步：判卷 + 更新状态**
-收到用户答案后，与 `correct_answer` 比对：
-- **答对**：执行 `python pmp_athena/spaced_repetition.py grade N 5`（quality=5，按 SM-2 推进到下一轮）
-- **答错**：执行 `python pmp_athena/spaced_repetition.py grade N 1`（quality=1，明天继续复习）
-不需要再写入 question_bank.json（复习题之前已录入）。
+**第3步：判卷 + 更新状态 + 演化追踪**
+收到用户答案后，与 `correct_answer` 比对。执行 `python pmp_athena/study_advisor.py grade-review N <答案>` 一体化完成：
+- SM-2 评分 + 演化记录 + 错题反馈（锚点 + 根因诊断 + 口诀）
+- 高频错题答对 → 触发根因变式巩固
 
-**第4步：小结**
+**第4步：每日上限**
+- 默认每天最多推送 25 道错题（可调：`python pmp_athena/review_scheduler.py set-limit N`）
+- 达到上限后显示：
+```
+✅ 今日错题复习完成！已刷 25/98 道
+📊 预计剩余错题将在 3 天内全部清完
+💬 回复「继续加练」可突破上限
+```
+- 用户说「继续加练」→ 解除当日上限，继续推送
+
+**第5步：小结（含进度预估）**
 全部完成后输出：
 ```
 📋 复习小结：正确 X/总共 Y
 ✅ 答对 N 题: #1 #3 ...
 ❌ 答错 M 题: #2 #5 ...（明天继续）
+📊 错题清理进度：25/98（25.5%）
+📅 预计全部清完：2026-08-11
 ```
+
+**新增触发词：**
+- `继续加练` / `突破上限` → 解除当日复习上限，继续推送（不重置已完成数）
+- `粗心 #N` / `标记粗心 #N` → 标记为粗心错题，排除出复习队列
+- `错题分层` / `错题统计` → `python pmp_athena/study_advisor.py error-tiers`
+- `清零计划` / `冲刺清零` → `python pmp_athena/study_advisor.py sprint-plan`
+
+**考前 7 天自动切换冲刺清零模式**：
+- 每天推送剩余错题的 20%（最低 10 道，最高 40 道）
+- 确保考前 3 天所有错题至少过 1 遍
+- 用户说「复习错题」时自动进入冲刺模式
 
 ### 制定学习计划
 **触发词：** "学习计划" / "制定计划" / "复习计划" / "给我一个计划" / "备考计划"
