@@ -1,0 +1,52 @@
+{
+  "_note": "模考清单 — 手动维护。status 初始值为 pending，完成后由 mock_exam_kanban.py 自动联动更新。",
+  "mock_exams": [
+    {
+      "id": "M001",
+      "name": "2606PMP模考一",
+      "pdf_name": "考前冲刺卷1",
+      "status": "completed",
+      "total_questions": 180,
+      "has_pdf": true,
+      "score": 100,
+      "correct_rate": 55.6,
+      "date": "2026-08-07"
+    },
+    {
+      "id": "M002",
+      "name": "2606PMP模考二",
+      "pdf_name": "2606期PMP模考二",
+      "status": "completed",
+      "total_questions": 180,
+      "has_pdf": true,
+      "score": 125,
+      "correct_rate": 69.4,
+      "date": "2026-08-07"
+    },
+    {
+      "id": "M003",
+      "name": "2606PMP模考三",
+      "pdf_name": "考前冲刺卷2",
+      "status": "pending",
+      "total_questions": 180,
+      "has_pdf": true
+    },
+    {
+      "id": "M004",
+      "name": "2606PMP模考四",
+      "pdf_name": "考前冲刺卷3",
+      "status": "pending",
+      "total_questions": 180,
+      "has_pdf": true
+    },
+    {
+      "id": "M005",
+      "name": "2606PMP模考五",
+      "pdf_name": "",
+      "status": "pending",
+      "total_questions": 180,
+      "has_pdf": false
+    }
+  ],
+  "target_weekly_exams": 2
+}

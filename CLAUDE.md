@@ -736,6 +736,8 @@ d:\miniconda\python.exe pmp_athena/record_answer.py wrong --question "..." --my-
 - `粗心 #N` / `标记粗心 #N` → 标记为粗心错题，排除出复习队列
 - `错题分层` / `错题统计` → `python pmp_athena/study_advisor.py error-tiers`
 - `清零计划` / `冲刺清零` → `python pmp_athena/study_advisor.py sprint-plan`
+- `模考清单` / `模考看板` / `还有哪几套模考` / `模考进度` → `python pmp_athena/mock_exam_kanban.py kanban`
+- `录入成绩 <模考名> <分数>` → `python pmp_athena/mock_exam_kanban.py record "<模考名>" <分数>`
 
 **考前 7 天自动切换冲刺清零模式**：
 - 每天推送剩余错题的 20%（最低 10 道，最高 40 道）
