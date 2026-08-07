@@ -134,12 +134,12 @@
 - `python build_knowledge_index.py` — 扫描 pmp_notes 下 MD/PDF 建索引
 - `python retrieve_knowledge.py query 挣值 --level L1` — CLI 检索
 
-### 手动「今日状态」
-用户说 **「今日状态」** / **「今天进度」** 时，读取 `question_bank.json` + `error_review_state.json`，输出：
-- 倒计时 + 阶段
-- 今日每日一练完成情况
-- 今日错题复习进度（M/N）
-- 一句建议（优先复习到期错题）
+### 手动「今日状态」/「做题总览」
+**触发词：** "今日状态" / "今天进度" / "做题数据" / "做题汇总" / "做题情况" / "做题总览" / "我的进度"
+
+**执行：** `python pmp_athena/practice_overview_light.py`
+
+**输出：** 累计做题统计 + 今日/近7天正确率 + 各领域正确率柱状图 + 目标差距 + SM-2 复习进度 + 薄弱点提示。
 
 ## 睡前复习（手动触发）
 

@@ -880,6 +880,8 @@ def parse_user_message(text: str) -> dict[str, Any] | None:
     # 裸关键词（2-20 字，非指令）— 模糊匹配 ≥50 分即触发
     if re.match(r"^[\u4e00-\u9fffA-Za-z0-9/]{2,20}$", t) and t not in {
         "复习错题", "每日一练", "薄弱点", "模考", "睡前复习", "错题",
+        "做题数据", "做题汇总", "做题情况", "做题总览", "我的进度",
+        "今日状态", "今天进度",
     }:
         resolved = fuzzy_resolve(t)
         if resolved["score"] >= 50 or search_entries(t, limit=1):
