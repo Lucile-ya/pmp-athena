@@ -514,10 +514,11 @@ def review_variant_start_v2(error_id: int) -> dict:
         scored.sort(key=lambda x: -x[1])
         candidates = [c for c, _ in scored]
 
-    # 过滤已攻克的 + 选项不完整的（OCR 残次品）
+    # 过滤：已攻克 + 排除标记 + 选项不完整
     fresh = [
         c for c in candidates
         if c.get("id") not in mastered_ids
+        and not c.get("excluded")
         and _has_complete_options(str(c.get("question", "")))
     ]
 
