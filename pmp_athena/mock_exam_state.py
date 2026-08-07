@@ -13,6 +13,11 @@
     python -m pmp_athena.mock_exam_state status
 """
 
+try:
+    from pmp_athena.config import MOCK_EXAM_STATE_PATH
+except ModuleNotFoundError:
+    from config import MOCK_EXAM_STATE_PATH
+
 import argparse
 import json
 import logging
@@ -27,7 +32,7 @@ logger = logging.getLogger("mock_exam_state")
 # ── 中国时区（UTC+8）──────────────────────────────────────────
 TZ_CST = timezone(timedelta(hours=8))
 
-DEFAULT_STATE_PATH = Path("D:/pmp-athena/pmp_notes/mock_exam_state.json")
+DEFAULT_STATE_PATH = MOCK_EXAM_STATE_PATH
 
 
 class MockExamState:

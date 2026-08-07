@@ -17,6 +17,11 @@ SM-2 算法参考:
     https://www.supermemo.com/en/archives1990-2015/english/ol/sm2
 """
 
+try:
+    from pmp_athena.config import ERROR_LOG_PATH, REVIEW_STATE_PATH
+except ModuleNotFoundError:
+    from config import ERROR_LOG_PATH, REVIEW_STATE_PATH
+
 import argparse
 import json
 import logging
@@ -30,8 +35,8 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("spaced_repetition")
 
 # ── 常量 ──────────────────────────────────────────────────
-DEFAULT_STATE_PATH = Path("D:/pmp-athena/pmp_notes/error_review_state.json")
-DEFAULT_ERROR_LOG = Path("D:/pmp-athena/pmp_notes/error_log.json")
+DEFAULT_STATE_PATH = REVIEW_STATE_PATH
+DEFAULT_ERROR_LOG = ERROR_LOG_PATH
 
 SM2_INITIAL_EF = 2.5       # 初始难度系数
 SM2_MIN_EF = 1.3           # 难度系数下限

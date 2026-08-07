@@ -1,6 +1,20 @@
-chromadb>=0.5.0
-sentence-transformers>=2.7.0
-pytesseract>=0.3.10
-Pillow>=10.0.0
-rich>=13.0.0
-numpy>=1.24.0
+# PMP Athena — 本地 PMP 备考复盘 Agent
+# Python 3.10+ 推荐
+#
+# 安装: pip install -r requirements.txt
+# 首次 ingest 会从 HuggingFace 下载 embedding 模型 (~470MB)
+
+# ── 核心依赖 ──
+chromadb>=0.5.0,<1.0.0          # 向量数据库（本地持久化）
+sentence-transformers>=2.7.0     # embedding 模型（paraphrase-multilingual-MiniLM-L12-v2）
+numpy>=1.24.0,<2.0.0             # 数值计算
+rich>=13.0.0                     # 终端 UI 美化
+
+# ── PDF 解析（每日一练 / 模考 / 笔记导入）──
+pdfplumber>=0.10.0               # PDF 文字提取（主力）
+pypdf>=4.0.0                     # PDF 书签/目录提取
+
+# ── 截图 OCR（可选，仅微信发图场景需要）──
+pytesseract>=0.3.10              # Tesseract OCR Python 绑定
+Pillow>=10.0.0                   # 图片处理
+# Windows Tesseract 手动安装: https://github.com/UB-Mannheim/tesseract/wiki

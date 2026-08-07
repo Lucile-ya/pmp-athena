@@ -15,6 +15,25 @@ CHROMA_PERSIST_DIR = str(DATA_DIR / "chromadb")
 # ── 笔记目录 ────────────────────────────────────────────────
 NOTES_DIR = PROJECT_ROOT / "pmp_notes"
 
+# ── 数据文件路径（统一入口，勿在业务代码中硬编码）──────────
+QUESTION_BANK_PATH = NOTES_DIR / "question_bank.json"
+ERROR_LOG_PATH = NOTES_DIR / "error_log.json"
+REVIEW_STATE_PATH = NOTES_DIR / "error_review_state.json"
+EXAM_RECORDS_PATH = NOTES_DIR / "exam_records.json"
+EXAM_CONFIG_PATH = NOTES_DIR / "exam_config.json"
+ERROR_EVOLUTION_PATH = NOTES_DIR / "error_evolution.json"
+REVIEW_CONFIG_PATH = NOTES_DIR / "review_config.json"
+MOCK_EXAM_STATE_PATH = NOTES_DIR / "mock_exam_state.json"
+BATCH_PRACTICE_STATE_PATH = NOTES_DIR / "batch_practice_state.json"
+PENDING_PLAIN_QUESTION_PATH = NOTES_DIR / "pending_plain_question.json"
+KNOWLEDGE_MASTERY_PATH = NOTES_DIR / "knowledge_mastery.json"
+PREP_PUSH_STATE_PATH = NOTES_DIR / "prep_push_state.json"
+OPTIONS_SUPPLEMENT_PATH = NOTES_DIR / "question_options_supplement.json"
+CONFIG_JSON_PATH = NOTES_DIR / "config.json"
+DAILY_PRACTICE_DIR = NOTES_DIR / "每日一练"
+MOCK_EXAM_DIR = NOTES_DIR / "模考"
+KNOWLEDGE_INDEX_PATH = PROJECT_ROOT / "pmp_knowledge_index.json"
+
 # ── Embedding 模型 ──────────────────────────────────────────
 # 使用多语言模型，中英文混合场景表现好
 EMBEDDING_MODEL = os.environ.get(

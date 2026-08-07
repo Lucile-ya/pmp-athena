@@ -5,9 +5,9 @@ import json
 import re
 from pathlib import Path
 
-ERROR_LOG = Path("D:/pmp-athena/pmp_notes/error_log.json")
-QUESTION_BANK = Path("D:/pmp-athena/pmp_notes/question_bank.json")
-OPTIONS_SUPPLEMENT = Path("D:/pmp-athena/pmp_notes/question_options_supplement.json")
+ERROR_LOG = ERROR_LOG_PATH
+QUESTION_BANK = QUESTION_BANK_PATH
+OPTIONS_SUPPLEMENT = OPTIONS_SUPPLEMENT_PATH
 
 OPTION_RE = re.compile(r"(?:^|\s)[A-D][\.、．\)]")
 
@@ -70,6 +70,11 @@ def has_options(text: str) -> bool:
 
 def strip_options(text: str) -> str:
     """去掉已有选项，保留纯题干"""
+try:
+    from pmp_athena.config import ERROR_LOG_PATH, OPTIONS_SUPPLEMENT_PATH, QUESTION_BANK_PATH
+except ModuleNotFoundError:
+    from config import ERROR_LOG_PATH, OPTIONS_SUPPLEMENT_PATH, QUESTION_BANK_PATH
+
     m = re.search(r"\s+[A-D][\.、．\)]", text or "")
     if m:
         return text[: m.start()].strip()

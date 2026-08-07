@@ -11,14 +11,19 @@
 """
 
 from __future__ import annotations
+try:
+    from pmp_athena.config import ERROR_LOG_PATH, QUESTION_BANK_PATH, REVIEW_STATE_PATH
+except ModuleNotFoundError:
+    from config import ERROR_LOG_PATH, QUESTION_BANK_PATH, REVIEW_STATE_PATH
+
 
 import json
 import sys
 from pathlib import Path
 
-ERROR_LOG = Path("D:/pmp-athena/pmp_notes/error_log.json")
-QUESTION_BANK = Path("D:/pmp-athena/pmp_notes/question_bank.json")
-REVIEW_STATE = Path("D:/pmp-athena/pmp_notes/error_review_state.json")
+ERROR_LOG = ERROR_LOG_PATH
+QUESTION_BANK = QUESTION_BANK_PATH
+REVIEW_STATE = REVIEW_STATE_PATH
 
 try:
     from pmp_athena.utils.question_text import normalize_question_text, question_dedup_key

@@ -13,6 +13,11 @@
 """
 
 from __future__ import annotations
+try:
+    from pmp_athena.config import ERROR_LOG_PATH, QUESTION_BANK_PATH, REVIEW_CONFIG_PATH, REVIEW_STATE_PATH
+except ModuleNotFoundError:
+    from config import ERROR_LOG_PATH, QUESTION_BANK_PATH, REVIEW_CONFIG_PATH, REVIEW_STATE_PATH
+
 
 import json
 from collections import Counter
@@ -21,10 +26,8 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
-REVIEW_STATE_PATH = Path("D:/pmp-athena/pmp_notes/error_review_state.json")
-ERROR_LOG_PATH = Path("D:/pmp-athena/pmp_notes/error_log.json")
-QUESTION_BANK_PATH = Path("D:/pmp-athena/pmp_notes/question_bank.json")
-CONFIG_PATH = Path("D:/pmp-athena/pmp_notes/review_config.json")
+
+CONFIG_PATH = REVIEW_CONFIG_PATH
 
 EXAM_DATE = date(2026, 9, 12)
 DEFAULT_DAILY_LIMIT = 25

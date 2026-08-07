@@ -6,6 +6,11 @@
 """
 
 from __future__ import annotations
+try:
+    from pmp_athena.config import ERROR_LOG_PATH, QUESTION_BANK_PATH, REVIEW_STATE_PATH
+except ModuleNotFoundError:
+    from config import ERROR_LOG_PATH, QUESTION_BANK_PATH, REVIEW_STATE_PATH
+
 
 import json
 import re
@@ -13,9 +18,9 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-ERROR_LOG = Path("D:/pmp-athena/pmp_notes/error_log.json")
-REVIEW_STATE = Path("D:/pmp-athena/pmp_notes/error_review_state.json")
-QUESTION_BANK = Path("D:/pmp-athena/pmp_notes/question_bank.json")
+ERROR_LOG = ERROR_LOG_PATH
+REVIEW_STATE = REVIEW_STATE_PATH
+QUESTION_BANK = QUESTION_BANK_PATH
 
 try:
     from pmp_athena.image_processor import clean_explanation_text

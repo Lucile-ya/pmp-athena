@@ -11,6 +11,11 @@
     report = analyze_exam_screenshot("path/to/screenshot.png")
 """
 
+try:
+    from pmp_athena.config import ERROR_LOG_PATH
+except ModuleNotFoundError:
+    from config import ERROR_LOG_PATH
+
 import argparse
 import json
 import logging
@@ -28,7 +33,6 @@ from .exam_recorder import ExamRecorder
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("analyze_exam")
 
-ERROR_LOG_PATH = Path("D:/pmp-athena/pmp_notes/error_log.json")
 
 # ── OCR 初始化 ──────────────────────────────────────────────────
 try:

@@ -13,6 +13,11 @@
     python pmp_athena/sprint_planner.py list             # 列出所有冲刺计划
 """
 
+try:
+    from pmp_athena.config import ERROR_LOG_PATH, EXAM_RECORDS_PATH, NOTES_DIR
+except ModuleNotFoundError:
+    from config import ERROR_LOG_PATH, EXAM_RECORDS_PATH, NOTES_DIR
+
 import argparse
 import json
 import logging
@@ -26,10 +31,10 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("sprint_planner")
 
 # ── 路径 ──────────────────────────────────────────────────
-ERROR_LOG = Path("D:/pmp-athena/pmp_notes/error_log.json")
-EXAM_RECORDS = Path("D:/pmp-athena/pmp_notes/exam_records.json")
-MOCK_RECORDS = Path("D:/pmp-athena/pmp_notes/mock_exam_records.json")
-SPRINT_STORE = Path("D:/pmp-athena/pmp_notes/sprint_plans.json")
+ERROR_LOG = ERROR_LOG_PATH
+EXAM_RECORDS = EXAM_RECORDS_PATH
+MOCK_RECORDS = EXAM_RECORDS_PATH
+SPRINT_STORE = NOTES_DIR / "sprint_plans.json"
 
 # ── 知识域映射 ──────────────────────────────────────────
 DOMAIN_INFO = {

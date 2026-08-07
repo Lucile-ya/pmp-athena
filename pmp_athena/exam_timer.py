@@ -17,6 +17,11 @@
     python pmp_athena/exam_timer.py recommend-sprint   # 推荐冲刺天数
 """
 
+try:
+    from pmp_athena.config import EXAM_CONFIG_PATH
+except ModuleNotFoundError:
+    from config import EXAM_CONFIG_PATH
+
 import argparse
 import json
 import logging
@@ -28,7 +33,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("exam_timer")
 
 # ── 存储路径 ─────────────────────────────────────────────
-STORE_PATH = Path("D:/pmp-athena/pmp_notes/exam_config.json")
+STORE_PATH = EXAM_CONFIG_PATH
 
 # ── 阶段划分规则 ─────────────────────────────────────────
 # 距离考试 N 天以上 → 对应阶段

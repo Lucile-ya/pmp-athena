@@ -10,12 +10,17 @@
 """
 
 from __future__ import annotations
+try:
+    from pmp_athena.config import ERROR_LOG_PATH, QUESTION_BANK_PATH
+except ModuleNotFoundError:
+    from config import ERROR_LOG_PATH, QUESTION_BANK_PATH
+
 
 import json
 from pathlib import Path
 from typing import Any
 
-QUESTION_BANK = Path("D:/pmp-athena/pmp_notes/question_bank.json")
+QUESTION_BANK = QUESTION_BANK_PATH
 
 
 def _load_json(path: Path) -> Any:
@@ -318,7 +323,7 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    EL_PATH = Path("D:/pmp-athena/pmp_notes/error_log.json")
+    EL_PATH = ERROR_LOG_PATH
 
     errors = _load_json(EL_PATH)
     if not isinstance(errors, list):

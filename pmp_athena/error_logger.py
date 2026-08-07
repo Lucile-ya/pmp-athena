@@ -18,6 +18,11 @@
     python pmp_athena/error_logger.py recent 5      # 最近 N 条
 """
 
+try:
+    from pmp_athena.config import ERROR_LOG_PATH
+except ModuleNotFoundError:
+    from config import ERROR_LOG_PATH
+
 import argparse
 import json
 import logging
@@ -35,7 +40,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("error_logger")
 
 # ── 配置 ──────────────────────────────────────────────────
-DEFAULT_LOG_PATH = Path("D:/pmp-athena/pmp_notes/error_log.json")
+DEFAULT_LOG_PATH = ERROR_LOG_PATH
 
 # PMP 知识领域列表（供 Claude 参考分类）
 KNOWLEDGE_AREAS = [

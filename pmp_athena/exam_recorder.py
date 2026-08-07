@@ -20,6 +20,11 @@
     python pmp_athena/exam_recorder.py latest     # 最近一次模考
 """
 
+try:
+    from pmp_athena.config import EXAM_RECORDS_PATH
+except ModuleNotFoundError:
+    from config import EXAM_RECORDS_PATH
+
 import argparse
 import json
 import logging
@@ -31,7 +36,7 @@ from typing import Optional
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("exam_recorder")
 
-DEFAULT_RECORDS_PATH = Path("D:/pmp-athena/pmp_notes/exam_records.json")
+DEFAULT_RECORDS_PATH = EXAM_RECORDS_PATH
 
 # ── PMP 知识领域列表 ──────────────────────────────────────────
 KNOWLEDGE_AREAS = [

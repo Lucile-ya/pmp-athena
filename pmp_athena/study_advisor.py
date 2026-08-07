@@ -9,6 +9,11 @@
     python pmp_athena/study_advisor.py plan --days 7   # 未来N天计划
 """
 
+try:
+    from pmp_athena.config import ERROR_LOG_PATH, EXAM_CONFIG_PATH, OPTIONS_SUPPLEMENT_PATH, QUESTION_BANK_PATH, REVIEW_STATE_PATH
+except ModuleNotFoundError:
+    from config import ERROR_LOG_PATH, EXAM_CONFIG_PATH, OPTIONS_SUPPLEMENT_PATH, QUESTION_BANK_PATH, REVIEW_STATE_PATH
+
 import argparse
 import json
 import re
@@ -18,11 +23,11 @@ from pathlib import Path
 from typing import Optional
 
 # ── 路径 ──────────────────────────────────────────────────
-QUESTION_BANK = Path("D:/pmp-athena/pmp_notes/question_bank.json")
-ERROR_LOG = Path("D:/pmp-athena/pmp_notes/error_log.json")
-REVIEW_STATE = Path("D:/pmp-athena/pmp_notes/error_review_state.json")
-EXAM_CONFIG = Path("D:/pmp-athena/pmp_notes/exam_config.json")
-OPTIONS_SUPPLEMENT = Path("D:/pmp-athena/pmp_notes/question_options_supplement.json")
+QUESTION_BANK = QUESTION_BANK_PATH
+ERROR_LOG = ERROR_LOG_PATH
+REVIEW_STATE = REVIEW_STATE_PATH
+EXAM_CONFIG = EXAM_CONFIG_PATH
+OPTIONS_SUPPLEMENT = OPTIONS_SUPPLEMENT_PATH
 
 _OPTION_RE = re.compile(r"(?:^|\s)[A-D][\.、．\)]")
 

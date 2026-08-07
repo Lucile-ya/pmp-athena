@@ -13,6 +13,11 @@
     python pmp_athena/question_bank.py stats
 """
 
+try:
+    from pmp_athena.config import QUESTION_BANK_PATH
+except ModuleNotFoundError:
+    from config import QUESTION_BANK_PATH
+
 import argparse
 import json
 import logging
@@ -29,7 +34,7 @@ except ModuleNotFoundError:
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("question_bank")
 
-DEFAULT_BANK_PATH = Path("D:/pmp-athena/pmp_notes/question_bank.json")
+DEFAULT_BANK_PATH = QUESTION_BANK_PATH
 
 # PMP 知识领域（与 error_logger 保持一致）
 KNOWLEDGE_AREAS = [
