@@ -437,7 +437,7 @@ def _format_option_missing_knowledge(error_id: int, record: dict) -> str:
 
 
 def _enhance_high_frequency_question(error_id: int, record: dict) -> str:
-    """高频错题增强格式：等级 + 错误记录 + 根因诊断 + 口诀 + 变式预告"""
+    """高频错题增强格式：锚点 + 等级 + 根因诊断 + 演化洞察 + 口诀 + 变式预告"""
     try:
         from pmp_athena.error_insights import (
             count_mistakes, build_mnemonic, is_high_frequency_marked,
@@ -450,6 +450,14 @@ def _enhance_high_frequency_question(error_id: int, record: dict) -> str:
         from pmp_athena.root_cause_engine import diagnose as rc_diagnose, format_root_cause_card
     except ImportError:
         from root_cause_engine import diagnose as rc_diagnose, format_root_cause_card
+    try:
+        from pmp_athena.semantic_anchors import format_anchor_with_cue
+    except ImportError:
+        from semantic_anchors import format_anchor_with_cue
+    try:
+        from pmp_athena.error_evolution import format_evolution_summary, format_evolution_report
+    except ImportError:
+        from error_evolution import format_evolution_summary, format_evolution_report
 
     mistake_info = count_mistakes(error_id)
     total_wrong = mistake_info["total"]
@@ -468,20 +476,41 @@ def _enhance_high_frequency_question(error_id: int, record: dict) -> str:
     # 根因诊断
     root_cause = rc_diagnose(record, wrong_records)
 
+    # 锚点话术（优先显示）
+    try:
+        anchor_text = format_anchor_with_cue(record, wrong_records)
+    except Exception:
+        anchor_text = ""
+
     # 口诀
     mnemonic = build_mnemonic(record)
+
+    # 演化洞察（≥3 次时显示）
+    evolution_text = ""
+    if total_wrong >= 3:
+        try:
+            evolution_text = format_evolution_summary(error_id)
+        except Exception:
+            pass
 
     area = record.get("knowledge_area", "综合")
     question = record.get("question", "").strip()
 
-    lines = [
+    lines = []
+    if anchor_text:
+        lines.append(anchor_text)
+        lines.append("")
+
+    lines.extend([
         f"📌 错题等级：🔥 高频错题（已错 {total_wrong} 次）",
         f"📖 你的错误记录：上次错选 {last_wrong.get('my_answer', '?')}"
         f"（正确 {last_wrong.get('correct_answer', '?')}）",
-    ]
+    ])
     if root_cause:
         lines.append(f"⚠️ 根因诊断：{format_root_cause_card(root_cause)}")
     lines.append(f"🎯 破解口诀：{mnemonic}")
+    if evolution_text:
+        lines.append(f"🧬 {evolution_text}")
     lines.append("")
     lines.append(f"📝 复习 #{error_id} [{area}]")
     lines.append(question)
@@ -492,7 +521,11 @@ def _enhance_high_frequency_question(error_id: int, record: dict) -> str:
         lines.append("  ② 回复「跳过」暂时跳过，排到队列末尾")
     else:
         lines.append("")
-        lines.append("💡 同类变式（必做）：本题为高频错题，答对后将推送 3 道同领域变式题巩固。")
+        if root_cause:
+            rc_name = root_cause.get("name", "")
+            lines.append(f"💡 根因变式（必做）：答对后将推送 ≥3 道「{rc_name}」类变式题，答对 ≥2/3 过关。")
+        else:
+            lines.append("💡 同类变式（必做）：本题为高频错题，答对后将推送 ≥3 道变式题巩固。")
 
     return "\n".join(lines)
 
@@ -646,6 +679,14 @@ def grade_review(error_id: int, user_answer: str) -> dict:
     sr = SpacedRepetition()
     sr.grade(error_id, 5 if is_correct else 1)
 
+    # ── 错题演化追踪（每次答错时记录）──
+    if not is_correct:
+        try:
+            from pmp_athena.error_evolution import record_error as ev_record
+        except ImportError:
+            from error_evolution import record_error as ev_record
+        ev_record(error_id, user_ans)
+
     lines: list[str] = []
     if is_correct:
         lines.append("✅ 正确！")
@@ -738,11 +779,31 @@ def _build_done_summary(nxt: dict) -> str:
     return nxt_text
 
 
-# ── 高频错题变式巩固 ─────────────────────────────────────────
+# ── 高频错题变式巩固（根因驱动）─────────────────────────────────────
+
+
+def _score_variant_by_root_cause(variant_question: str, root_cause_name: str) -> float:
+    """按根因关键词匹配度给变式题打分。score=1.0 表示完全匹配根因。"""
+    if not root_cause_name:
+        return 0.0
+    # 根因关键字提取（去除常见虚词）
+    cause_keywords = set(re.findall(r"[一-鿿]{2,}", root_cause_name))
+    q_words = set(re.findall(r"[一-鿿]{2,}", variant_question))
+    if not cause_keywords:
+        return 0.5
+    overlap = len(cause_keywords & q_words)
+    # 每命中 2 个关键词 +0.25，最多 1.0
+    return min(1.0, 0.5 + overlap * 0.25)
 
 
 def _review_variant_start(error_id: int) -> dict:
-    """启动高频错题的同类变式巩固流程。返回 3 道同领域变式题的第一道。"""
+    """启动高频错题的根因驱动变式巩固。返回 ≥3 道变式题的第一道。
+
+    升级逻辑：
+    - 优先按根因类型（而非知识领域）筛题
+    - 变式题至少 3 道，选项包含根因相关迷惑项
+    - 答对 ≥2/3 为过关
+    """
     errors = load_json(ERROR_LOG)
     if not isinstance(errors, list):
         errors = []
@@ -750,8 +811,18 @@ def _review_variant_start(error_id: int) -> dict:
     if error is None:
         return {"status": "error", "text": f"⚠️ 错题 #{error_id} 不存在"}
 
+    # 根因诊断
+    root_cause_name = ""
+    try:
+        from pmp_athena.root_cause_engine import diagnose
+    except ImportError:
+        from root_cause_engine import diagnose
+    diag = diagnose(error)
+    if diag:
+        root_cause_name = diag.get("name", "")
+
     area = error.get("knowledge_area", "")
-    if not area:
+    if not area and not root_cause_name:
         return {"status": "insufficient", "text": "⚠️ 该题无知识领域标记，无法生成变式题。"}
 
     try:
@@ -760,21 +831,47 @@ def _review_variant_start(error_id: int) -> dict:
         from question_bank import QuestionBank
 
     qb = QuestionBank()
-    variants = qb.list_by_area_excluding(area, error_id, limit=3)
 
+    # 策略1：按知识领域取候选池（扩大到 15 道以便筛选）
+    candidates = qb.list_by_area_excluding(area, error_id, limit=15) if area else []
+    if not candidates:
+        # 策略2：无领域标记 → 从全量取候选
+        candidates = qb.list_recent_excluding(error_id, limit=15)
+
+    # 按根因打分排序
+    if root_cause_name and candidates:
+        scored = [
+            (c, _score_variant_by_root_cause(
+                str(c.get("question", "")), root_cause_name,
+            ))
+            for c in candidates
+        ]
+        scored.sort(key=lambda x: -x[1])
+        candidates = [c for c, _ in scored]
+
+    # 取前 3 道（至少 2 道）
+    variants = candidates[:3]
     if len(variants) < 2:
         return {
             "status": "insufficient",
-            "text": f"⚠️ 该领域({area})变式题不足（仅{len(variants)}道），跳过变式环节。",
+            "text": (f"⚠️ 变式题池不足（仅{len(variants)}道），跳过变式环节。" +
+                     (" 继续刷题积累更多题目后可启动。" if area else "")),
             "variant_count": len(variants),
         }
 
     variant_ids = [v.get("id") for v in variants]
     first = variants[0]
     q_text = first.get("question", "").strip()
+    v_area = first.get("knowledge_area", area)
+
+    # 标注变式来源
+    source_note = ""
+    if root_cause_name:
+        source_note = f"（根因：「{root_cause_name}」）"
+
     lines = [
-        "💡 同类变式巩固（第 1/3 题）",
-        f"[{area}] {q_text}",
+        f"💡 根因变式巩固（第 1/{len(variant_ids)} 题）{source_note}",
+        f"[{v_area}] {q_text}",
         "",
         "请回复 A/B/C/D 作答。",
     ]
@@ -784,8 +881,9 @@ def _review_variant_start(error_id: int) -> dict:
         "error_id": error_id,
         "variant_ids": variant_ids,
         "variant_index": 0,
-        "variant_total": len(variants),
+        "variant_total": len(variant_ids),
         "variant_correct": 0,
+        "root_cause": root_cause_name,
         "text": "\n".join(lines),
     }
 
@@ -894,7 +992,7 @@ def grade_variant_answer(
         area = next_variant.get("knowledge_area", "综合")
         q_text = next_variant.get("question", "").strip()
         lines = [feedback]
-        lines.append(f"\n💡 同类变式巩固（第 {next_index + 1}/{len(variant_ids)} 题）")
+        lines.append(f"\n💡 根因变式巩固（第 {next_index + 1}/{len(variant_ids)} 题）")
         lines.append(f"[{area}] {q_text}")
         lines.append("\n请回复 A/B/C/D 作答。")
     else:

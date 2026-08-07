@@ -220,7 +220,7 @@ def build_answer_text(error: dict) -> str:
 
 
 def format_wrong_feedback(error: dict, *, user_answer: str | None = None) -> str:
-    """复习/复盘用的三段式反馈：总结 + 解答 + 口诀。"""
+    """复习/复盘用的增强反馈：锚点 + 总结 + 解答 + 口诀 + 演化洞察。"""
     eid = error.get("id")
     correct = str(error.get("correct_answer", "?")).upper()
     my = (user_answer or error.get("my_answer", "?")).upper()
@@ -230,9 +230,30 @@ def format_wrong_feedback(error: dict, *, user_answer: str | None = None) -> str
     if counts["total"] >= 3:
         lines.append(f"🔥 高频错题 · 累计错 {counts['total']} 次")
 
+    # 语义锚点（优先显示）
+    try:
+        from pmp_athena.semantic_anchors import format_anchor_with_cue
+    except ImportError:
+        from semantic_anchors import format_anchor_with_cue
+    try:
+        anchor = format_anchor_with_cue(error)
+        lines.insert(1, anchor)
+    except Exception:
+        pass
+
     lines.append(f"📌 总结: {build_summary(error)}")
     lines.append(f"💡 解答: {build_answer_text(error)}")
     lines.append(f"🎯 口诀: {build_mnemonic(error)}")
+
+    # 演化洞察（≥3 次时显示）
+    if counts["total"] >= 3 and eid:
+        try:
+            from pmp_athena.error_evolution import format_evolution_summary
+        except ImportError:
+            from error_evolution import format_evolution_summary
+        evo = format_evolution_summary(int(eid))
+        if evo:
+            lines.append(f"🧬 {evo}")
     return "\n".join(lines)
 
 
