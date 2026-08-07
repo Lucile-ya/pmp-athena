@@ -114,6 +114,7 @@ class MockExamState:
             "started_at": self._now_iso(),
             "paused_at": None,
             "elapsed_seconds": 0,
+            "paused_duration": 0,       # 累计暂停秒数
             "total_questions": total_questions,
             "current_batch": 1,
             "current_question": 1,
@@ -129,6 +130,7 @@ class MockExamState:
     def pause(self) -> dict:
         """
         暂停模考：计算本轮用时，累加到 elapsed_seconds。
+        记录 paused_at 时间戳，用于恢复后计算暂停时长。
         """
         state = self._read()
         if state is None:
@@ -154,7 +156,7 @@ class MockExamState:
 
     def resume(self) -> dict:
         """
-        继续模考：重置 started_at 为当前时间，状态恢复为 active。
+        继续模考：累加暂停时长到 paused_duration，重置 started_at。
         """
         state = self._read()
         if state is None:
@@ -163,13 +165,20 @@ class MockExamState:
         if state["status"] != "paused":
             raise RuntimeError(f"模考状态为「{state['status']}」，无法继续。")
 
+        # 计算本次暂停时长
+        paused_at = state.get("paused_at", "")
+        if paused_at:
+            paused_secs = self._elapsed_since(paused_at)
+            state["paused_duration"] = state.get("paused_duration", 0) + paused_secs
+
         state["status"] = "active"
         state["started_at"] = self._now_iso()
         state["paused_at"] = None
         self._write(state)
 
-        logger.info("模考「%s」已继续，累计用时 %d 秒",
-                      state.get("exam_id"), state.get("elapsed_seconds", 0))
+        logger.info("模考「%s」已继续，累计用时 %d 秒，暂停累计 %d 秒",
+                      state.get("exam_id"), state.get("elapsed_seconds", 0),
+                      state.get("paused_duration", 0))
         return state
 
     def complete(
@@ -181,10 +190,7 @@ class MockExamState:
         knowledge_areas: dict | None = None,
     ) -> dict:
         """
-        完成模考：计算总用时，写入 exam_records.json，清空状态文件。
-
-        Returns:
-            写入 exam_records.json 的记录
+        完成模考：计算总用时（含暂停），写入 exam_records.json，清空状态文件。
         """
         state = self._read()
         if state is None:
@@ -196,11 +202,11 @@ class MockExamState:
         # 计算总用时
         total_seconds = state.get("elapsed_seconds", 0)
         if state["status"] == "active":
-            # 如果当前是 active，加上本轮还没算的
             this_leg = self._elapsed_since(state.get("started_at", ""))
             total_seconds += this_leg
-
         total_minutes = total_seconds / 60
+
+        paused_duration = state.get("paused_duration", 0)
 
         # 用 batch 内累积的正确/错误数，或传参覆盖
         final_correct = correct_count or state.get("correct_so_far", 0)
@@ -222,6 +228,8 @@ class MockExamState:
             wrong_count=final_wrong,
             correct_rate=correct_rate,
             time_used_minutes=int(total_minutes),
+            total_time_seconds=total_seconds,
+            paused_duration=paused_duration,
             scores=scores or {},
             weak_areas=weak_areas or [],
             knowledge_areas=knowledge_areas,
@@ -232,9 +240,9 @@ class MockExamState:
         self._clear()
 
         logger.info(
-            "模考完成。%s | %d/%d (%.1f%%) | 总用时 %d分",
+            "模考完成。%s | %d/%d (%.1f%%) | 做答 %d秒 | 暂停 %d秒",
             state.get("exam_id"), final_correct, total_q,
-            correct_rate * 100, int(total_minutes),
+            correct_rate * 100, total_seconds, paused_duration,
         )
 
         # 调度模考分析推送（10 分钟后）

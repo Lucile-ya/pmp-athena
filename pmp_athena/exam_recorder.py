@@ -138,6 +138,8 @@ class ExamRecorder:
         source: str | None = None,
         exam_date: str | None = None,
         attempt: int = 1,
+        total_time_seconds: int = 0,
+        paused_duration: int = 0,
     ) -> dict:
         """
         添加一条完整的模考/练习记录。
@@ -149,10 +151,11 @@ class ExamRecorder:
             wrong_count: 错误题数
             correct_rate: 正确率（0-1）
             time_used_minutes: 用时（分钟）
+            total_time_seconds: 实际做答秒数（不含暂停）
+            paused_duration: 累计暂停秒数
             scores: {"people": 0.72, "process": 0.78, "business_environment": 0.85}
             weak_areas: 薄弱知识领域列表
             knowledge_areas: 各知识领域正确率或明细
-                {"整合管理": 0.8} 或 {"范围管理": {"correct": 6, "total": 30, "rate": 0.2}}
             status: 状态
             exam_type: 记录类型（如 chapter_practice）
             source: 来源（如 截图录入）
@@ -182,6 +185,8 @@ class ExamRecorder:
                 "process": (scores or {}).get("process", 0),
                 "business_environment": (scores or {}).get("business_environment", 0),
             },
+            "total_time_seconds": total_time_seconds,
+            "paused_duration": paused_duration,
             "weak_areas": weak_areas or [],
             "attempt": attempt,
         }
