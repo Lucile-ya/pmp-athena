@@ -234,7 +234,11 @@ def _score_variant_by_rc(variant_question: str, root_cause_name: str) -> float:
     return min(1.0, 0.5 + overlap * 0.25)
 
 
-# ── 已攻克检测 ──────────────────────────────────────────────────
+def _has_complete_options(question_text: str, min_markers: int = 3) -> bool:
+    """检查题干是否包含足够的选项标记（≥3 个 A/B/C/D 标记）。"""
+    import re as _re
+    count = sum(1 for m in _re.finditer(r'(?:^|\n|\s)[A-D][\.、．\)]\s*\S', question_text))
+    return count >= min_markers
 
 def _get_mastered_variants(error_id: int) -> list[int]:
     """获取某错题的已攻克变式题 ID 列表。"""
@@ -510,8 +514,12 @@ def review_variant_start_v2(error_id: int) -> dict:
         scored.sort(key=lambda x: -x[1])
         candidates = [c for c, _ in scored]
 
-    # 过滤已攻克的
-    fresh = [c for c in candidates if c.get("id") not in mastered_ids]
+    # 过滤已攻克的 + 选项不完整的（OCR 残次品）
+    fresh = [
+        c for c in candidates
+        if c.get("id") not in mastered_ids
+        and _has_complete_options(str(c.get("question", "")))
+    ]
 
     if len(fresh) < 2:
         # ── 降级：根因专项总结 ──
