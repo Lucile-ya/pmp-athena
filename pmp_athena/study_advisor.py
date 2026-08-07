@@ -231,6 +231,15 @@ def analyze_weakness() -> str:
 # 2. 今日复习错题
 # ═══════════════════════════════════════════════════════════
 
+def _has_root_cause(error: dict) -> bool:
+    """检查错题是否有可诊断的根因。"""
+    try:
+        from pmp_athena.root_cause_engine import diagnose
+    except ImportError:
+        from root_cause_engine import diagnose
+    return diagnose(error) is not None
+
+
 def review_today() -> str:
     """汇总今日需要复习的错题 — 智能排期版（分层 + 限量 + 进度）。"""
     errors = load_json(ERROR_LOG)
@@ -741,6 +750,34 @@ def grade_review(error_id: int, user_answer: str) -> dict:
     correct_ans = str(error.get("correct_answer", "")).strip().upper()
     is_correct = user_ans == correct_ans
 
+    # ── 根因变式 v2 指令路由（仅在根因诊断成功时触发）──
+    user_ans_lower = user_answer.strip()
+    if user_ans_lower in ("总结", "模拟") or user_ans_lower.startswith("陷阱=") or (
+        user_ans_lower == "已掌握" and _has_root_cause(error)
+    ):
+        try:
+            from pmp_athena.root_cause_variants import handle_variant_command
+        except ImportError:
+            from root_cause_variants import handle_variant_command
+
+        # Resolve root cause name from the current error
+        rc_name = ""
+        try:
+            from pmp_athena.root_cause_engine import diagnose
+        except ImportError:
+            from root_cause_engine import diagnose
+        diag = diagnose(error)
+        if diag:
+            rc_name = diag.get("name", "")
+
+        cmd_result = handle_variant_command(error_id, user_ans_lower, rc_name)
+        return {
+            "status": cmd_result["status"],
+            "correct": cmd_result.get("correct", None),
+            "error_id": error_id,
+            "text": cmd_result["text"],
+        }
+
     # ── 特殊模式：知识回顾（选项缺失时用户回复「已掌握」/「未掌握」）──
     if user_ans in ("已掌握", "未掌握"):
         sr = SpacedRepetition()
@@ -801,8 +838,13 @@ def grade_review(error_id: int, user_answer: str) -> dict:
                 sr.update_high_frequency_status(error_id, False)
                 lines.append("🏆 连续 2 次正确，已取消高频错题标记！")
             else:
-                # 触发变式子模式
-                variant_result = _review_variant_start(error_id)
+                # 触发变式子模式（升级版：防重复 + 降级总结 + 实战模拟）
+                try:
+                    from pmp_athena.root_cause_variants import review_variant_start_v2
+                except ImportError:
+                    from root_cause_variants import review_variant_start_v2
+                variant_result = review_variant_start_v2(error_id)
+                rc_name = variant_result.get("root_cause", "")
                 if variant_result["status"] == "variant_question":
                     lines.append("")
                     lines.append(variant_result["text"])
@@ -814,6 +856,18 @@ def grade_review(error_id: int, user_answer: str) -> dict:
                         "variant_index": variant_result.get("variant_index", 0),
                         "variant_correct": variant_result.get("variant_correct", 0),
                         "variant_total": variant_result.get("variant_total", 0),
+                        "variant_sub_mode": "question",
+                        "text": "\n".join(lines),
+                    }
+                elif variant_result["status"] == "root_cause_summary":
+                    lines.append("")
+                    lines.append(variant_result["text"])
+                    return {
+                        "status": "graded_variant_pending",
+                        "correct": True,
+                        "error_id": error_id,
+                        "variant_sub_mode": "summary",
+                        "root_cause": rc_name,
                         "text": "\n".join(lines),
                     }
                 elif variant_result["status"] == "insufficient":
@@ -1327,7 +1381,7 @@ def main():
     p_freq.add_argument("--top", type=int, default=5, help="显示 Top N")
     p_freq.add_argument("--json", action="store_true")
 
-    p_vstart = sub.add_parser("variant-start", help="启动高频错题的变式巩固")
+    p_vstart = sub.add_parser("variant-start", help="启动升级版根因变式巩固（v2）")
     p_vstart.add_argument("error_id", type=int, help="高频错题 ID")
     p_vstart.add_argument("--json", action="store_true")
 
@@ -1420,13 +1474,22 @@ def main():
     elif args.command == "plan":
         output = generate_plan(custom_days=args.days)
     elif args.command == "variant-start":
-        result = review_variant_start(args.error_id)
+        try:
+            from pmp_athena.root_cause_variants import review_variant_start_v2
+        except ImportError:
+            from root_cause_variants import review_variant_start_v2
+        result = review_variant_start_v2(args.error_id)
         output = json.dumps(result, ensure_ascii=False) if args.json else result["text"]
     elif args.command == "variant-grade":
         variant_ids = json.loads(args.variant_ids_json)
-        result = grade_variant_answer(
+        try:
+            from pmp_athena.root_cause_variants import grade_variant_answer_v2
+        except ImportError:
+            from root_cause_variants import grade_variant_answer_v2
+        rc = getattr(args, 'root_cause', '') if hasattr(args, 'root_cause') else ''
+        result = grade_variant_answer_v2(
             args.error_id, args.variant_index, args.answer,
-            variant_ids, args.variant_correct,
+            variant_ids, args.variant_correct, root_cause_name=rc,
         )
         output = json.dumps(result, ensure_ascii=False) if args.json else result["text"]
     elif args.command == "review-skip":
