@@ -293,3 +293,88 @@ git stash pop      # 恢复你的改动
 ### Q: 还有其他问题？
 
 **A:** [开 GitHub Issue](https://github.com/Lucile-ya/pmp-athena/issues/new)，带上你的操作系统、Python 版本、具体报错信息。
+
+---
+
+## 常见误区
+
+### Q: 装好依赖后有些命令能用，有些报 `No module named 'chromadb'`？
+
+**A:** 部分模块（如 `question_bank.py`、`error_logger.py`）的 import 链会经过 `utils/embedding.py`，间接依赖 chromadb。如果 chromadb 没装好，这些命令会挂掉。
+
+```bash
+pip install chromadb sentence-transformers
+```
+
+如果 pip 装 chromadb 失败（Windows 常见），用 conda：
+```bash
+conda install -c conda-forge chromadb
+```
+
+### Q: 跑 Python 命令报 `ModuleNotFoundError: No module named 'pmp_athena'`？
+
+**A:** 确保在仓库根目录下运行命令，且 Python 路径正确：
+```bash
+cd D:\pmp-athena
+python pmp_athena/study_advisor.py weakness   # 用脚本路径
+# 不要用 -m 方式除非装了包
+```
+
+如果用 `python -m pmp_athena.xxx`，需要先把包加入路径或者 `pip install -e .`。
+
+### Q: CLAUDE.md 加了新触发词，但桥接还是走兜底菜单？
+
+**A:** 两层路由各管各的：
+
+| 层 | 谁管 | 做什么 |
+|----|------|--------|
+| `athena-router.ts` | 硬路由 | 匹配到 → 直接调 Python，不经 AI |
+| `CLAUDE.md` | Claude Code | 匹配到 → AI 按规则回复/执行 |
+
+**新增触发词的检查清单**：
+1. 纯 Python 命令（复习错题/薄弱点/知识点）→ 两边都要加（`athena-router.ts` + `CLAUDE.md`）
+2. 纯对话功能（帮助/菜单/模考入口展示）→ 只加 `CLAUDE.md`
+3. 加了之后跑 `.\restart_bridge.ps1` 或等 5 分钟守护自动重启
+
+> 💡 `CLAUDE.md` 的触发词在顶部默认行为区（约 67-75 行），`athena-router.ts` 的触发词在各自的 `const *_TRIGGERS` 数组里。两边同步维护。
+
+### Q: 我不用 Claude Code，也不想装微信桥接，能用什么？
+
+**A:** 三种纯 CLI 方式，完全不需要 AI 助手：
+
+| 方式 | 适合 | 启动 |
+|------|------|------|
+| `python cli_chat.py` | 新手，菜单式交互 | `python cli_chat.py` |
+| 直接跑 Python 命令 | 老手，精确控制 | `python pmp_athena/study_advisor.py weakness` |
+| 照着 QUICKSTART 手敲 | 学习期，逐步理解 | 看 `QUICKSTART.md` 的命令清单 |
+
+**判卷全流程**（不需要 AI）：
+```bash
+# 录入错题
+python pmp_athena/record_answer.py wrong \
+  --question "题干..." --my-answer B --correct-answer C \
+  --knowledge-area "风险管理" --explanation "一句话解析" \
+  --source manual
+
+# 查看薄弱点
+python pmp_athena/study_advisor.py weakness
+
+# 复习到期错题
+python pmp_athena/study_advisor.py review-today
+```
+
+**AI 助手只是锦上添花**，核心刷题/判卷/复习流程全部可以在命令行完成。
+
+### Q: `cli_chat.py` 报 Python 编码错误（gbk / unicode）？
+
+**A:** 这是 PowerShell 的默认编码问题，不是 Python 的锅：
+```powershell
+# 启动时加一行
+$env:PYTHONIOENCODING = "utf-8"
+python cli_chat.py
+
+# 或者一次性设置
+[Environment]::SetEnvironmentVariable("PYTHONIOENCODING", "utf-8", "User")
+```
+
+如果终端还是乱码，换 Windows Terminal（微软商店免费下载），默认 UTF-8 无此问题。
