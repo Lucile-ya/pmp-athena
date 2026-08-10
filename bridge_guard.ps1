@@ -2,8 +2,10 @@
 .SYNOPSIS
     PMP Athena — WeChat Bridge Guard
     计划任务调用版本，每 5 分钟执行一次：
-    - 桥接活着 → 静默退出
+    - 桥接活着 + CLAUDE.md/AGENTS.md 未更新 → 静默退出
+    - 桥接活着 + 规则文件已更新 → 杀掉旧桥接 → 重新拉起（热重载规则）
     - 桥接死了 → 清理残留锁 → 编译 → 拉起
+    - 监控文件：CLAUDE.md / AGENTS.md（任一更新即触发重载）
 #>
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -66,8 +68,27 @@ function Clear-StaleLock {
 # Step 1: Check if bridge is already running
 $existing = Get-BridgeProcess
 if ($existing) {
-    # Bridge is running — nothing to do, exit silently
-    exit 0
+    # Bridge is running — check if rule files have been updated
+    $claudeMdPath = Join-Path $ScriptDir "CLAUDE.md"
+    $agentsMdPath = Join-Path $ScriptDir "AGENTS.md"
+
+    $claudeMdTime = (Get-Item $claudeMdPath -ErrorAction SilentlyContinue).LastWriteTime
+    $agentsMdTime = (Get-Item $agentsMdPath -ErrorAction SilentlyContinue).LastWriteTime
+
+    $latestMdTime = $claudeMdTime
+    if ($agentsMdTime -and $agentsMdTime -gt $claudeMdTime) {
+        $latestMdTime = $agentsMdTime
+    }
+
+    if ($latestMdTime -and $existing.StartTime -and $latestMdTime -gt $existing.StartTime) {
+        Write-GuardLog "[RESTART] CLAUDE.md/AGENTS.md updated — restarting bridge to reload rules"
+        Stop-Process -Id $existing.Id -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 2
+        # fall through to restart flow below
+    } else {
+        # Bridge running, rules current — exit silently
+        exit 0
+    }
 }
 
 # Step 2: Bridge NOT running — take action
