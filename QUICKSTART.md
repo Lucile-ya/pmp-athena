@@ -91,9 +91,16 @@ python pmp_athena/study_advisor.py plan --days 14
 
 **这就够了。** 每天做题 → 录入 → 薄弱点分析 → 错题复习，形成闭环。
 
-### 🥈 Level 2：配合 Claude Code（有对话交互）
+### 🥈 Level 2：配合 AI 编程助手（有对话交互）
 
-如果你装了 [Claude Code](https://docs.anthropic.com/en/docs/claude-code)（`npm install -g @anthropic-ai/claude-code`），在仓库目录下打开终端：
+仓库里已经配好了规则文件，支持多种工具：
+
+- **Claude Code** → 读 `CLAUDE.md`
+- **WorkBuddy / Cursor Agent** → 读 `AGENTS.md`（内容与 CLAUDE.md 完全一致，同步维护）
+
+不管你用哪个，AI 都能自动读取判卷规则、错题入库流程、答题格式等行为指令。
+
+以 Claude Code 为例（`npm install -g @anthropic-ai/claude-code`），在仓库目录下打开终端：
 
 ```bash
 claude
@@ -107,7 +114,7 @@ claude
 > "分析趋势"
 > "随机每日一练"
 
-Claude Code 会自动读取 `CLAUDE.md` 里的规则，帮你执行对应的 Python 命令。不需要记命令。
+不需要记任何命令。其他工具的用法类似，打开仓库目录即可。
 
 ### 🥇 Level 3：加微信桥接（在微信里用）
 
@@ -148,8 +155,12 @@ A: `pdfplumber` 对中文 PDF 支持因文件而异。如果某份 PDF 解析质
 **Q: 我没有 PDF，能直接用吗？**
 A: 可以。用 Level 1 的 `record_answer.py` 手动录入题目，或直接用 Level 2 对话刷题。
 
-**Q: `CLAUDE.md` 是什么？**
-A: 这是 Claude Code 的行为规则文件，告诉 AI 怎么判卷、怎么回复、用什么格式。如果你用 Claude Code，它会自动读取。纯命令行用不到它。
+**Q: `CLAUDE.md` / `AGENTS.md` 是什么？**
+A: 仓库里有两份一模一样的 AI 行为规则文件：
+- `CLAUDE.md` — Claude Code 读取
+- `AGENTS.md` — WorkBuddy / Cursor Agent 读取
+
+两个文件内容完全一致，定义了判卷格式、错题入库流程、出题规则等。纯命令行用不到它们。
 
 **Q: 这项目支持其他考试吗（软考/ACP/PRINCE2）？**
 A: 目前只针对 PMP，知识库和判题框架都是 PMP 的。改造成其他考试需要替换笔记和规则。
