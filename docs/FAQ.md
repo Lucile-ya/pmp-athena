@@ -173,7 +173,7 @@ rm pmp_notes/knowledge_mastery.json
 # 安装计划任务（5 分钟自动检测恢复）
 schtasks /Create /TN "PMP-Athena-Bridge" /SC MINUTE /MO 5 /TR 'wscript.exe "D:\pmp-athena\bridge_guard.vbs"' /IT /F
 ```
-详见 [README 桥接章节](README.md#桥接自动守护防锁屏断连)。
+详见 [README 桥接章节](../README.md#桥接自动守护防锁屏断连)。
 
 ### Q: 改了 CLAUDE.md，桥接行为没变化？
 
