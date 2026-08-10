@@ -12,6 +12,29 @@ PMP 备考刷题工具，帮你做三件事：
 
 **不需要 API Key，全部本地运行。**
 
+### 支持哪些平台？
+
+| 平台 | 能用吗 | 说明 |
+|------|--------|------|
+| 🪟 **Windows 10/11** | ✅ 完全支持 | 主力开发平台，微信桥接脚本专为 Windows 编写 |
+| 🍎 **macOS** | ✅ 完全支持 | Python 核心完全跨平台，ChromaDB/pdfplumber/Tesseract 均可运行 |
+| 🐧 **Linux** | ✅ 完全支持 | 同上 |
+
+> 💡 **唯一的 Windows 专属功能是微信桥接**（`.ps1` / `.vbs` 守护脚本）。你不用微信桥接的话，Mac/Linux 和 Windows 体验一模一样。
+
+### 可以搭配哪些 AI 助手？
+
+仓库自带行为规则文件，兼容多种工具。**不用 AI 助手也能用**（纯命令行 `python cli_chat.py`），但对话交互更方便：
+
+| AI 助手 | 支持 | 读哪个规则文件 | 怎么用 |
+|---------|------|---------------|--------|
+| **Claude Code** | ✅ | `CLAUDE.md` | 目录下运行 `claude` |
+| **Cursor Agent** | ✅ | `AGENTS.md` | 用 Cursor 打开仓库，Agent 自动读取 |
+| **WorkBuddy** | ✅ | `AGENTS.md` | 用 WorkBuddy 打开仓库 |
+| **纯命令行** | ✅ | 不需要 | `python cli_chat.py` |
+
+> 💡 `CLAUDE.md` 和 `AGENTS.md` 内容完全一致，不管用哪个工具，AI 都能读到相同的判卷规则和触发词。
+
 ---
 
 ## 环境准备

@@ -105,12 +105,47 @@ python retrieve_knowledge.py message --text "详细 挣值管理"
 
 ---
 
+## 平台兼容性
+
+### Q: Mac / Linux 能用吗？
+
+**A:** ✅ 完全能用。项目核心是 Python 脚本（ChromaDB、pdfplumber、sentence-transformers），全部跨平台。
+
+| 功能 | Mac/Linux | 说明 |
+|------|-----------|------|
+| 判卷/错题/模考 | ✅ 完全可用 | Python 核心，跨平台 |
+| 知识点速查 | ✅ 完全可用 | ChromaDB 向量库 |
+| `python cli_chat.py` | ✅ 完全可用 | 纯 Python，无平台依赖 |
+| Claude Code / Cursor | ✅ 完全可用 | 这些工具本身支持三平台 |
+| 微信桥接 | ❌ 不可用 | `.ps1`/`.vbs` 守护脚本是 Windows 专属 |
+
+**唯一的 Windows 专属功能就是微信桥接的守护脚本。** 不用微信的话，三平台一模一样。
+
+### Q: 支持哪些 AI 助手？
+
+**A:** 仓库同时维护两份规则文件，覆盖主流工具：
+
+| AI 助手 | 规则文件 | 说明 |
+|---------|----------|------|
+| **Claude Code** | `CLAUDE.md` | 官方 Anthropic CLI，目录下运行 `claude` |
+| **Cursor Agent** | `AGENTS.md` | 用 Cursor 打开仓库，Agent 模式自动读取 |
+| **WorkBuddy** | `AGENTS.md` | 用 WorkBuddy 打开仓库 |
+
+两份文件内容完全一致，同步更新。不用 AI 助手也完全可以——跑 `python cli_chat.py` 就是菜单式命令行工具。
+
+---
+
 ## Claude Code / AI 助手
 
 ### Q: Claude Code 说 "No CLAUDE.md found"？
 
 **A:** 确保在仓库根目录下启动 Claude Code：
 ```bash
+# Mac / Linux
+cd ~/pmp-athena
+claude
+
+# Windows
 cd D:\pmp-athena
 claude
 ```
@@ -118,7 +153,7 @@ claude
 
 ### Q: WorkBuddy / Cursor 行为不对，没有按规则来？
 
-**A:** 检查 `AGENTS.md` 是否存在，内容是否完整。如果某个工具读取了旧缓存，重新打开项目窗口试试。
+**A:** 检查 `AGENTS.md` 是否存在，内容是否与 `CLAUDE.md` 一致。如果某个工具读取了旧缓存，重新打开项目窗口试试。
 
 ### Q: 我不想用 AI 对话，能只用命令行吗？
 
