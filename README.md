@@ -243,6 +243,8 @@ python pmp_athena/exam_recorder.py stats
 
 Windows 下若使用 Miniconda，可将上述 `python` 换成本机路径（如 `d:\miniconda\python.exe`）。
 
+> 💡 **第一次用？** 看 [QUICKSTART.md](QUICKSTART.md) — 从零到第一次对话，5 分钟上手。
+
 ---
 
 ## 📱 App 批量刷题（两阶段）
