@@ -23,9 +23,8 @@ pmp_notes/prep_push_queue.json
 pmp_notes/knowledge_query_state.json
 pmp_notes/_test_plain_e2e/
 
-# ── 培训机构 PDF（本地题库，不上传）──────────────────────
-pmp_notes/每日一练/*.pdf
-pmp_notes/模考/*.pdf
+# ── 培训机构 PDF（题目资料，上传共享）────────────────────
+# （PDF 已加入版本控制，克隆即可使用）
 
 # ── Python ────────────────────────────────────────────────
 __pycache__/
