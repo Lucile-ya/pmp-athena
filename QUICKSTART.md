@@ -179,3 +179,7 @@ A: 不会。所有数据存本地，向量库也是本地 ChromaDB。只有当�
 5. `python pmp_athena/study_advisor.py review-today` — 复习错题
 
 做完这五步，你就算上手了 🎉
+
+---
+
+💡 **遇到问题了？** 大概率已有答案 → [FAQ.md](docs/FAQ.md)（环境安装 / 模型下载 / PDF 乱码 / Windows 坑 / OCR 等 20+ 个常见问题）
