@@ -182,4 +182,20 @@ A: 不会。所有数据存本地，向量库也是本地 ChromaDB。只有当�
 
 ---
 
+## 📥 更新到最新版
+
+仓库会持续更新（新功能 / 规则优化 / bug 修复）。在项目目录下跑：
+
+```bash
+git pull origin main
+pip install -r requirements.txt          # 万一有新依赖
+python build_knowledge_index.py          # 万一索引格式有变
+```
+
+**你的做题数据完全不受影响** — `question_bank.json`、`error_log.json` 等从一开始就在 `.gitignore` 里，`git pull` 不会碰它们。拉完就是最新代码 + 最新规则，数据无缝衔接。
+
+> 💡 如果你用的 AI 助手（Claude Code / WorkBuddy 等）连着微信桥接，更新后最多等 5 分钟桥接会自动重载规则。急着生效的话，重启一下 AI 助手即可。
+
+---
+
 💡 **遇到问题了？** 大概率已有答案 → [FAQ.md](docs/FAQ.md)（环境安装 / 模型下载 / PDF 乱码 / Windows 坑 / OCR 等 20+ 个常见问题）
