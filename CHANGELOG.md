@@ -35,7 +35,11 @@
 - 月度练习汇总：趋势分析 + 扩展触发词
 - 模考看板：可视化仪表盘 + 完成追踪
 - 模考断点续做增强：暂停/继续/时间追踪
-- FB-001/FB-002 借鉴 [liedern/pmp-ai-coach-skill](https://github.com/liedern/pmp-ai-coach-skill)
+- **桥接守护自动热重载**：`bridge_guard.ps1` 监控 CLAUDE.md/AGENTS.md 修改时间，规则更新后 5 分钟内自动重启桥接，无需手动 `.restart_bridge.ps1`
+
+### 🐛 修复
+
+- **「模考」触发词不识别**：补全默认行为触发词列表，`模考`/`开始模考`/`随机模考`/`继续模考` 直接命中，不再掉入兜底菜单
 
 ### 📝 文档
 
