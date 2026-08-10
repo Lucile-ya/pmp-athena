@@ -1,8 +1,19 @@
 # 🦉 PMP Athena — 本地 PMP 备考复盘 Agent
 
-完全本地运行的 PMP 备考助手：**结构化知识引擎 + 每日一练/模考判卷 + SM-2 错题复习 + PMP 判题推理框架 + 微信硬路由**。（同时上传了本人在备考过程的所用资料和题库）基于 ChromaDB + sentence-transformers，无需 LLM API Key 即可完成核心刷题流程。
+![PMP备考](https://img.shields.io/badge/领域-PMP备考-blue)
+![开源免费](https://img.shields.io/badge/开源-MIT-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10+-yellow)
+![AI助手](https://img.shields.io/badge/支持-Claude_Code_|_Cursor_|_WorkBuddy-purple)
+![微信桥接](https://img.shields.io/badge/扩展-微信远程刷题-orange)
+![版本](https://img.shields.io/badge/版本-v1.1.0-red)
 
-**考试目标**：2026-09-12 PMP | 日常训练正确率目标 70%（126/180）
+> **不同于传统题库只提供「答案 + 解析」，PMP Athena 更关注：为什么错？考什么？下次怎么避免？**
+>
+> 把零散的刷题变成：做题 → 判卷 → 错因诊断 → 间隔复习 → 能力画像 → 考前冲刺，建立属于自己的 PMP 备考系统。
+>
+> 完全本地运行，**不需要 API Key**，做题数据只存你的电脑。基于 ChromaDB + sentence-transformers + SM-2 间隔复习算法。
+
+**考试目标**：2026-09-12 PMP | 训练目标正确率 70%（126/180）
 
 ---
 
@@ -22,6 +33,27 @@
 | 🖼️ **截图 OCR** | 题目截图、模考成绩、章节练习统计图识别入库 | `image_processor.py` |
 | 🗺️ **思维导图结构化** | PNG 思维导图 OCR → PMBOK 标准表格 MD | `mindmap_ocr.py` / `build_mindmap_md.py` |
 | 💬 **微信桥接** | 硬路由绕过 LLM，25+ 指令直接调 Python CLI | [wechat-claude-code](https://github.com/Wechat-ggGitHub/wechat-claude-code) + `athena-router.ts` |
+
+---
+
+## 💬 典型对话
+
+接上 Claude Code / Cursor / WorkBuddy 后，直接用自然语言：
+
+| 用户说 | Athena 做什么 |
+|--------|--------------|
+| `复习错题` | SM-2 排期 + 逐题出题 + 判卷 + 错因诊断 |
+| `薄弱点分析` | 各领域正确率 + 错误类型分布 + 针对性建议 |
+| `挣值知识点` | L1 速查（5 行精华）+ 可追问 L2/L3 |
+| `7月31日每日一练答案：CBCBDCDDC` | 自动判卷 + 错题三文件同步入库 |
+| `做 8月10日 每日一练` | 逐题互动出题，边做边判 |
+| `开始模考一` | 180 题完整模考，时间·速度·精度三维诊断 |
+| `随机每日一练` | 从 34 套 PDF 随机抽 10 题 |
+| `睡前复习` | D-Day 自适应知识点推送 + 错题回顾 + 明日预告 |
+| `分析趋势` | 模考趋势 + 通过概率预测 |
+| `帮我生成 14 天冲刺计划` | 按薄弱领域定制每日任务 |
+
+> 💡 **不用 AI 也能用**：`python cli_chat.py` 一行命令启动菜单式命令行工具，纯键盘操作。
 
 ---
 
@@ -151,6 +183,51 @@ P6  Team Participation          团队参与优于 PM 独断
 ```
 
 *Credit: 推理框架借鉴 [liedern/pmp-ai-coach-skill](https://github.com/liedern/pmp-ai-coach-skill) 的设计思想。*
+
+---
+
+## 📋 输出示例
+
+**每日一练判卷**：
+```
+📋 7月31日每日一练 对账结果（7/10 正确）
+
+❌ Q3 [风险管理]: 你的答案 B → 正确答案 C
+   🏷️ 错误类型: 流程顺序错
+   决策链: 预测型 · 执行阶段 · Process · 风险 · First
+   B 触犯 T02（过早升级），C 符合 P1（先分析再行动）
+```
+
+**薄弱点分析**：
+```
+📊 薄弱点诊断报告
+
+🎯 薄弱领域 TOP 3
+| 领域 | 错误率 | 错/总 | 风险 |
+| 范围管理 | 77% | 23/36 | 🔴 高危 |
+| 成本管理 | 70% | 19/32 | 🔴 高危 |
+
+📊 错误类型分布
+| 概念混淆 | 12 道 | 概念记反了 |
+| 流程顺序错 | 9 道 | 步骤顺序不对 |
+| 陷阱误导 | 6 道 | 被干扰项骗了 |
+
+💡 针对性建议
+1. 优先攻克 范围管理：每天专项练习 10 题
+2. 概念混淆偏多：建议用对比表格梳理相似概念
+```
+
+**知识点速查**：
+```
+📚 挣值管理 (EVM) 核心公式 · 速查
+
+1. SV = EV - PV（进度偏差）| SV > 0 = 进度超前
+2. CV = EV - AC（成本偏差）| CV > 0 = 成本节约
+3. SPI = EV / PV | CPI = EV / AC
+⭐ 高频考点：SPI < 1 & CPI > 1 的组合判断
+
+💡 回复「详细」看完整公式表格 | 「套路」看情景题套路
+```
 
 ---
 
@@ -466,14 +543,25 @@ python pmp_athena/daily_practice.py audit-content # 全部每日一练 PDF 内�
 
 ## 🔒 隐私与 Git
 
-- 所有做题数据、向量库、培训机构 PDF **仅存本地**
-- `.gitignore` 已排除：
-  - `data/`（ChromaDB）
-  - `question_bank.json`、`error_log.json`、`exam_records.json` 等做题数据
-  - `config.json`、`prep_push_queue.json` 等运行时状态
-  - `pmp_notes/每日一练/*.pdf`、`pmp_notes/模考/*.pdf`
-  - `pmp_notes/*.png`、`pmp_notes/*.jpg`（思维导图原始图片）
-- 微信 Token 在 `~/.wechat-claude-code/`，不在本仓库
+**仓库只发布功能和题目资料，不发布任何个人数据：**
+
+| 数据 | 是否上传 Git | 说明 |
+|------|-------------|------|
+| 代码 & 规则文件 | ✅ 是 | `pmp_athena/`、`CLAUDE.md` |
+| 培训机构 PDF | ✅ 是 | 42 份每日一练 + 模考，克隆即可用 |
+| 做题记录 | ❌ 否 | `question_bank.json`、`error_log.json` 等 |
+| 模考成绩 | ❌ 否 | `exam_records.json` |
+| 向量数据库 | ❌ 否 | `data/`（每台机器自己生成） |
+| 微信 Token | ❌ 否 | `~/.wechat-claude-code/`，不在本仓库 |
+
+> 💡 **克隆仓库不会带入任何作者的错题、成绩或学习记录。** 你的做题数据从第一次使用开始自动生成，互不干扰。
+
+### 设计原则
+
+- **可维护**：知识/流程/数据分离，CLI + AI 双通道
+- **可移植**：`pmp_notes/*.json` 数据文件不绑定代码，换电脑直接复制
+- **可扩展**：模块化 Python 包，新增领域或题型只需加文件
+- **隐私优先**：所有个人数据默认不入 Git，`.gitignore` 预设完整
 
 ---
 
