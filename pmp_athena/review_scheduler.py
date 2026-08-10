@@ -33,6 +33,7 @@ EXAM_DATE = date(2026, 9, 12)
 DEFAULT_DAILY_LIMIT = 25
 TIER2_DAILY_LIMIT = 10
 PRE_EXAM_DAYS = 7
+PRE_EXAM_30_DAYS = 30
 PRE_EXAM_MIN = 10
 PRE_EXAM_MAX = 40
 PRE_EXAM_RATIO = 0.20
@@ -192,7 +193,7 @@ class ReviewScheduler:
                 count += 1
         return count
 
-    def build_daily_plan(self, is_pre_exam: bool = False) -> dict:
+    def build_daily_plan(self, is_pre_exam: bool = False, is_pre30: bool = False) -> dict:
         """
         构建每日错题推送计划。
 
@@ -208,6 +209,7 @@ class ReviewScheduler:
                 "expected_days": int,       # 预计全部清完所需天数
                 "estimated_done_date": str, # 预计完成日期
                 "is_pre_exam": bool,
+                "is_pre30": bool,
                 "daily_quota": int,         # 考前清零模式每天配额
             }
         """
@@ -227,6 +229,21 @@ class ReviewScheduler:
             # 考前模式：全部排队，按优先级
             all_candidates = tiers["T1"] + tiers["T2"] + tiers["T3"]
             all_candidates.sort(key=lambda x: -x.priority_score)
+        elif is_pre30:
+            # 30天模式：T1 + T2，完全排除 T3
+            t1_ids = [t.error_id for t in tiers["T1"]]
+            t2_ids = [t.error_id for t in tiers["T2"][:TIER2_DAILY_LIMIT]]
+
+            t1_filtered = [eid for eid in t1_ids
+                           if not self._already_reviewed_today(int(eid))]
+            t2_filtered = [eid for eid in t2_ids
+                           if not self._already_reviewed_today(int(eid))
+                           and eid not in t1_filtered]
+
+            question_ids = t1_filtered + t2_filtered
+            question_ids = question_ids[:limit]
+            # T3 延期至考前7天，不计入今日推送
+            tiers["T3"] = []  # 标记 T3 为 0（延期）
         else:
             # 正常模式：T1 不限量 + T2 限量 + T3 跳过
             t1_ids = [t.error_id for t in tiers["T1"]]
@@ -267,6 +284,7 @@ class ReviewScheduler:
             "expected_days": expected_days,
             "estimated_done_date": (self.today + timedelta(days=expected_days)).isoformat(),
             "is_pre_exam": is_pre_exam,
+            "is_pre30": is_pre30,
             "daily_quota": daily_quota,
         }
 
@@ -297,20 +315,23 @@ class ReviewScheduler:
     def format_progress_bar(self) -> str:
         """进度条 + 预估完成日期。"""
         p = self.get_progress_summary()
-        plan = self.build_daily_plan(
-            is_pre_exam=(EXAM_DATE - self.today).days <= PRE_EXAM_DAYS
-        )
+        is_pre_exam = self.should_activate_sprint()
+        is_pre30 = self.should_activate_pre30()
+        plan = self.build_daily_plan(is_pre_exam=is_pre_exam, is_pre30=is_pre30)
         bar_width = 20
         filled = int(bar_width * p["completion_pct"] / 100)
         bar = "█" * filled + "░" * (bar_width - filled)
 
-        days_left = (EXAM_DATE - self.today).days
+        days_left = self.days_to_exam()
         is_pre_exam = days_left <= PRE_EXAM_DAYS
+        is_pre30 = PRE_EXAM_DAYS < days_left <= PRE_EXAM_30_DAYS
 
         lines = [
             f"📊 错题清理进度：{p['completed']}/{p['total']}（{p['completion_pct']}%）",
             f"   [{bar}]",
         ]
+        if is_pre30:
+            lines.append(f"⚡ 30天冲刺模式 · T1+T2优先 · T3延期至考前7天")
         if is_pre_exam:
             lines.append(f"🔥 考前冲刺模式 · 日均配额 {plan['daily_quota']} 题")
         if plan["remaining"] > 0:
@@ -324,9 +345,9 @@ class ReviewScheduler:
     def format_daily_done_card(self) -> str:
         """每日复习完成卡片。"""
         p = self.get_progress_summary()
-        plan = self.build_daily_plan(
-            is_pre_exam=(EXAM_DATE - self.today).days <= PRE_EXAM_DAYS
-        )
+        is_pre_exam = self.should_activate_sprint()
+        is_pre30 = self.should_activate_pre30()
+        plan = self.build_daily_plan(is_pre_exam=is_pre_exam, is_pre30=is_pre30)
         lines = []
         if plan["total"] > 0 and plan["remaining"] > 0:
             lines.append(
@@ -341,8 +362,17 @@ class ReviewScheduler:
 
     # ── 考前清零计划 ──────────────────────────────────────────
 
+    def days_to_exam(self) -> int:
+        """距考试的天数。"""
+        return (EXAM_DATE - self.today).days
+
     def should_activate_sprint(self) -> bool:
-        return (EXAM_DATE - self.today).days <= PRE_EXAM_DAYS
+        return self.days_to_exam() <= PRE_EXAM_DAYS
+
+    def should_activate_pre30(self) -> bool:
+        """D ≤ 30 但 > 7：进入30天冲刺模式。"""
+        d = self.days_to_exam()
+        return PRE_EXAM_DAYS < d <= PRE_EXAM_30_DAYS
 
     def build_sprint_plan(self) -> dict:
         """

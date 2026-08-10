@@ -85,6 +85,7 @@ def record_wrong_answer(
     source: str = "manual",
     parsed_by: str = "claude",
     attempt: int = 1,
+    error_type: str = "",
 ) -> dict:
     """
     错题三文件同步（error_log + error_review_state + question_bank）。
@@ -110,6 +111,7 @@ def record_wrong_answer(
             correct_answer=correct_answer,
             knowledge_area=knowledge_area or existing.get("knowledge_area", ""),
             explanation=explanation or existing.get("explanation", ""),
+            error_type=error_type or existing.get("error_type", ""),
         ) or existing
     else:
         error_record = error_logger.add(
@@ -119,6 +121,7 @@ def record_wrong_answer(
             knowledge_area=knowledge_area,
             explanation=explanation,
             parsed_by=parsed_by,
+            error_type=error_type,
         )
 
     bank_existing = question_bank.find_by_question(question, wrong_only=True)
@@ -210,6 +213,7 @@ def main():
             help="daily_practice | mock_exam | manual | screenshot",
         )
         p.add_argument("--parsed-by", default="claude")
+        p.add_argument("--error-type", default="", help="错误类型：概念混淆/流程顺序错/角色越权/陷阱误导/粗心/知识盲区")
         p.add_argument("--json", action="store_true", help="JSON 输出")
 
     p_wrong = sub.add_parser("wrong", help="错题入库（三文件同步）")
@@ -237,6 +241,7 @@ def main():
             explanation=args.explanation,
             source=args.source,
             parsed_by=args.parsed_by,
+            error_type=getattr(args, "error_type", ""),
         )
         if args.json:
             print(json.dumps(result, ensure_ascii=False))

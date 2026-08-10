@@ -29,6 +29,12 @@ REVIEW_STATE = REVIEW_STATE_PATH
 EXAM_CONFIG = EXAM_CONFIG_PATH
 OPTIONS_SUPPLEMENT = OPTIONS_SUPPLEMENT_PATH
 
+# ── 错误类型标签（与 error_logger.ERROR_TYPES 同步）─────────
+ERROR_TYPE_LABELS = {
+    "概念混淆", "流程顺序错", "角色越权",
+    "陷阱误导", "粗心", "知识盲区",
+}
+
 _OPTION_RE = re.compile(r"(?:^|\s)[A-D][\.、．\)]")
 
 # ── 阶段日历（与 CLAUDE.md 同步）──────────────────────────
@@ -185,6 +191,49 @@ def analyze_weakness() -> str:
         for p, cnt in sorted_pt[:5]:
             lines.append(f"- {p}: {cnt} 次")
 
+    # ── 错误类型分布 ──
+    error_type_counts: dict[str, int] = {}
+    for e in errors:
+        et = e.get("error_type", "").strip()
+        if et and et in ERROR_TYPE_LABELS:
+            error_type_counts[et] = error_type_counts.get(et, 0) + 1
+
+    if error_type_counts:
+        sorted_et = sorted(error_type_counts.items(), key=lambda x: x[1], reverse=True)
+        lines.append("\n## 📊 错误类型分布\n")
+        lines.append("| 错误类型 | 数量 | 占比 | 含义 |")
+        lines.append("|----------|------|------|------|")
+        total_with_type = sum(error_type_counts.values())
+        for et, cnt in sorted_et:
+            pct = cnt / total_with_type * 100 if total_with_type else 0
+            bar = "█" * max(1, int(pct / 5))
+            desc_map = {
+                "概念混淆": "两个概念记反了",
+                "流程顺序错": "步骤顺序不对",
+                "角色越权": "角色职责搞混",
+                "陷阱误导": "被干扰项骗了",
+                "粗心": "看漏/看错/手滑",
+                "知识盲区": "完全没见过",
+            }
+            lines.append(f"| {et} | {cnt} | {bar} {pct:.0f}% | {desc_map.get(et, '')} |")
+
+        lines.append("\n## 💡 错误类型诊断\n")
+        if error_type_counts.get("概念混淆", 0) >= 3:
+            lines.append("- 📚 概念混淆偏多：建议用对比表格梳理相似概念（如风险vs问题、QA vs QC）")
+        if error_type_counts.get("陷阱误导", 0) >= 3:
+            lines.append("- 🪤 陷阱误导偏多：做题时先不看选项，形成思路后再对照选项")
+        if error_type_counts.get("流程顺序错", 0) >= 3:
+            lines.append("- 🔄 流程顺序错偏多：注意问法意图（First vs Best），先分析再行动")
+        if error_type_counts.get("角色越权", 0) >= 3:
+            lines.append("- 🎭 角色越权偏多：牢记敏捷三角色（PO定优先级/SM清障碍/团队自组织）")
+        if error_type_counts.get("粗心", 0) >= 3:
+            lines.append("- 👀 粗心偏多：放慢做题速度，逐字审题干关键词")
+        if error_type_counts.get("知识盲区", 0) >= 3:
+            lines.append("- 📖 知识盲区偏多：建议回归PMBOK核心章节，补充基础概念")
+    else:
+        lines.append("\n## 📊 错误类型分布\n")
+        lines.append("- 暂无错误类型标记数据（使用 `--error-type` 参数标记后可查看分布）")
+
     # ── 敏捷专项诊断 ──
     agile_wrong = sum(
         1 for r in bank
@@ -263,7 +312,8 @@ def review_today() -> str:
 
     sched = ReviewScheduler()
     is_sprint = sched.should_activate_sprint()
-    plan = sched.build_daily_plan(is_pre_exam=is_sprint)
+    is_pre30 = sched.should_activate_pre30()
+    plan = sched.build_daily_plan(is_pre_exam=is_sprint, is_pre30=is_pre30)
     progress = sched.format_progress_bar()
 
     lines = []
@@ -273,6 +323,9 @@ def review_today() -> str:
     lines.append(progress)
     lines.append("")
 
+    if is_pre30:
+        lines.append(f"⚡ 30天冲刺模式 · T1+T2优先 · T3延期至考前7天")
+        lines.append("")
     if is_sprint:
         lines.append(f"🔥 考前冲刺模式 · 今日配额 {plan['daily_quota']} 题")
         lines.append("")
@@ -314,8 +367,8 @@ def review_today() -> str:
     # 剔除粗心
     due_ids -= t0_ids
 
-    # 非冲刺模式：T3 不推送
-    if not is_sprint:
+    # 非冲刺模式 + 非 pre30 模式：T3 不推送
+    if not is_sprint and not is_pre30:
         due_ids -= t3_ids
 
     # T1 优先排前面 + T2 限量
@@ -327,7 +380,7 @@ def review_today() -> str:
     ordered_ids = t1_due + t2_due + t3_due
 
     # 每日上限
-    limit = sched.get_daily_limit() if not is_sprint else plan["daily_quota"]
+    limit = sched.get_daily_limit() if (not is_sprint and not is_pre30) else plan["daily_quota"]
     ordered_ids = ordered_ids[:limit]
 
     # ── 按知识领域分组 ──
@@ -360,8 +413,8 @@ def review_today() -> str:
             lines.append(f"- {tier_mark} #{e['id']} {q}...")
         lines.append("")
 
-    # ── 非冲刺模式：提示 T3 低频错题数量 ──
-    if not is_sprint and t3_ids:
+    # ── 非冲刺/非 pre30 模式：提示 T3 低频错题数量 ──
+    if not is_sprint and not is_pre30 and t3_ids:
         t3_due_today = len(t3_ids & due_ids)
         if t3_due_today > 0:
             lines.append(f"📦 {t3_due_today} 道低频错题已推迟到考前冲刺包（考前 7 天推送）")
@@ -682,8 +735,12 @@ def review_next(*, include_header: bool = False) -> dict:
     sched = ReviewScheduler()
     limit = sched.get_daily_limit()
     is_sprint = sched.should_activate_sprint()
+    is_pre30 = sched.should_activate_pre30()
     if is_sprint:
         plan = sched.build_daily_plan(is_pre_exam=True)
+        limit = plan["daily_quota"]
+    elif is_pre30:
+        plan = sched.build_daily_plan(is_pre30=True)
         limit = plan["daily_quota"]
     completed_today = sched.get_today_completed_count()
 
@@ -700,7 +757,8 @@ def review_next(*, include_header: bool = False) -> dict:
         }
 
     if include_header:
-        limit_hint = f"（今日上限 {limit} 题，已完成 {completed_today}/{limit}）"
+        sprint_tag = "🔥 冲刺" if is_sprint else ("⚡ 30天" if is_pre30 else "")
+        limit_hint = f"（今日上限 {limit} 题，已完成 {completed_today}/{limit}）{sprint_tag}"
         text = (
             f"📚 今日待复习错题: {len(due_ids)} 道（还剩 {len(pending)} 道）{limit_hint}\n\n"
             f"{body}"

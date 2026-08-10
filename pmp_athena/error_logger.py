@@ -49,6 +49,16 @@ KNOWLEDGE_AREAS = [
     "敏捷/混合方法", "商业环境", "领导力/人员",
 ]
 
+# ── 错误类型分类 ──────────────────────────────────────────
+ERROR_TYPES = {
+    "概念混淆": "两个概念记反了（如 Risk vs Issue）",
+    "流程顺序错": "知道该干啥但顺序不对（First 选了 Best）",
+    "角色越权": "PO/SM/PM 职责搞混",
+    "陷阱误导": "被干扰项骗了（T01-T12）",
+    "粗心": "看漏/看错/手滑",
+    "知识盲区": "完全没见过这个概念",
+}
+
 
 class ErrorLogger:
     """错题记录管理器"""
@@ -102,7 +112,7 @@ class ErrorLogger:
                 continue
             updatable = [
                 "question", "my_answer", "correct_answer",
-                "knowledge_area", "explanation",
+                "knowledge_area", "explanation", "error_type",
             ]
             for key in updatable:
                 if key in kwargs and kwargs[key] is not None:
@@ -131,6 +141,7 @@ class ErrorLogger:
         parsed_by: str = "claude",
         *,
         allow_duplicate: bool = False,
+        error_type: str = "",
     ) -> dict:
         """追加一条错题；默认同题去重，返回已有记录。"""
         question = normalize_question_text(question)
@@ -157,6 +168,7 @@ class ErrorLogger:
             "knowledge_area": knowledge_area.strip(),
             "parsed_by": parsed_by,
             "explanation": explanation.strip(),
+            "error_type": error_type.strip() if error_type else "",
         }
 
         data.append(record)
@@ -291,6 +303,7 @@ def main():
     p_add.add_argument("--knowledge-area", "-k", default="未分类", help="知识领域")
     p_add.add_argument("--explanation", "-e", default="", help="解析摘要")
     p_add.add_argument("--parsed-by", default="claude", help="解析者")
+    p_add.add_argument("--error-type", default="", help="错误类型：概念混淆/流程顺序错/角色越权/陷阱误导/粗心/知识盲区")
 
     # list
     p_list = sub.add_parser("list", help="列出错题")
@@ -315,6 +328,7 @@ def main():
             knowledge_area=args.knowledge_area,
             explanation=args.explanation,
             parsed_by=getattr(args, "parsed_by", "claude"),
+            error_type=getattr(args, "error_type", ""),
         )
         print(f"✅ 已记录错题 #{record['id']} [{record['knowledge_area']}]")
 
@@ -331,6 +345,7 @@ def main():
             knowledge_area=data.get("knowledge_area", "未分类"),
             explanation=data.get("explanation", ""),
             parsed_by=data.get("parsed_by", "claude"),
+            error_type=data.get("error_type", ""),
         )
         print(f"✅ 已记录错题 #{record['id']} [{record['knowledge_area']}]")
 
