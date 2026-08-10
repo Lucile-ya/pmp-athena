@@ -23,26 +23,20 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-try:
-    from pmp_athena.config import NOTES_DIR
-    from pmp_athena.db.vector_store import get_vector_store
-    from pmp_athena.error_logger import ErrorLogger
-    from pmp_athena.question_bank import QuestionBank
-    from pmp_athena.mock_exam_state import MockExamState
-    from pmp_athena.exam_recorder import ExamRecorder
-except (ImportError, ModuleNotFoundError):
-    from config import NOTES_DIR
-    from db.vector_store import get_vector_store
-    from error_logger import ErrorLogger
-    from question_bank import QuestionBank
-    from mock_exam_state import MockExamState
-    from exam_recorder import ExamRecorder
+# ── 确保 pmp_athena 可作为包导入 ──
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-logging.basicConfig(level=logging.WARNING)
+from pmp_athena.error_logger import ErrorLogger
+from pmp_athena.question_bank import QuestionBank
+from pmp_athena.mock_exam_state import MockExamState
+from pmp_athena.exam_recorder import ExamRecorder
+
+logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger("mock_exam_engine")
 
 TZ_CST = timezone(timedelta(hours=8))
-ROOT = Path(__file__).resolve().parent.parent
 ENGINE_STATE_PATH = ROOT / "pmp_notes" / "mock_exam_engine.json"
 
 PAPER_MAP = {
@@ -87,13 +81,27 @@ def guess_knowledge_area(text: str) -> str:
 
 def load_questions_from_chroma(count: int = 180) -> list[dict]:
     """从 ChromaDB 随机抽取题目。"""
-    store = get_vector_store()
-    total = store.get_notes_count()
+
+    import chromadb
+    from chromadb.config import Settings
+
+    data_dir = ROOT / "data" / "chromadb"
+    client = chromadb.PersistentClient(
+        path=str(data_dir),
+        settings=Settings(anonymized_telemetry=False),
+    )
+
+    try:
+        collection = client.get_collection("pmp_notes")
+    except Exception:
+        raise RuntimeError("向量库未初始化。请先运行: python -m pmp_athena.cli ingest")
+
+    total = collection.count()
     if total == 0:
         raise RuntimeError("向量库为空。请先运行 python -m pmp_athena.cli ingest")
 
     sample_size = min(total, max(count * 3, 500))
-    results = store._notes.get(
+    results = collection.get(
         limit=sample_size,
         include=["documents", "metadatas"],
     )
@@ -239,8 +247,10 @@ class MockExamEngine:
         }
         self._write(state)
 
-        # Also init MockExamState for the legacy tracker
+        # Also init MockExamState for the legacy tracker (suppress its logging)
         try:
+            import logging as _logging
+            _logging.getLogger("mock_exam_state").setLevel(_logging.ERROR)
             ms = MockExamState()
             ms.start(exam_id=ptype, total_questions=len(questions))
         except Exception:
