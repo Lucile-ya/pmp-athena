@@ -1,6 +1,6 @@
 # 🦉 PMP Athena — 本地 PMP 备考复盘 Agent
 
-完全本地运行的 PMP 备考助手：**结构化知识引擎 + 每日一练/模考判卷 + SM-2 错题复习 + PMP 判题推理框架 + 微信硬路由**。基于 ChromaDB + sentence-transformers，无需 LLM API Key 即可完成核心刷题流程。
+完全本地运行的 PMP 备考助手：**结构化知识引擎 + 每日一练/模考判卷 + SM-2 错题复习 + PMP 判题推理框架 + 微信硬路由**。（同时上传了本人在做题过程的所用资料和题库）基于 ChromaDB + sentence-transformers，无需 LLM API Key 即可完成核心刷题流程。
 
 **考试目标**：2026-09-12 PMP | 日常训练正确率目标 70%（126/180）
 
