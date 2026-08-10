@@ -19,14 +19,6 @@
   - 每日一练 → 自动建议 30 题（3 套）
   - `review_scheduler.py`：新增 `should_activate_pre30()`、`days_to_exam()`
   - `study_advisor.py`：`review_today()`/`review_next()` 接入 pre30 模式
-- **`CHANGELOG.md`**：完整版本历史（v0.1 ~ v1.1.0），70+ 条记录
-
----
-
-## [1.0.1] — 2026-08-10
-
-### 🆕 新增
-
 - **`cli_chat.py`**：命令行聊天脚本，零依赖、菜单驱动，`python cli_chat.py` 开箱即用
 - **`AGENTS.md`**：同步 CLAUDE.md，兼容 WorkBuddy / Cursor Agent 等 AI 助手
 - **题目 PDF 共享**：42 份培训机构 PDF（34 份每日一练 + 8 份模考）纳入版本控制，克隆即可用
@@ -34,6 +26,7 @@
 - **`QUICKSTART.md`**：5 分钟上手指南，三级用法（纯 CLI → AI 助手 → 微信桥接）
 - **FB-001 两阶段截图解析**：先纯文字推理再视觉标记对照，防截图颜色/标签锚定偏见
 - **FB-002 思路先于选项规则**：判题推理框架新增 Step 0，禁止直接扫 ABCD 找答案
+- **`CHANGELOG.md`**：完整版本历史（v0.1 ~ v1.1.0），70+ 条记录
 
 ### 🔧 改进
 
