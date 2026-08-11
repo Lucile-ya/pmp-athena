@@ -64,6 +64,11 @@ PAPER_FILES: dict[str, tuple[str, str]] = {
     "three": ("考前冲刺卷3-试题.pdf", "考前冲刺卷3-答案解析.pdf"),
 }
 
+# 已预先提取为高清图片的试卷（图片文件夹名 → 答案 PDF 文件名）
+PAPER_IMAGE_DIRS: dict[str, tuple[str, str]] = {
+    "three": ("提取图片_考前冲刺卷3-试题", "考前冲刺卷3-答案解析.pdf"),
+}
+
 KNOWLEDGE_AREAS = [
     "整合管理", "范围管理", "进度管理", "成本管理", "质量管理",
     "资源管理", "沟通管理", "风险管理", "采购管理", "干系人管理",
@@ -302,7 +307,7 @@ def _is_multi_stem(stem: str) -> bool:
     return any(kw in low for kw in _SCANNED_MULTI_KW)
 
 def load_scanned_mock_exam(paper_key: str) -> list[dict]:
-    """从扫描版模考 PDF OCR 加载题目（首次 OCR 后缓存 JSON）。"""
+    """从扫描版模考加载题目（优先高清图片，回退 PDF OCR，首次缓存 JSON）。"""
     import pdfplumber
 
     if paper_key not in PAPER_FILES:
@@ -311,14 +316,9 @@ def load_scanned_mock_exam(paper_key: str) -> list[dict]:
     q_pdf_name, a_pdf_name = PAPER_FILES[paper_key]
     q_pdf_path = MOCK_DIR / q_pdf_name
     a_pdf_path = MOCK_DIR / a_pdf_name
-
-    if not q_pdf_path.exists():
-        logger.warning("Scanned PDF not found: %s", q_pdf_path)
-        return []
-
     cache_path = CACHE_DIR / f"{q_pdf_name}_cached.json"
 
-    # ── 如果有缓存，直接加载 ──
+    # ── 如果有缓存（≥50题足够好），直接加载 ──
     if cache_path.exists():
         try:
             data = json.loads(cache_path.read_text(encoding="utf-8"))
@@ -328,9 +328,17 @@ def load_scanned_mock_exam(paper_key: str) -> list[dict]:
         except Exception:
             pass
 
-    # ── OCR 题目 PDF ──
-    logger.info("OCR scanning question paper: %s …", q_pdf_name)
-    full_text = _ocr_pdf(q_pdf_path)
+    # ── 优先用高清图片文件夹 OCR（如果存在）──
+    if paper_key in PAPER_IMAGE_DIRS:
+        img_dir_name, _ = PAPER_IMAGE_DIRS[paper_key]
+        img_dir = MOCK_DIR / img_dir_name
+        if img_dir.is_dir():
+            logger.info("OCR from image folder: %s …", img_dir_name)
+            full_text = _ocr_image_folder(img_dir)
+        else:
+            full_text = _ocr_pdf(q_pdf_path)
+    else:
+        full_text = _ocr_pdf(q_pdf_path)
 
     # ── 按题号切分 ──
     questions = _parse_scanned_questions(full_text)
@@ -357,6 +365,30 @@ def load_scanned_mock_exam(paper_key: str) -> list[dict]:
     cache_path.write_text(json.dumps(valid, ensure_ascii=False, indent=2), encoding="utf-8")
     logger.info("Cached %d questions to %s", len(valid), cache_path.name)
     return valid
+
+
+def _ocr_image_folder(img_dir: Path) -> str:
+    """OCR 一个图片文件夹的全部图片，返回合并文本。"""
+    from PIL import Image
+
+    if TESSERACT_CMD:
+        import pytesseract
+        pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
+
+    parts: list[str] = []
+    imgs = sorted(img_dir.glob("*.jpg")) + sorted(img_dir.glob("*.png"))
+    if not imgs:
+        return ""
+
+    for img_path in imgs:
+        try:
+            img = Image.open(str(img_path))
+            text = pytesseract.image_to_string(img, lang="chi_sim+eng")
+            if text.strip():
+                parts.append(text.strip())
+        except Exception:
+            continue
+    return "\n".join(parts)
 
 
 def _ocr_pdf(pdf_path: Path) -> str:
@@ -510,10 +542,20 @@ class MockExamEngine:
 
         ptype = PAPER_MAP.get(paper, "随机模考")
 
-        # 冲刺卷 1/2/3：优先从扫描版 PDF OCR 加载
+        # 冲刺卷 1/2/3：优先 OCR 加载，不足 180 道从每日一练补足
         if paper in PAPER_FILES:
             questions = load_scanned_mock_exam(paper)
-            if not questions or len(questions) < 10:
+            if len(questions) < 180:
+                # 补足到 180 题（去重：题干前 30 字相同则跳过）
+                seen_stems = {q.get("question", "")[:30] for q in questions}
+                pool = load_questions_from_pdfs(500)  # 取全部可用题
+                for pq in pool:
+                    if pq.get("question", "")[:30] not in seen_stems:
+                        seen_stems.add(pq["question"][:30])
+                        questions.append(pq)
+                    if len(questions) >= 180:
+                        break
+            if len(questions) < 10:
                 questions = load_questions_from_pdfs(180)
         else:
             questions = load_questions_from_pdfs(180)
