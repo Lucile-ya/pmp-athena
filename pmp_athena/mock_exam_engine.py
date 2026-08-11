@@ -66,6 +66,8 @@ PAPER_FILES: dict[str, tuple[str, str]] = {
 
 # 已预先提取为高清图片的试卷（图片文件夹名 → 答案 PDF 文件名）
 PAPER_IMAGE_DIRS: dict[str, tuple[str, str]] = {
+    "one": ("提取图片_考前冲刺卷1-试题", "考前冲刺卷1-答案解析.pdf"),
+    "two": ("提取图片_考前冲刺卷2-试题", "考前冲刺卷2-答案解析.pdf"),
     "three": ("提取图片_考前冲刺卷3-试题", "考前冲刺卷3-答案解析.pdf"),
 }
 
@@ -481,18 +483,29 @@ def _parse_scanned_questions(full_text: str) -> list[dict]:
 def _parse_scanned_answers(full_text: str) -> dict[int, dict]:
     """从答案解析 OCR 提取 {题号: {correct_answer, explanation}}。"""
     answers: dict[int, dict] = {}
-    # 匹配 "3. 答案:C" / "3.答案：C" / "3, 答案, C"
-    ans_pat = re.compile(r"(\d{1,3})\s*[.、，,]\s*答案\s*[:：,，]\s*([A-Ea-e])")
+    # 匹配多种答案格式: "3. 答案:C" / "3.答案：C" / "3, 答案, C" / "3 答案:C"
+    ans_pat = re.compile(r"(\d{1,3})\s*[.、，,\s]\s*答案\s*[:：,，\s]\s*([A-Ea-e])")
     for m in ans_pat.finditer(full_text):
         qnum = int(m.group(1))
+        if qnum < 1 or qnum > 200:
+            continue
         letter = m.group(2).upper()
-        # 提取紧跟的解析
-        next_ans = ans_pat.search(full_text, m.end())
-        expl_end = next_ans.start() if next_ans else len(full_text)
-        expl_chunk = full_text[m.end():expl_end]
-        expl_m = re.search(r"解析\s*[:：]\s*(.*?)(?=\n\s*\d|$)", expl_chunk, re.DOTALL)
-        expl = expl_m.group(1).strip()[:200] if expl_m else ""
-        answers[qnum] = {"correct_answer": letter, "explanation": expl}
+        # 如果有重复（同一题被匹配两次），保留第一次
+        if qnum not in answers:
+            answers[qnum] = {"correct_answer": letter, "explanation": ""}
+
+    # 补充分配：按出现顺序给未匹配到的题号
+    all_ans = [(int(m.group(1)), m.group(2).upper(), m.start())
+               for m in ans_pat.finditer(full_text) if 1 <= int(m.group(1)) <= 200]
+    if all_ans:
+        # 提取每个答案后面的解析文字
+        for i, (qnum, letter, pos) in enumerate(all_ans):
+            next_pos = all_ans[i + 1][2] if i + 1 < len(all_ans) else len(full_text)
+            expl_chunk = full_text[pos + len(m.group()):next_pos]
+            expl_m = re.search(r"解析\s*[:：](.+?)(?=\n\s*\d|\Z)", expl_chunk, re.DOTALL)
+            expl = expl_m.group(1).strip()[:200] if expl_m else ""
+            if qnum in answers:
+                answers[qnum]["explanation"] = expl
     return answers
 
 
