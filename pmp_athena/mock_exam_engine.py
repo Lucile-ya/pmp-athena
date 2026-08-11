@@ -40,7 +40,8 @@ DAILY_DIR = ROOT / "pmp_notes" / "每日一练"
 
 PAPER_MAP = {
     "one": "考前冲刺卷1", "two": "考前冲刺卷2",
-    "three": "考前冲刺卷3", "random": "随机模考",
+    "three": "考前冲刺卷3", "four": "模考卷二",
+    "random": "随机模考",
 }
 
 KNOWLEDGE_AREAS = [
@@ -95,9 +96,17 @@ def _parse_daily_pdf(pdf_path: Path) -> list[dict]:
                 if text:
                     all_lines.extend(text.split("\n"))
 
-        # 去水印碎片
+        # 去水印碎片（全局替换）
         full = "\n".join(all_lines)
-        full = re.sub(r"(?:^|\n)\s*[内育教迹骐料资部]{1,3}\s*(?:\n|$)", "\n", full)
+        # 去孤立水印行
+        full = re.sub(r"(?:^|\n)\s*[内育教迹骐料资部练日每]{1,3}\s*(?=$|\n)", "\n", full)
+        # 去选项中嵌入的水印（A、... 育 → A、...  /  ...练\n一 → ...）
+        full = re.sub(r"\s+[内育教迹骐料资部练日每]{1,2}(?=\s|$|\n)", "", full)
+        # 去连续水印字符
+        full = re.sub(r"[内育教迹骐料资部练日每]{2,6}", "", full)
+        # 去嵌入英文单词中的孤立水印（如 manage教r → manager）
+        full = re.sub(r"(?<=[a-zA-Z])[内育教迹骐料资部练日每](?=[a-zA-Z])", "", full)
+        full = re.sub(r"(?<=[a-zA-Z])[内育教迹骐料资部练日每](?=\s|$)", "", full)
         full = re.sub(r"\n{2,}", "\n", full)
 
         # 找到所有题号位置：\n + 数字 + ．/./
@@ -135,7 +144,23 @@ def _parse_daily_pdf(pdf_path: Path) -> list[dict]:
             stem = re.sub(r"^\d{1,2}[．.、]\s*", "", stem)
             stem = re.sub(r"【[^】]+】\s*", "", stem)
             stem = re.sub(r"\[[^\]]+\]\s*", "", stem)
+            stem = re.sub(r"（分值[：:]\s*\d+\s*分）\s*", "", stem)
+            # 去掉水印残留
+            stem = re.sub(r"\s+[内育教迹骐料资部练日每]{1,2}\s+", " ", stem)
+            stem = re.sub(r"[内育教迹骐料资部练日每]{2,4}", " ", stem)
             stem = re.sub(r"\s+", " ", stem).strip()
+
+            # 如果题干中英混排，优先中文部分
+            # 找到第一个中文句号/逗号出现的位置，从那里往前找中文起始
+            cn_start = None
+            for m in re.finditer(r"[一-鿿]", stem):
+                cn_start = m.start()
+                break
+            if cn_start is not None and cn_start > 5:
+                # 题干从英文开始，截取中文部分
+                stem = stem[cn_start:]
+            # 去掉末尾残留的英文原文（中文后面跟的长串英文）
+            stem = re.sub(r"\s{2,}[A-Za-z].{20,}$", "", stem)
 
             if len(stem) < 10:
                 continue
