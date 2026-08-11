@@ -301,9 +301,20 @@ _MULTI_MARKERS = (
     "[多选",
     "选择两",
     "选两项",
+    "选择三",
+    "选三项",
+    "哪两个",
+    "哪三个",
+    "哪两项",
+    "哪三项",
+    "二个选项",
+    "三个选项",
     "choose two",
     "choosetwo",
+    "choose three",
+    "choosethree",
     "choose 2",
+    "choose 3",
 )
 
 
@@ -839,7 +850,13 @@ def grade_answers(user_answer: str) -> dict[str, Any]:
         idx = int(state.get("current_index", 0))
         questions: list[dict] = state["questions"]
         if 0 <= idx < len(questions):
-            if questions[idx].get("question_type") == "multi":
+            q = questions[idx]
+            # 显式标记为多选 或 题干含多选关键词 + 答案超过1个字母 → 多选
+            is_multi = (
+                q.get("question_type") == "multi"
+                or (len(raw) > 1 and _is_multichoice_block(q.get("stem", "")))
+            )
+            if is_multi:
                 return grade_current(raw)
 
     if len(raw) == 1:
