@@ -290,9 +290,16 @@ def load_questions_from_pdfs(target_count: int = 180) -> list[dict]:
     return selected
 
 
-# ═══════════════════════════════════════════════════════════════
-# 扫描版模考 PDF OCR（考前冲刺卷 1/2/3）
-# ═══════════════════════════════════════════════════════════════
+_SCANNED_MULTI_KW = [
+    "多选题", "多选", "选择两项", "选两项", "选择三项", "选三项",
+    "哪两个", "哪三个", "哪两项", "哪三项",
+    "choose two", "choose three", "choose 2", "choose 3",
+]
+
+
+def _is_multi_stem(stem: str) -> bool:
+    low = stem.lower()
+    return any(kw in low for kw in _SCANNED_MULTI_KW)
 
 def load_scanned_mock_exam(paper_key: str) -> list[dict]:
     """从扫描版模考 PDF OCR 加载题目（首次 OCR 后缓存 JSON）。"""
@@ -426,12 +433,14 @@ def _parse_scanned_questions(full_text: str) -> list[dict]:
             continue
 
         area = guess_area(stem)
+        is_multi = _is_multi_stem(stem)
         questions.append({
             "question": stem,
             "options": [f"{chr(65 + i)}. {o}" for i, o in enumerate(opts[:4])],
             "correct_answer": "",
             "explanation": "",
             "_area": area,
+            "_is_multi": is_multi,
         })
 
     return questions
@@ -724,7 +733,8 @@ class MockExamEngine:
             return {"status": "error", "error": f"索引越界: {idx}"}
         q = qs[idx]
         area = q.get("_area", "综合")
-        lines = [f"📝 Q{idx + 1} [{area}]: {q.get('question', '')}"]
+        hint = "（多选）" if q.get("_is_multi") else ""
+        lines = [f"📝 Q{idx + 1} [{area}]{hint}: {q.get('question', '')}"]
         for o in q.get("options", []):
             lines.append(o)
         return {"status": "question", "index": idx + 1, "total": state["total"], "text": "\n".join(lines)}
