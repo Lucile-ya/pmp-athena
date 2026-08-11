@@ -1,47 +1,40 @@
 [
   {
-    "question": "【单选题】由于最近的一次公司侣并，B 公司的一名项目经理被分配到一个由上 公司团队成员 组成的团队中。在项目开始时，由于流程以及该项目经理与B 公司的关系都不明确，从而产生了冲 突。项目经理应该如何解决这一冲突?Due to a recent company merger, a project manager from Company B is assigned to a team composed of members from Company",
+    "question": "【单选题】 混侣项目刚刚开始，这将产生一种新技术，如果公众接爱，可能会造成冲击。 该产品需要政府的健康和安全批准。由于这是一个创新的解决方案，上发起人和产品负责人不确定它 是理会被公欢接受。该产品开发的适当流程是什么? hybrid project has just begun that will produce a new technology, potentially causing a stir if accepted by the public. The product requires government health and safety approval. Since this",
     "options": [
-      "A. At the start of the project, conflicts arise due to unclear processes and the project manager's relationship with Company",
-      "B. How should the project manager resolve this conflict?  A, BRS, RASPHWERAASARERPIAE. Avoid conflict because the customer is satisfied with using Company A's processes.",
-      "C. 回顾历史信息，并根据投资回报率{ROI做出决策。 Rewiew historical information and make decisions based on the return on investment (ROI).",
-      "D. 要求团队使用B 公司的流程，因为他们更熟悉这些流程。 Require the team to use Company B's processes as they are more familiar with them."
+      "A. 完成每个冲刺的开发，并向内部相关方和政府澳示产品增量，而无需其他外部相关方的参与。 Complete each sprints development and demonstrate product increments to internal stakeholders and the government without involving other external stakeholde",
+      "B. 仅完成必备功能的开皮并向焦点小组展示，但等到所有开皮完成后再向政府展示。 Complete only essential functionality and show it to focus groups, but wait until all development is complete to demonstrate to the government.  ll. 【单选题】在与客户的会议",
+      "C. 确保仅共享批准的版本。 Ensure only approved versions are shared.  C, ABS RRA SAE. Investigate how the draft versions were shared.",
+      "D. 确保仅共享最新的正式版本。 Ensure only the latest official versions are shared."
     ],
     "correct_answer": "D",
-    "explanation": "Bem: 关键字: 该供应商在另一个项目上的进度落后。这是一个风险,不代表目前\n\n未必可行且可能导致更多延误，排除\n\n自己项目也洲后了 ，\n\n新风险登记册。解题步骤:\n\n@X定位:\n- PRETO: 预测。\n- 共、过程，逊是商业环境: 过程。\n- 哪个知识领域: 风险管理。\n- 哪个阶段: 执行防段。\n@ 找基键:\n- 天键字眼: MSH”. SHES\". ANB”\n\n- 情景中需要解决的关键问",
-    "_area": "资源管理"
+    "explanation": "第7题: RAPP:\n\n必集需求阶段，相关方提供的额外信息都与他们之前提供的不同。\n\n需求收集过程有问题，如人\n现相关方不参 与需求收集\n\n集用需求管理计划 ，范围管\nOAT:\n- PET: 预测。\n\n- As THE. GERM: 过程\n\n- 哪个知识领域: 范围管理。\n\n- TBS BES: 规划阶段。\n@ Tikit:\n\no\n\n分析，记录和管理需求, 是需求管理计划内容。B 题意中没有体\n，",
+    "_area": "综合",
+    "_is_multi": false
   },
   {
-    "question": "【单选题]】在一个金融项目执行期间，项目经理每周与项目团队开会，以评估项目进展，然而， 点起人要求每天检查项目绩效，关键团队成员不同意这一要求，并状称他们没有足够的时间参加日 常会议, 因为他们忙于执行. 项目经理首先应该做什么 During the execution of a financial project, the project manager meets weekly with the project team to assess progress. However, the sponsor requests daily performance checks, and key t",
+    "question": "(Sita) S8GERENRAREASAMERRA, Hea) PRR. 负责人该做什么” The sponsor of an agile project informs the project lead that an executive wants to know the project's progress. What should the project lead do?",
     "options": [
-      "A. 建议发起人每周审查一次项目绩效。 Suggest the sponsor review project performance weekly.",
-      "B. 审查沟通管理计划, 并在需要时提交变更请求 Review the communication management plan and submit a change request if necessary.",
-      "C. 评居每个团队成员可以亲自，还是需要虚拟方式来出席日常会议，并减少每次会议的时间。 Evaluate whether each team member can attend daily meetings in person or virtually, and reduce the duration of each meeting."
+      "A. 道请该高管来到项目会议室，以确定项目的信息发射源是否满足其需要。 Invite the executive to the project room to determine if the project's information radiators meet their needs.",
+      "B. 主动联系项目答理办公室，向其素取状态报告模板，并按该模板的格式提供项目最新情况。 Proactively contact the Project Management Office (PMO) to request a status report template and provide the latest project status in that format.",
+      "C. 让项目发起人或产品负责人提供最新情况，因为产品负责人应尽力使团队免受障碍因素影响。 Have the project sponsor or product owner provide the latest updates, as the product owner should strive to keep the team free from impediments.  D, REWMEAF"
     ],
     "correct_answer": "C",
     "explanation": "第 12 题: 关键词是缺乏透明度，A排除了。项目管理计划不是敏捷项目的。D 排除，\n和透明度没有关系。B 只参加一次的评审不太准确，不如 Cc. ARP:\n\nQE:\n\n- HERETO: Be.\n\n- 估、过程，还是商业环境: Ao\n\n- 哪个知识领域: 沟通管理。\n\n- 哪个阶段: 执行阶段。\n包) 找关键:\n- 关键字眼 : “热乏透明度\"，“拒绝会议昼请\"，“敏捷项目\"。\n- 情景中需要解",
-    "_area": "资源管理"
+    "_area": "综合",
+    "_is_multi": false
   },
   {
-    "question": "【单选题】承包商正在根据固定总价合同执行一个翻新项目。在项目期间，承包商进行了多项 仍在项目范围内的小变更，此外，一些相关方要求进行变更。项目经理应该怎么做” Acontractor is executing a renovation project under a fixed-price contract. During the project, the contractor made several small changes still within the project scope, and some stakeholders requested changes. What shou",
+    "question": "【单选题】某项目正处于执行阶段。该项目的生命周期被定义为预测型; 但一项主要的可交付 成果将渐进地移训给客户。所指派的资源经验丰言、 非常可靠，而且乐于做出项目经理过去在其他 项目中每次增量式交付之后所做的决定。 项目经理应该做什么 A projectis in the execution stage. The project lifecycle is defined as predictive, but a major deliverable will be handed over to the customer incrementally. The assigned resources a",
     "options": [
-      "A. ARMA A 222 Modify the contract to include these changes.",
-      "B. 将这些超范围变更添加到变更日志 Add these out-of-scope changes to the change loa.",
-      "C. 查阅沟通管理计划 Refer to the communication management plan.  口、查阅变更管理计划 Refer to the change management plan.  10"
+      "A. 就让资源做出决定一事与产品负责人商量。 Discuss with the product owner about allowing the resources to make decisions.",
+      "B. 对团队的决定子以支持, FERRARA Ste]. Support the team's decisions and transfer decision-making responsibilities to them.",
+      "C. 安排举行指导委员会会议，争取其指准此请求。 Schedule asteering committee meeting to seek approval for this request"
     ],
     "correct_answer": "B",
-    "explanation": "第 2题: 冲突管理，合理的冲突对于团队成长是有利的，直接排除 AC。建设团队是\n提高工作能为， 促进团队成员互动、 改善团队整体夭围，以提高项目靖效的过程。B 是最优\n了,并\n\n全先定位;\n\n- HEREIN: 预测。\n\n- 大、过程，还是商业环境: A.\n\n- 哪个知识领域: 团队管理。\n\n- 哪个阶段: 启动阶段。\n\n@ 找关键:\n\n- 关键字眼: SEMA\", “BOA”, “SORE.\n",
-    "_area": "整合管理"
-  },
-  {
-    "question": "[22S] E-+ 07 项目的第二个交付里程碑中执行了质量评估。由于提出了许多问题，项 经理希望了解质量趋势以及是否存在相关变量。项目经理应该使用哪一项工具 During ihe second delivery milestone of an IT project, a quality assessment was performed. Due to many issues raised, the project manager wants to understand the quality trends and whether there are related variables. Wh",
-    "options": [
-      "A. 散点图 Scatter diagram.",
-      "B. 帕累托图 Pareto diagram.  口、统计分析 Statistical analysis."
-    ],
-    "correct_answer": "D",
-    "explanation": "第 31题: 固定总价合同适用于范围确定且无太变更的项目。出现多个变更时，应查\n阅变更管理计划 。A是后续可能的措施,在 D 之后执行，B 也是在D 之后进行,无基，排\n全先定位:\n\n- PEE: 预测。\n\n- 和从、过程，还是商业环境: 过程。\n\n- 哪个知识领域: 变更管理。\n\n- 哪个阶段: 执行阶段。\n\n- SHER: “ERE Sela\", “>see”, HEAR\".\n\n- 情景中需要",
-    "_area": "进度管理"
+    "explanation": "第 29题: FADE, BPR BAAR, GEER\n能为不足，因为没有被培训，因此项目团队需要给他们实拌相应的培训。解题步骤:\n\n加先定位;\n- 敏捷还是预测: 预测。\n\n一 Avi ne FE 还是商} 环境: Ae\n\n- 哪个知识领域: 资源管理。\n\n- 哪个阶段: 收尾阶段。\n\n@ 找关键;\n\n- 关键字眼: “系统升级\"，“无法使用\"，\"撞训\n- 情景中需要解决的关键问题 : 如何通过",
+    "_area": "范围管理",
+    "_is_multi": false
   },
   {
     "question": "【单选题】你是一位高级项目经理，正在指导一位新提拔的项目经理。你的学员束示，他反复 与他的项目组发生和争执，并且难以控制自己的肚气。 这种情况已经为项目团队创造了一个有毒的环 境，并威胁到项目的成功完成。对你的学员最好的建议是什么 You area senior project manager mentoring a newly promoted project manager. Your mentee reports repeatedly arguing with his project team and struggling to control his temper. This situ",
@@ -52,95 +45,117 @@
       "D. 、引入认可和奖励 Introduce recognition and rewards."
     ],
     "correct_answer": "D",
-    "explanation": "第 83题: 混合生命周明，测试用敏捷方法，现在的时间节点是选代已经结束。新的\n需求可以族在产品待办事项进行评居人忧先级 ,优先级高的将在下一个选代规划会议中讨论并\n放在选代待办事项列表中进行冲刺，B 符合题意。\n解题步骤:\n全先定位:\n- 敏捷还是预测: a\n- 从、过程，还是商业环境: 过程。\n- 哪个知识领域: 法规遵从。\n- 哪个阶段: 执行阶段。\n@ 找关键:\n- 关键字眼 : “MUR",
-    "_area": "资源管理"
+    "explanation": "第 31题: 固定总价合同适用于范围确定且无太变更的项目。出现多个变更时，应查\n阅变更管理计划 。A是后续可能的措施,在 D 之后执行，B 也是在D 之后进行,无基，排\n全先定位:\n\n- PEE: 预测。\n\n- 和从、过程，还是商业环境: 过程。\n\n- 哪个知识领域: 变更管理。\n\n- 哪个阶段: 执行阶段。\n\n- SHER: “ERE Sela\", “>see”, HEAR\".\n\n- 情景中需要",
+    "_area": "资源管理",
+    "_is_multi": false
   },
   {
-    "question": "(ShS)] ARBAN-RERREHAN SRE, STRANI RAAD, MAT 能会迟延。为了保持进度计划，该供应商提议奔用该次级供应商的组件，代之以与项目规则中规定 的组件不同的业似部件。项目经理接下来该做什么 The supplier of a special piece of equipment for the project reports that delivery may be delayed dueto a technical issue with a subcontractor. To maintain the schedule, the supplier propos",
+    "question": "【单选题】项目既理正在领导的一个项目呈现出超过成本基准的趋势- 项目经理应首先做什么 来管理预算?” The project manager is leading a project trending over the cost baseline. What should the project manager do first to manage the budget? AA",
     "options": [
-      "A. 提示人殿应商使用符省项目规格的部件，并更新进度计划 Advise the supplier to use components that meet project specifications and update the schedule.",
-      "B. 咨询主题专家的意见，了解该变更提议可否接爱 Consult subject matter experts to determine whether the proposed change is acceptable."
+      "A. 告知相关方项目完成时会超出预算 Inform stakeholders that the project will exceed the budget at completion.",
+      "B. 向项目发起人寻求帮助，使预算重回正轨 Seek help from the project sponsor to get the budget back on track.",
+      "C. 与项目团队开会分析实际成本，以确定偏差 Meet with the project team to analyze actual costs and determine the variance.",
+      "D. 提出变更请求 (包括分析} ，以增加预算 Submit a change request (including analysis) to increase the budget."
+    ],
+    "correct_answer": "D",
+    "explanation": "第 83题: 混合生命周明，测试用敏捷方法，现在的时间节点是选代已经结束。新的\n需求可以族在产品待办事项进行评居人忧先级 ,优先级高的将在下一个选代规划会议中讨论并\n放在选代待办事项列表中进行冲刺，B 符合题意。\n解题步骤:\n全先定位:\n- 敏捷还是预测: a\n- 从、过程，还是商业环境: 过程。\n- 哪个知识领域: 法规遵从。\n- 哪个阶段: 执行阶段。\n@ 找关键:\n- 关键字眼 : “MUR",
+    "_area": "成本管理",
+    "_is_multi": false
+  },
+  {
+    "question": "【单选题】一个项目的团队成员来自多个具有文化差异的国家，他们一起工作的很好。一天， 一个团队成员做了一个令人不快的手势，于犯了另一名团队成员，另一名团队成员对项目既理报告 这个问题。项目经理应该做什么? Aproject team has members from several culturally diverse countries, and they work well together. One day, a team member makes an offensive gesture, offending another member, who reports this to the",
+    "options": [
+      "A. 对作出冒犯性手势的团队成员进行纪律处分，并告知其职能经理 Discipline the team member who made the offensive gesture and inform their functional manager.",
+      "B. 提醒团队成员他们过去的积极关系，并暗示他们忽略这个问题 Remind the team members of  14 their positive past relationship and suggest they ignore the issue.",
+      "C. 单独与团队成员刻谈以指出文化差异，然后进行调解讨论 Talk to the team members separately  to point out cultural differences, then hold a mediation discussion."
     ],
     "correct_answer": "B",
-    "explanation": "第 34题: 冲刺评审会议的作用是确保相关方了解项目增量和每个冲刺次付物的商业\n价值。C 虽然重要，但是要注意，题目中认为没有任何价值，人避促确认优先要务就可以确认\n丛值了吗, 在敏捷项目中, 冲刺评审更直接 , 每轮冲刺交付的东西有梁有价值就在评审会议\n决定。解题步骤 :\n全先定位:\n- PET: Be.\n- As TOE, cerita: 过程。\n- 哪个知识领域: 沟通管理。\n- 哪个防段:",
-    "_area": "进度管理"
+    "explanation": "第 35题: 启动防段，项目章程是高层级的需求，有需求变化可以提出，项目章程最\n\n终的批准人是专起人，D 符合题意。解题步骤:\n\n加先定位:\n- 敏捷还是预测: 预测 。\n- 和从、过程，还是商业环境: A.\n- MHS: 整训管理。\n\n- 哪个阶段: 启动阶段。\n\n- 英键字眼:“项目章程”，“新需求\"，“基键项目相关方\"。\n\n- 情最中需要解决的关键问题 : 如何处理项目章程制定过程中的需求变",
+    "_area": "资源管理",
+    "_is_multi": false
   },
   {
-    "question": "【单选题】在实施一个关键项目的可交付成果时，新的监管经理对可交仁成果是天遵守某一环 境法素示关注，项目经理下一步度该做什么? During the implementation of a key project deliverable, a new regulatory manager expresses concern about whether the deliverable complies with a certain environmental law. What should the project manager do next? 六、修改可交付成果以遵守环境法，并将结果告知新的",
+    "question": "【单选题】在某项目进行期间，一名初级团队成员接治项目经理，寻求风险减轻方面的指导和 BU. WBN? During a project, a junior team member approaches the project manager for guidance and advice on risk mitigation. How should the project manager respond? A ibiz wR BBA me RA eB Se RY SRA RA Have the junior team member consult senior team members who",
     "options": [
-      "A. 提交一份变更请求，从范围中删除可交付成果有遵守该环境法 Submit a change request to remove the deliverable from the scope that complies with the environmental law.",
-      "B. 答点一份变更请求，将监管经理纳入项目的相关方参与计划 Issue a change request to include the regulatory managerin the project stakeholder engagement plan.",
-      "C. 在风险有登记册中记录一项可交付成果风险, 并与项目团队制定减轻计划 Record a deliverable risk in the risk register and develop a mitigation plan with the project team.  17"
+      "A. 告知该初级团队成员风险减轻不局于他们的工作 Inform the junior team member that risk mitigation is not part of their job.",
+      "B. 提供指导并为该初级团队成员跟进一些开发活动 Provide guidance and follow up on some development activities for the junior team member.",
+      "C. 告诉该初级团队成员可从经验教训中找到相关信息 Tell the junior team member that relevant  information can be found in the lessons learned."
     ],
     "correct_answer": "C",
     "explanation": "第 48 题: 吉捷性，选择\n\n局\n\n目标和可交付成\n先定位:\n\n- 敏捷还是预测:\n\n- As THRE, i\n\nTURE ©\n\n上额外应忽时间优化进度计划 ，确保项目按时完成。符\n\n个比较符合敏捷详践的选项。只有《〔 定期审查项\n\n计划、\n\na — ae\n混侣型。\n\n焉是商业环境: 过程。\n\n- 哪个知识领域: 整合管理。\n\n- 哪个阶段:\n@ Heit:\n\n行阶段。\n\n- 关键字眼，  “M",
-    "_area": "范围管理"
+    "_area": "资源管理",
+    "_is_multi": false
   },
   {
-    "question": "【单选题】一位项目经理正在领导一个处于启动阶段的新项目，该项目将构建一种新型的软件 技术服务，这种服务以前在组织中从未存在过，并将为几个运营团队重组业务流程。该项目经理需 要决定将要使用的项目管理方法，许多困队成员和相关方的意见相互了矛盾。 项目经理应该做什么? A project manager is leading a new project in the initiation phase to develop a new type of software service, never before existing in the organization, and will restru",
+    "question": "(Sk) ERTILABRRSANSAA-TPAZE, SPRRART PETA RSFER 映最初讨论的产品愿录和需求。客户说这个产品需要大幅度的改动才能被接受。 应该做什么来阻止 这种情况的发生? After several iterations developing a product, the client states that the product shown in the demo does not reflect the initial product vision and requirements discussed. The client says the product",
     "options": [
-      "A. 只有当项目与可以被分解为增量的软件实施相关时，才能利用敏捷方法 Use the agile approach only if the project relates to software implementation that can be broken into increments.  CC利用混合方法, BAW BES TES ASEM AAAS LIE Use a hybrid ap",
-      "B. 确定困队接受过哪些方法的培训, 并将这些方法用于项目 Determine which approaches the team has been trained on and apply those to the project."
+      "A. 遵循更严格的组织变更控制过程 Follow a stricter organizational change control process.  C,将建设团队与相关方进行协调, 以避免分心 Coordinate the developmentteam with stakeholders to avoid distractions.",
+      "B. 更有效地管理客户和困队之间的冲突 More effectively manage conflicts between the client and the team."
     ],
     "correct_answer": "A",
     "explanation": "第 52 题: WER TAR. Se, ESCHER, SUR in Wa ae:\n全先定位:\n\n- 敏捷还是预测: 通用。\n- Ax THE, TERIA: 过程。\n- 哪个知识领域: 沟通管理。\n- 哪个阶段: 收尾阶段。\n- ESR: “如理位置分表\"，“快速收集扩二\"，*太量\"。\n- 情景中需要解决的关键问题 : 如何快速收集地理位置分散团队的大量反馈。\n@ 比选项《排除和选择的详细厚因",
-    "_area": "整合管理"
+    "_area": "综合",
+    "_is_multi": false
   },
   {
-    "question": "【单选题】在答理某项目时，项目经理刚刚注意到，尽管前几张月度上发要都很清晰，但还是受 到客户质疑, 所收到的实际发村款项也出现延误支付的情况, 而且未按合同约定的付款日程表支付， 最近的发票只是获得部分支付。项目经理该做什么” While managing a project, the project manager notices that despite clear monthly invoices, the client has questioned them, leading to delayed and partial payments, not following the agre",
+    "question": "【单选题】当你的项目进展并在每次连续适代中创建产品增量时，项目团队执行收集需求过程 并识别风险过程，以收集新的需求并识别新的风险。 你希望确保为即将到来的选代所计划的工作在 考虑新的风险和需求的情况下完成。你的最佳行动方案是什么? As your project progresses and creates product increments in each iteration, the project team performs the process of collecting requirements and identifying risks to gather new requir",
     "options": [
-      "A. 将未付款的情况增加到问题日志中, 并对付款情况持续跟踪 Add the unpaid invoices to the issue log and continuously track payment status.",
-      "B. 与客户举行会议，以解决该问题 Hold a meeting with the client to resolve the issue.",
-      "C. 审查过往项目，了解与付款相关的经验教训 Rewiew past projects for lessons learned related to payment issues.",
-      "D. 安排与项目团队开会，并更新采购管理计划 Schedule a meeting with the project team and  update the procurement management plan.  21"
+      "A. 召开选代回顾会议 Hold an iteration review meeting.",
+      "B. 更新需求风险存储库 Update the requirements risk repository.",
+      "C. 在每次选代后分发风险报告 Distribute risk reports after each iteration."
     ],
     "correct_answer": "B",
     "explanation": "第 Soma: 规避。风险规避是指项目团队采职行动来消除威胁，或保护项目免受威胁\n的影响。它可能适用于发生概率较高, 且具有严重负面影响的高优先闪威胁。规避措施可能\n包括消除威胁的原因、延长进度计划、， 改变 项目策略 ，或缩小\n\nSELB]",
-    "_area": "采购管理"
+    "_area": "资源管理",
+    "_is_multi": false
   },
   {
-    "question": "【单选题】项目团队正处于某企业一个项目的规划阶段，该项目最近经历管理层变更。该企业 中的一些新经理尚未完全接触公司的项目管理过程。 一些项目团队报告说，对项目进展的方式感到 混淆。项目经理应该做什么?The project team is in the planning stage of a project for a company that has recently undergone management changes. Some new managers in the company are not fully familiar with the company's project ",
+    "question": "【单选题】在风险登记册中记录的一个项目风险是特定机器组件的沟在故障，发生该故障的概 SiR, AILSA ASS RAMs. WEA Wie fl? A project risk recorded in the risk register is the potential failure of a specific machine component, which has a low probability of occurring. Therefore, there is no budget for spare components. What should the project mana",
     "options": [
-      "A. Bigoh 33 @ XB 2 8 934i FM Hire an external consultant to manage project communication",
-      "B. SASHA RB SAAR, BtksssiRSiW Hold clear and specific communication meetings with different stakeholder levels",
-      "C. 与发起人开会，确保高层级管理层对该项目的参与 Meet with the sponsor to ensure senior  management's involvement in the project  了4 .【单选题]】一位新的项目经理被分配到一个正在进行的敏捷创新项目中,该项目于 2 周前开始。 在审查项目后，新项目经理故现，前任项目经理计划使用预测方法。 前任项目经理计划 8 个月",
-      "D. SSAA, f£50 6 S583 HA Continue using the predictive approach and deliver value at the end of the project"
+      "A. 定期监控风险概率，以确保其不会发生显著变化 Regularly monitor the risk probability to ensure it does not change significantly",
+      "B. 建立应急储备以避免任何后续预算问题 Establish a contingency reserve to avoid any subsequent budget issues  D, APE, MAE Shc it RW Remove the item from the risk register due to the low probability"
     ],
     "correct_answer": "C",
     "explanation": "第 62题: 项\n\n收                                                                 存档，包括确认符合\n\n将所\n\n件和成\n\nSires, IA\n\n经理需",
-    "_area": "整合管理"
+    "_area": "风险管理",
+    "_is_multi": false
   },
   {
-    "question": "【单选题】为了安排团队建设活动，项目经理希望找到关于团队成员可用性的详细信息，以 便会议对项目团队分配的影响最小。项目经理应该怎么做?To schedule a team-building activity, the project manager wants to find detailed information about team members’ availability so that the meeting has minimal impact on project team assignments. What should the project manager do? A, ",
+    "question": "【单选题】一名项目经理收集了各种信息并蓝台了敏捷项目中的指标，项目经理点现团队在 生产力方面存在松懈。开发的工作项数量减少 104，项目经理使用了根本原因分析(RC",
     "options": [
-      "A. 回顾项目团队的分配 Review the project team's assignments",
-      "B. 与团队成员确认 Confirm with team members  口、查阅项目进度计划 Refer to the project schedule"
+      "A. ，并发现原 因是部分成员对用于建模的一个框架缺乏了解。项目经理接下来应该做什么?A project manager collects various information and integrates metrics in an agile project. The project manager finds that the team is lagging in productivity,",
+      "B. , the project manager discovers that some members lack understanding of a framework used for modeling. What should the project manager do next?  上站，促进团队成员之间的知识共享和辅导。Facilitate knowledge sharing and",
+      "C. 在项目进度紧张的情况下安排外部培训。Schedule external training despite the tight project schedule  C, ARUMAEAAB SAL",
+      "D. Add new members to the underperforming team  D, SRS MMS SBE. Seek an external expert to review the framework  127 - 【单选题】某项目的目标是通过新的商业模型来评估客户体验，管理层推荐了某个特定的分 包商来建立该模型。项目经理审查了经验教训库，并注意到在之前的几个项目中该分包商未"
     ],
     "correct_answer": "D",
     "explanation": "第 101 Ri:  ER 根据过去的经验登记册 ，项目既理决定和相关方更好互动,，A\n就是最不可能的结果，范围管理是做且只做所需的全部工作，不能葛延，也不能少做。\n解题步骤:\n全先定位:\n\n- 敏捷还是预测: 预测。\n- 从、过程，还是商业环境: 过程。\n- 哪个知识领域: 范围管理。\n\n- 哪个阶段: 规划阶段。\n@ 找关键，\n- 其键字眼: EA\", CBB\", \"无效的变更控制\",“尾相关",
-    "_area": "资源管理"
+    "_area": "资源管理",
+    "_is_multi": false
   },
   {
-    "question": "【单选题】一家公司正在考虑新生产机器的方案，指派一位项目经理来评估商业论证。运营 主管提倡选择一款年产量最高的机器，财务主管估算一款产量较低的机器每单位成本较怀，而工程 主管支持采购一款采用最新技术的机器。项目经理应该做什么”Acompany is considering options for new production machines and assigns a project manager to evaluate the business case. The operations manager advocates for the machine with the highest ",
+    "question": "【单选题】项目经理开始了一个新项目，必须确保团队成员和相关方都经过适当培训。在与 团队会面之后，项目经理发现，所有资源都拥有不同的敏捷方法方面的经验。项目经理该做什么? The project manager starts a new project and must ensure that team members and stakeholders recelve appropriate training. After meeting with the team, the project manager discovers thai all resources have experience",
     "options": [
-      "A. 根据质量标准确认机器的产量合格性 Confirmthe output qualification of the machines based on quality standards",
-      "B. 与项目团队进行头脑风暴以确定最佳方案 Conduct a brainstorming session with the project team to determine the best option",
-      "C. 根据年度生产计划验证机器的额定产量 Verify the rated output of the machines according to the  annual production plan"
+      "A. 确保团队对敏捷形成共识。Ensure the team reaches a consensus on agile",
+      "B. 确保团队了解所有敏捷技术。Ensure the team understands all agile techniques",
+      "C. 不组织培训，因为团队对敏捷已经非常了解。Do not organize training as the team is already  well-versed in agile"
     ],
     "correct_answer": "D",
     "explanation": "第 131 题 :开工会议就是把让关键相关方对项目管理计划达成一致, 传到项目目标等 。\n项目管理计划和包舍的内容，10 个子管理计划，3 太基准，2 个变更管理计划+邵置管理计划 ，\n发生命周央和开发方法，绩效测量基准和管理市查,， 一共 19 个。诅题步骤:\nQe:\n- HERETO: 预测。\n- 和、过程，还是商业环境: 过程。\n- 哪个知识领域: 整合管理。\n- 哪个阶段: 启动阶段。\n加",
-    "_area": "成本管理"
+    "_area": "资源管理",
+    "_is_multi": false
   },
   {
-    "question": "【多选题】一名项目经理正在监督一个项目，该项目作为一个计划的一部分，用以应对重大 ai Ae 该团队由才华檬溢的年轻专业人士组成 他们过去曾为该组织从训过不同的项目。然 而，该团队抱扰说，他们之前在项目执行期间缺季方向感，并且在该项目中也遇到了同样的问题。 项目经理应该采取哪两种行动来确保此问题不会在本项目中上故生? (请选择两个选项}) A project manager is overseeing a project that is part of a program to address significant technological disruptions. The team co",
+    "question": "【多选题】一个在飞机制造公司工作的 Scrum PRE 2m 7 TREADS RE",
     "options": [
-      "A. REHRBSSFS32708 Fl. Keep the team engaged and focused on the project direction.",
-      "B. 鼓励团队进行头脑风暴会议，并提供减轻计划。Encourage the team to hold brainstorming sessions and provide mitigation plans.",
-      "C. 关注资源答理计划并跟耻项目进度。Focus onthe resource management plan and track project progress.",
-      "D. 为项目设定清晰的愿景，确保所有相关方都能看到。Set a clear vision for the project and ensure all stakeholders see it.  E, ERR eB Sa), BISA SHRA WIS. Organize team-building activities and invite external managers to talk to"
+      "A. 对项目发起人来说按时按预算完成该项目是非常重要的，而燃尽图吉明该项目已落后于进度计划。 项目既理应该采取哪两种行动来管理障碍和提高团队的速度”(请选择两个选项)  A Scrum team working at an aircraft manufacturing company has completed the first iteration of a critical project.",
+      "B. 将高度复杂的工作项分配给资深开发人员。Assign highly complex work items to senior developers.",
+      "C. 授权团队做出决策以消除障碍。Empowerihe team to make decisions to remove impediments.",
+      "D. SHB AES oe SEES. Work with the team to remove impediments as quickly as possible.  E, $8 R829) (P02 ma—AIERE. Move highly complex work items to the last iteration."
     ],
     "correct_answer": "A",
     "explanation": "第 138题: BEMIS Ke\n\n上 ，可能是过程或者程序出问题\n\n考察质量管理\n\n控制质量，如何管理质量。解题步骤\n\n巴先定位:\n- 敏捷还是预测: 预测。\n\n- 从、过程，还是商业环境: 过程。\n\n计划的问题 题意已经明确安全审计\n\n计划中包含如何\n\n- 哪个知识领域: 质量管理。\n\n- 哪个阶段: 执行阶段。\n@\nMg\n@ 找关键:\n- 关键字眼: “RSH, SERS STA\", PSA",
-    "_area": "资源管理"
+    "_area": "敏捷/混合方法",
+    "_is_multi": true
   }
 ]
