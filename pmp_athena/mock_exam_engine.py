@@ -37,11 +37,31 @@ logger = logging.getLogger("mock_exam_engine")
 TZ_CST = timezone(timedelta(hours=8))
 ENGINE_STATE_PATH = ROOT / "pmp_notes" / "mock_exam_engine.json"
 DAILY_DIR = ROOT / "pmp_notes" / "每日一练"
+MOCK_DIR = ROOT / "pmp_notes" / "模考"
+CACHE_DIR = MOCK_DIR  # OCR 缓存跟模考 PDF 放一起
+
+# Tesseract 路径自动检测
+TESSERACT_CMD = None
+for _tp in [
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+    "/usr/bin/tesseract",
+    "/usr/local/bin/tesseract",
+]:
+    if Path(_tp).exists():
+        TESSERACT_CMD = _tp
+        break
 
 PAPER_MAP = {
     "one": "考前冲刺卷1", "two": "考前冲刺卷2",
     "three": "考前冲刺卷3", "four": "模考卷二",
     "random": "随机模考",
+}
+
+PAPER_FILES: dict[str, tuple[str, str]] = {
+    "one": ("考前冲刺卷1-试题.pdf", "考前冲刺卷1-答案解析.pdf"),
+    "two": ("考前冲刺卷2-试题.pdf", "考前冲刺卷2-答案解析.pdf"),
+    "three": ("考前冲刺卷3-试题.pdf", "考前冲刺卷3-答案解析.pdf"),
 }
 
 KNOWLEDGE_AREAS = [
@@ -271,6 +291,171 @@ def load_questions_from_pdfs(target_count: int = 180) -> list[dict]:
 
 
 # ═══════════════════════════════════════════════════════════════
+# 扫描版模考 PDF OCR（考前冲刺卷 1/2/3）
+# ═══════════════════════════════════════════════════════════════
+
+def load_scanned_mock_exam(paper_key: str) -> list[dict]:
+    """从扫描版模考 PDF OCR 加载题目（首次 OCR 后缓存 JSON）。"""
+    import pdfplumber
+
+    if paper_key not in PAPER_FILES:
+        return []
+
+    q_pdf_name, a_pdf_name = PAPER_FILES[paper_key]
+    q_pdf_path = MOCK_DIR / q_pdf_name
+    a_pdf_path = MOCK_DIR / a_pdf_name
+
+    if not q_pdf_path.exists():
+        logger.warning("Scanned PDF not found: %s", q_pdf_path)
+        return []
+
+    cache_path = CACHE_DIR / f"{q_pdf_name}_cached.json"
+
+    # ── 如果有缓存，直接加载 ──
+    if cache_path.exists():
+        try:
+            data = json.loads(cache_path.read_text(encoding="utf-8"))
+            if isinstance(data, list) and len(data) >= 50:
+                logger.info("Loaded %d questions from cache: %s", len(data), cache_path.name)
+                return data
+        except Exception:
+            pass
+
+    # ── OCR 题目 PDF ──
+    logger.info("OCR scanning question paper: %s …", q_pdf_name)
+    full_text = _ocr_pdf(q_pdf_path)
+
+    # ── 按题号切分 ──
+    questions = _parse_scanned_questions(full_text)
+
+    # ── OCR 答案 PDF + 合并 ──
+    if a_pdf_path.exists():
+        logger.info("OCR scanning answer paper: %s …", a_pdf_name)
+        ans_text = _ocr_pdf(a_pdf_path)
+        answers = _parse_scanned_answers(ans_text)
+        for i, q in enumerate(questions):
+            qnum = i + 1
+            if qnum in answers:
+                q["correct_answer"] = answers[qnum]["correct_answer"]
+                q["explanation"] = answers[qnum]["explanation"]
+            if not q.get("_area") or q["_area"] == "综合":
+                q["_area"] = guess_area(q.get("question", ""))
+
+    # ── 保留有答案的 ──
+    valid = [q for q in questions if q.get("correct_answer")]
+    if len(valid) < 50:
+        logger.warning("Only %d questions with answers from %s, may be incomplete", len(valid), q_pdf_name)
+
+    # ── 写缓存 ──
+    cache_path.write_text(json.dumps(valid, ensure_ascii=False, indent=2), encoding="utf-8")
+    logger.info("Cached %d questions to %s", len(valid), cache_path.name)
+    return valid
+
+
+def _ocr_pdf(pdf_path: Path) -> str:
+    """OCR 一份 PDF 的全部页面，返回合并文本。"""
+    import pdfplumber
+
+    if TESSERACT_CMD:
+        import pytesseract
+        pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
+
+    parts: list[str] = []
+    try:
+        with pdfplumber.open(str(pdf_path)) as pdf:
+            skip_first = pdf_path.name.startswith("考前冲刺卷")
+            for i, page in enumerate(pdf.pages):
+                if skip_first and i < 2:
+                    # 跳过封面 (page 0) 和说明页 (page 1)
+                    continue
+                try:
+                    img = page.to_image(resolution=200)
+                    text = pytesseract.image_to_string(
+                        img.original, lang="chi_sim+eng",
+                    )
+                    if text.strip():
+                        parts.append(text.strip())
+                except Exception:
+                    continue
+    except Exception as e:
+        logger.error("OCR failed for %s: %s", pdf_path.name, e)
+
+    return "\n".join(parts)
+
+
+def _parse_scanned_questions(full_text: str) -> list[dict]:
+    """从 OCR 文本中解析题目列表。"""
+    # 找到所有题号（1-180）
+    q_positions = list(re.finditer(r"(?:^|\n)\s*(\d{1,3})\s*[，,.、．]\s*[【\[]?", full_text))
+    questions: list[dict] = []
+
+    for k, m in enumerate(q_positions):
+        qnum = int(m.group(1))
+        if qnum < 1 or qnum > 200:
+            continue
+        start = m.start()
+        end = q_positions[k + 1].start() if k + 1 < len(q_positions) else len(full_text)
+        block = full_text[start:end].strip()
+
+        if len(block) < 30:
+            continue
+
+        # 提取选项 A. A， A、 +
+        opt_re = re.compile(r"\n?\s*([A-D])\s*[.、，．)]\s*")
+        opt_parts = list(opt_re.finditer(block))
+
+        if len(opt_parts) < 2:
+            continue
+
+        opts: list[str] = []
+        for j, om in enumerate(opt_parts):
+            s = om.start()
+            e = opt_parts[j + 1].start() if j + 1 < len(opt_parts) else len(block)
+            opt_text = block[s:e].strip()[:200]
+            # 清理：去选项字母前缀，去换行干扰
+            opt_text = re.sub(r"^[A-D]\s*[.、，．)]\s*", "", opt_text)
+            opt_text = opt_text.replace("\n", " ").strip()
+            opts.append(opt_text)
+
+        # 题干
+        stem = block[: opt_parts[0].start()].strip()
+        stem = re.sub(r"^\d{1,3}\s*[，,.、．]\s*", "", stem)
+        stem = re.sub(r"\s+", " ", stem).strip()[:300]
+
+        if len(stem) < 5:
+            continue
+
+        area = guess_area(stem)
+        questions.append({
+            "question": stem,
+            "options": [f"{chr(65 + i)}. {o}" for i, o in enumerate(opts[:4])],
+            "correct_answer": "",
+            "explanation": "",
+            "_area": area,
+        })
+
+    return questions
+
+
+def _parse_scanned_answers(full_text: str) -> dict[int, dict]:
+    """从答案解析 OCR 提取 {题号: {correct_answer, explanation}}。"""
+    answers: dict[int, dict] = {}
+    # 匹配 "3. 答案:C" / "3.答案：C" / "3, 答案, C"
+    ans_pat = re.compile(r"(\d{1,3})\s*[.、，,]\s*答案\s*[:：,，]\s*([A-Ea-e])")
+    for m in ans_pat.finditer(full_text):
+        qnum = int(m.group(1))
+        letter = m.group(2).upper()
+        # 提取紧跟的解析
+        next_ans = ans_pat.search(full_text, m.end())
+        expl_end = next_ans.start() if next_ans else len(full_text)
+        expl_chunk = full_text[m.end():expl_end]
+        expl_m = re.search(r"解析\s*[:：]\s*(.*?)(?=\n\s*\d|$)", expl_chunk, re.DOTALL)
+        expl = expl_m.group(1).strip()[:200] if expl_m else ""
+        answers[qnum] = {"correct_answer": letter, "explanation": expl}
+    return answers
+
+
+# ═══════════════════════════════════════════════════════════════
 # Engine
 # ═══════════════════════════════════════════════════════════════
 
@@ -316,7 +501,13 @@ class MockExamEngine:
 
         ptype = PAPER_MAP.get(paper, "随机模考")
 
-        questions = load_questions_from_pdfs(180)
+        # 冲刺卷 1/2/3：优先从扫描版 PDF OCR 加载
+        if paper in PAPER_FILES:
+            questions = load_scanned_mock_exam(paper)
+            if not questions or len(questions) < 10:
+                questions = load_questions_from_pdfs(180)
+        else:
+            questions = load_questions_from_pdfs(180)
         total = len(questions)
 
         if total < 10:
