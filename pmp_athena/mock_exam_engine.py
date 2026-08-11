@@ -541,7 +541,7 @@ class MockExamEngine:
         return self._fmt_q(state, 0)
 
     def answer(self, letter: str) -> dict:
-        """记录答案、前进。全部答完自动判卷。"""
+        """记录答案、前进。全部答完自动判卷。支持多选。"""
         state = self._read()
         if not state:
             return {"status": "error", "error": "没有活跃的模考。"}
@@ -549,7 +549,11 @@ class MockExamEngine:
             return {"status": "error", "error": f"模考状态为 {state['status']}。"}
 
         letter = letter.strip().upper()
-        if letter not in "ABCDE":
+        # 多选答案：排序归一化
+        if len(letter) > 1:
+            letter = "".join(sorted(set(letter)))
+
+        if not all(c in "ABCDE" for c in letter):
             return {"status": "error", "error": f"无效答案: {letter}"}
 
         idx = state["current_index"]
@@ -623,9 +627,12 @@ class MockExamEngine:
         for i, q in enumerate(questions):
             ua = answers.get(str(i), "?")
             ca = q.get("correct_answer", "").strip()
+            # 多选答案：双方都排序归一化后再比较
+            ua_sorted = "".join(sorted(ua.replace(" ", "").replace(",", "").replace("、", "")))
+            ca_sorted = "".join(sorted(ca.replace(" ", "").replace(",", "").replace("、", "")))
             area = q.get("_area", "综合")
             area_s.setdefault(area, {"correct": 0, "total": 0})["total"] += 1
-            if ua == ca:
+            if ua_sorted == ca_sorted:
                 correct += 1
                 area_s[area]["correct"] += 1
             else:
