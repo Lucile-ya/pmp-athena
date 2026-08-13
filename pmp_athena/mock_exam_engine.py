@@ -881,8 +881,44 @@ class MockExamEngine:
         }
 
     def abandon(self) -> dict:
+        """放弃模考：进度归档到 .abandoned.json，可 recover 找回（防误删）。"""
+        state = self._read()
+        if state:
+            try:
+                backup = self.path.with_name("mock_exam_engine.abandoned.json")
+                backup.write_text(
+                    json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8"
+                )
+                logger.info("Abandoned exam archived to %s", backup.name)
+            except Exception as e:
+                logger.warning("Archive on abandon failed: %s", e)
         self._clear()
-        return {"status": "abandoned", "text": "🗑️  模考已放弃，状态已清空。"}
+        return {"status": "abandoned", "text": "🗑️  模考已放弃，进度已归档（可回复「恢复模考」找回）。"}
+
+    def recover(self) -> dict:
+        """从上次放弃的归档恢复模考（恢复到暂停态）。"""
+        backup = self.path.with_name("mock_exam_engine.abandoned.json")
+        if not backup.exists():
+            return {"status": "error", "error": "没有可恢复的模考。"}
+        try:
+            state = json.loads(backup.read_text(encoding="utf-8"))
+        except Exception:
+            return {"status": "error", "error": "归档文件损坏，无法恢复。"}
+
+        cur = self._read()
+        if cur and cur.get("status") in ("active", "paused"):
+            return {"status": "error", "error": "已有进行中的模考，请先完成或放弃。"}
+
+        state["status"] = "paused"
+        self._write(state)
+        idx = state.get("current_index", 0)
+        answered = len(state.get("answers", {}))
+        q = self._fmt_q(state, idx)
+        return {
+            "status": "recovered",
+            "text": f"♻️  已恢复上次模考（进度 {answered}/{state.get('total')}）",
+            "next": q,
+        }
 
     def _fmt_q(self, state, idx) -> dict:
         qs = state.get("questions", [])
@@ -946,7 +982,7 @@ class MockExamEngine:
 def main():
     parser = argparse.ArgumentParser(description="模考引擎")
     parser.add_argument("command", choices=[
-        "start", "answer", "pause", "resume", "grade", "status", "abandon",
+        "start", "answer", "pause", "resume", "grade", "status", "abandon", "recover",
     ])
     parser.add_argument("arg", nargs="?", default="", help="答案字母或试卷名")
     parser.add_argument("--paper", default="random", choices=["one", "two", "three", "five", "six", "random"])
@@ -975,6 +1011,8 @@ def main():
         result = engine.get_status()
     elif args.command == "abandon":
         result = engine.abandon()
+    elif args.command == "recover":
+        result = engine.recover()
 
     if result.get("next"):
         nxt = result.pop("next")
