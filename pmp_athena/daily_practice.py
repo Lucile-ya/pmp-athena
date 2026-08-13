@@ -150,14 +150,16 @@ def _fix_watermark_typos(stem: str) -> str:
     stem = re.sub(r"^[单选多选\s]+", "", stem)
     stem = re.sub(r"([，,])[料资部内育教迹骐练一日每\s]+(并)", r"\1\2", stem)
     stem = re.sub(r"([A-E])\s+(公司)", r"\1\2", stem)
-    idx = stem.find("？")
+    idx = stem.rfind("？")
     if idx >= 0:
         stem = stem[: idx + 1]
     else:
-        q = stem.find("?")
+        q = stem.rfind("?")
         if q >= 0:
             stem = stem[: q + 1]
     stem = re.sub(r"[料资部内育教迹骐练一日每\s]+$", "", stem)
+    stem = re.sub(r"^[料资部内育教迹骐练一日每\s]+", "", stem)
+    stem = re.sub(r"^[?？\s]+", "", stem)
     stem = re.sub(r"\s+", " ", stem).strip()
     return stem
 
