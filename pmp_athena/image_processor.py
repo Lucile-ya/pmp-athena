@@ -608,8 +608,14 @@ class AnswerValidator:
 
         # 排除"正确答案"中的"正确"——不应该算作答对信号
         def text_without_noise(s: str) -> str:
-            """移除会干扰判定的短语"""
-            return s.replace("正确答案", "").replace("correct answer", "")
+            """移除会干扰判定的短语（"正确"出现在统计/引用语境，非作答判定）"""
+            return (
+                s.replace("正确答案", "")
+                .replace("correct answer", "")
+                .replace("全站正确率", "")
+                .replace("正确率", "")
+                .replace("正确选项", "")
+            )
 
         clean_text = text_without_noise(text)
         clean_lower = clean_text.lower()
