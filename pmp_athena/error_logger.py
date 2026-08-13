@@ -189,6 +189,18 @@ class ErrorLogger:
     def list_all(self) -> list[dict]:
         return self._read()
 
+    def delete(self, record_id: int) -> dict | None:
+        """删除一条错题记录，返回被删除的记录；未找到返回 None。"""
+        data = self._read()
+        for i, record in enumerate(data):
+            if record.get("id") == record_id:
+                removed = data.pop(i)
+                self._write(data)
+                logger.info("Error record #%d deleted", record_id)
+                return removed
+        logger.warning("Error record #%d not found", record_id)
+        return None
+
     def list_recent(self, n: int = 5) -> list[dict]:
         data = self._read()
         return data[-n:][::-1]  # 最新的在前

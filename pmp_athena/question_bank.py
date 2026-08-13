@@ -212,7 +212,7 @@ class QuestionBank:
             if record.get("id") == record_id:
                 updatable = [
                     "question", "my_answer", "correct_answer", "is_correct",
-                    "knowledge_area", "explanation", "confidence",
+                    "knowledge_area", "explanation", "confidence", "error_log_id",
                 ]
                 for key in updatable:
                     if key in kwargs and kwargs[key] is not None:
@@ -234,6 +234,31 @@ class QuestionBank:
         for r in self._read():
             if r.get("id") == record_id:
                 return r
+        return None
+
+    def set_error_log_id(self, record_id: int, error_log_id: int | None) -> dict | None:
+        """显式设置 error_log_id（含置空），用于纠错时解除/建立错题关联。"""
+        data = self._read()
+        for record in data:
+            if record.get("id") == record_id:
+                record["error_log_id"] = error_log_id
+                record["parsed_by"] = record.get("parsed_by", "claude") + "+manual_fix"
+                self._write(data)
+                logger.info("Question bank #%d error_log_id → %s", record_id, error_log_id)
+                return record
+        logger.warning("Question bank #%d not found", record_id)
+        return None
+
+    def delete(self, record_id: int) -> dict | None:
+        """删除一条记录，返回被删除的记录；未找到返回 None。"""
+        data = self._read()
+        for i, record in enumerate(data):
+            if record.get("id") == record_id:
+                removed = data.pop(i)
+                self._write(data)
+                logger.info("Question bank #%d deleted", record_id)
+                return removed
+        logger.warning("Question bank #%d not found", record_id)
         return None
 
     # ── 查询 ───────────────────────────────────────────────
