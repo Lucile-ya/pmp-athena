@@ -4,6 +4,30 @@
 
 ---
 
+## [1.1.2] — 2026-08-13
+
+### 🆕 新增
+
+- **识别结果纠错**（`correction.py`）：三类纠错统一入口，自动级联维护 question_bank / error_log / error_review_state 三文件并重算领域正确率
+  - `answer` 改答案：wrong↔correct 双向，自动移除/新建错题 + 复习队列
+  - `area` 改知识领域：三文件同步 + 重算新旧领域正确率
+  - `delete` 删题：三文件一并清理
+  - `latest` 查看最新记录，供定位题目
+
+### 🐛 修复
+
+- **截图录入错题失效**（微信发图 → 落到通用菜单）：`analyze_exam.py` 相对导入 `from .exam_recorder` 在桥接以独立脚本调用时 `ImportError`，改 try/except 兜底
+- **选项解析越界**：`_parse_options_enumerated` 在选项 ≥5 时 `letters[len(options)]` 越界，越界保护提前
+- **答案表头+值分两行解析失败**：希赛作答页「正确答案/我的答案」表头与值（B/C）分两行，单行正则失效致 `my_answer`/`correct_answer` 均 None；新增 `_extract_table_answers` 按表头顺序映射下一行字母
+- **统计表头误判为答对信号**：「全站正确率」含「正确」被当「答对」，与「答错」对比信号冲突致置信度 0.98→0.26；`text_without_noise` 增加过滤全站正确率/正确率/正确选项
+- `question_bank.update()` 静默忽略 `error_log_id` → 加入可更新字段，顺带修复 `record_answer.py` 重录错题时关联丢失
+
+### 📝 文档
+
+- CLAUDE.md：纠正记录章节补充 `correction.py` 推荐入口
+
+---
+
 ## [1.1.1] — 2026-08-11
 
 ### 🆕 新增
