@@ -287,7 +287,9 @@ def _guess_knowledge_area(stem: str, explanation: str = "") -> str:
 
 
 # PDF 题块/选项识别（兼容【单选题】【问答题】[单选]、A：/A、/A. 等格式）
-_QUESTION_BLOCK_SPLIT = re.compile(r"(?=\n\s*\d+[\.．]\s*【)")
+_QUESTION_BLOCK_SPLIT = re.compile(
+    r"(?=\n[\s料资部内育教迹骐练一日每]*\d+[\.．][\s料资部内育教迹骐练一日每]*【)"
+)
 _OPTION_LINE = re.compile(
     r"^[料资部内育教迹骐练一日每\s]*([A-E])\s*[、\.:：]\s*(.*)$",
     re.I,
