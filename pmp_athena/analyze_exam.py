@@ -28,7 +28,10 @@ from typing import Any, Optional
 
 from PIL import Image
 
-from .exam_recorder import ExamRecorder
+try:
+    from .exam_recorder import ExamRecorder
+except ImportError:
+    from exam_recorder import ExamRecorder
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger("analyze_exam")

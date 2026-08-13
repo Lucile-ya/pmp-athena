@@ -1007,9 +1007,9 @@ class AnswerValidator:
             if len(opt) < 2:
                 continue
 
-            letter = letters[len(options)]
             if len(options) >= 5:
                 break
+            letter = letters[len(options)]
             options[letter] = opt
 
         return options
