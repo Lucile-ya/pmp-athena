@@ -19,6 +19,8 @@
   发送「开始模考一」→ 考前冲刺卷1（180题）
   发送「开始模考二」→ 考前冲刺卷2（180题）
   发送「开始模考三」→ 考前冲刺卷3（180题）
+  发送「开始模考五」→ 模拟一（180题）
+  发送「开始模考六」→ 模拟二（180题）
 
 🎲 发送「随机模考」→ 全量题库随机 180 题
 📊 发送「模考清单」→ 查看完成进度
@@ -851,6 +853,35 @@ d:\miniconda\python.exe pmp_athena/record_answer.py wrong --question "..." --my-
 
 ## 纠正记录（硬性要求，最高优先级）
 当用户对之前的题目解析提出纠正时，必须执行更新命令。触发场景：
+
+### 识别结果纠错（correction.py，推荐入口）
+用户发送以下任一指令时触发：`改一下` / `纠正` / `错了` / `我的答案是 X 不是 Y` / `这道题不是X领域是Y领域` / `删除刚才那道题`。
+
+统一走 `pmp_athena/correction.py`，三类纠错自动级联维护 question_bank / error_log / error_review_state 三个文件，并重算领域正确率：
+
+**① 改答案**（`--new-answer`，wrong↔correct 双向）：
+```
+python pmp_athena/correction.py answer --latest --new-answer B
+python pmp_athena/correction.py answer --id 83 --new-answer B
+python pmp_athena/correction.py answer --question "一个团队..." --new-answer B
+```
+- 现判定正确 → 自动从 error_log + 复习队列移除（error_log_id 置空）
+- 现判定错误 → 若原判定正确则新建错题并加入复习队列；若原就是错题则仅更新我的答案
+- 多选答案自动归一化（CE == EC）
+
+**② 改知识领域**（`--new-area`）：
+```
+python pmp_athena/correction.py area --latest --new-area 范围管理
+```
+- 同步更新 question_bank + error_log + 复习队列缓存，并重算新旧两个领域正确率
+
+**③ 删除题目**：
+```
+python pmp_athena/correction.py delete --latest
+```
+- 一并移除 question_bank + error_log + 复习队列
+
+**定位方式**：`--latest`（最新一条）、`--id N`（题库记录 #N）、`--question "题干"`（按题干匹配）。不确定时先 `python pmp_athena/correction.py latest` 查看最新记录。
 
 ### 场景1：引用图片 + 纠正答案
 用户引用之前发过的截图，说"正确答案是B"/"应该是C"/"这题选D"/"答案是A不是B"/"解析不对"等。
