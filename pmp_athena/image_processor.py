@@ -798,6 +798,36 @@ class AnswerValidator:
         """从 OCR 标注行提取答案（正确答案优先于我的答案）。"""
         return self._extract_labeled_my(text), self._extract_labeled_correct(text)
 
+    def _extract_table_answers(self, normalized: str) -> tuple[str | None, str | None]:
+        """表头行「正确答案 … 我的答案 …」+ 下一行按列取值。
+
+        刷题 App 常见布局：
+            正确答案         我的答案         全站做答
+            B                C               57373
+        表头与值分处两行，导致单行正则失效。按表头 marker 出现顺序，
+        把下一行的 A-E 字母依次映射到 correct / my。返回 (correct, my)。
+        """
+        lines = normalized.split("\n")
+        for i, line in enumerate(lines):
+            c_pos = line.find("正确答案")
+            m_match = re.search(self._MY_ANSWER_LABEL, line)
+            if c_pos < 0 or not m_match or i + 1 >= len(lines):
+                continue
+            val_line = lines[i + 1].strip()
+            if not val_line or len(val_line) > 60:
+                continue
+            letters = [c.upper() for c in re.findall(r"[A-Ea-e]", val_line)]
+            if len(letters) < 2:
+                continue
+            first, second = letters[0], letters[1]
+            if not (self._is_valid_choice(first) and self._is_valid_choice(second)):
+                continue
+            m_pos = m_match.start()
+            if c_pos < m_pos:
+                return first, second  # 正确答案在前
+            return second, first      # 我的答案在前
+        return None, None
+
     def _resolve_answers(self, text: str) -> dict:
         """
         OCR 答案纠偏（标注行 > 选项推断 > 用户确认）。
@@ -848,6 +878,16 @@ class AnswerValidator:
             my_letter = self._extract_labeled_my(text)
         correct_method = "labeled_correct" if correct_letter else ""
         my_method = "labeled_my" if my_letter else ""
+
+        # ── 1.5 表格布局（表头「正确答案 … 我的答案 …」+ 下一行两列值）──
+        if not my_letter or not correct_letter:
+            tbl_correct, tbl_my = self._extract_table_answers(normalized)
+            if tbl_correct and not correct_letter:
+                correct_letter = tbl_correct
+                correct_method = "table_layout"
+            if tbl_my and not my_letter:
+                my_letter = tbl_my
+                my_method = "table_layout"
 
         correct_conf = 0.98 if correct_letter else 0.0
         my_conf = 0.98 if my_letter else 0.0
