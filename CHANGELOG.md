@@ -8,6 +8,9 @@
 
 ### 🆕 新增
 
+- **两套新模考卷**：`模拟一`（希赛 8 月 PMP 模拟题 1）、`模拟二`（希赛 8 月 PMP 模拟题 2），各 180 题
+  - 文字版单 PDF（题干+选项+「试题答案」「试题解析」内联），无需 OCR，直接解析并缓存 JSON
+  - 微信端 `开始模考五/六` 硬路由；终端 `mock_exam_engine.py start --paper five/six`
 - **识别结果纠错**（`correction.py`）：三类纠错统一入口，自动级联维护 question_bank / error_log / error_review_state 三文件并重算领域正确率
   - `answer` 改答案：wrong↔correct 双向，自动移除/新建错题 + 复习队列
   - `area` 改知识领域：三文件同步 + 重算新旧领域正确率
@@ -16,6 +19,7 @@
 
 ### 🐛 修复
 
+- 每日一练切题漏题：题号与【之间卡水印字（如「7．迹【单选题】」）导致整题被吞进上一题
 - **截图录入错题失效**（微信发图 → 落到通用菜单）：`analyze_exam.py` 相对导入 `from .exam_recorder` 在桥接以独立脚本调用时 `ImportError`，改 try/except 兜底
 - **选项解析越界**：`_parse_options_enumerated` 在选项 ≥5 时 `letters[len(options)]` 越界，越界保护提前
 - **答案表头+值分两行解析失败**：希赛作答页「正确答案/我的答案」表头与值（B/C）分两行，单行正则失效致 `my_answer`/`correct_answer` 均 None；新增 `_extract_table_answers` 按表头顺序映射下一行字母
@@ -24,6 +28,7 @@
 
 ### 📝 文档
 
+- CLAUDE.md 模考入口菜单补「开始模考五/六」
 - CLAUDE.md：纠正记录章节补充 `correction.py` 推荐入口
 
 ---

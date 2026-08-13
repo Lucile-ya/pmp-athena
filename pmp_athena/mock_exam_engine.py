@@ -55,6 +55,7 @@ for _tp in [
 PAPER_MAP = {
     "one": "考前冲刺卷1", "two": "考前冲刺卷2",
     "three": "考前冲刺卷3", "four": "模考卷二",
+    "five": "模拟一", "six": "模拟二",
     "random": "随机模考",
 }
 
@@ -62,6 +63,12 @@ PAPER_FILES: dict[str, tuple[str, str]] = {
     "one": ("考前冲刺卷1-试题.pdf", "考前冲刺卷1-答案解析.pdf"),
     "two": ("考前冲刺卷2-试题.pdf", "考前冲刺卷2-答案解析.pdf"),
     "three": ("考前冲刺卷3-试题.pdf", "考前冲刺卷3-答案解析.pdf"),
+}
+
+# 文字版模考 PDF（题干+选项+试题答案+试题解析 内联，单文件，无需 OCR）
+PAPER_TEXT: dict[str, str] = {
+    "five": "模拟一.pdf",
+    "six": "模拟二.pdf",
 }
 
 # 已预先提取为高清图片的试卷（图片文件夹名 → 答案 PDF 文件名）
@@ -369,6 +376,89 @@ def load_scanned_mock_exam(paper_key: str) -> list[dict]:
     return valid
 
 
+def load_text_mock_exam(paper_key: str) -> list[dict]:
+    """加载文字版模考（单 PDF、答案内联，无需 OCR）。首次解析后写缓存。"""
+    if paper_key not in PAPER_TEXT:
+        return []
+
+    pdf_name = PAPER_TEXT[paper_key]
+    pdf_path = MOCK_DIR / pdf_name
+    cache_path = CACHE_DIR / f"{pdf_name}_cached.json"
+
+    if cache_path.exists():
+        try:
+            data = json.loads(cache_path.read_text(encoding="utf-8"))
+            if isinstance(data, list) and len(data) >= 50:
+                logger.info("Loaded %d questions from cache: %s", len(data), cache_path.name)
+                return data
+        except Exception:
+            pass
+
+    questions = _parse_text_pdf(pdf_path)
+    if len(questions) < 50:
+        logger.warning("Only %d questions parsed from %s, may be incomplete", len(questions), pdf_name)
+
+    cache_path.write_text(json.dumps(questions, ensure_ascii=False, indent=2), encoding="utf-8")
+    logger.info("Cached %d questions to %s", len(questions), cache_path.name)
+    return questions
+
+
+def _parse_text_pdf(pdf_path: Path) -> list[dict]:
+    """解析文字版模考 PDF：题号「N、」+ 选项「A、…」+「试题答案：X」+「试题解析：…」。"""
+    import pdfplumber
+
+    try:
+        with pdfplumber.open(str(pdf_path)) as pdf:
+            full = "\n".join((p.extract_text() or "") for p in pdf.pages)
+    except Exception as e:
+        logger.error("Failed to open %s: %s", pdf_path.name, e)
+        return []
+
+    blocks = re.split(r"\n(?=\d{1,3}\s*、)", full)
+    opt_re = re.compile(r"^\s*([A-E])\s*[、:：\.\)]\s*(.+?)\s*$")
+
+    questions: list[dict] = []
+    for block in blocks:
+        m = re.match(r"(\d{1,3})\s*、", block.strip())
+        if not m:
+            continue
+        body = block[m.end():]
+
+        # 答案 / 解析（在 body 里直接找）
+        am = re.search(r"试题答案\s*[：:]\s*([A-E])", body)
+        correct = am.group(1).upper() if am else ""
+        em = re.search(r"试题解析\s*[：:]\s*(.+)", body, re.S)
+        explanation = em.group(1).strip() if em else ""
+
+        # 题干 + 选项（取「试题答案」之前的部分）
+        qpart = body.split("试题答案", 1)[0]
+
+        # 题干 + 选项
+        stem_lines: list[str] = []
+        opts: list[str] = []
+        for line in qpart.split("\n"):
+            om = opt_re.match(line)
+            if om:
+                opts.append(f"{om.group(1)}. {om.group(2).strip()}")
+            elif line.strip():
+                stem_lines.append(line.strip())
+        stem = " ".join(stem_lines).strip()
+
+        if not (stem and len(opts) >= 2 and correct):
+            continue
+        area = guess_area(stem + " " + " ".join(opts))
+        questions.append({
+            "question": stem,
+            "options": opts,
+            "correct_answer": correct,
+            "explanation": explanation,
+            "_area": area,
+            "_is_multi": len(correct) > 1,
+        })
+
+    return questions
+
+
 def _ocr_image_folder(img_dir: Path) -> str:
     """OCR 一个图片文件夹的全部图片，返回合并文本。"""
     from PIL import Image
@@ -570,6 +660,18 @@ class MockExamEngine:
                         break
             if len(questions) < 10:
                 questions = load_questions_from_pdfs(180)
+        elif paper in PAPER_TEXT:
+            # 文字版模拟卷：180 题内联答案，直接解析（不足 180 再从每日一练补）
+            questions = load_text_mock_exam(paper)
+            if len(questions) < 180:
+                seen_stems = {q.get("question", "")[:30] for q in questions}
+                pool = load_questions_from_pdfs(500)
+                for pq in pool:
+                    if pq.get("question", "")[:30] not in seen_stems:
+                        seen_stems.add(pq["question"][:30])
+                        questions.append(pq)
+                    if len(questions) >= 180:
+                        break
         else:
             questions = load_questions_from_pdfs(180)
         total = len(questions)
@@ -847,7 +949,7 @@ def main():
         "start", "answer", "pause", "resume", "grade", "status", "abandon",
     ])
     parser.add_argument("arg", nargs="?", default="", help="答案字母或试卷名")
-    parser.add_argument("--paper", default="random", choices=["one", "two", "three", "random"])
+    parser.add_argument("--paper", default="random", choices=["one", "two", "three", "five", "six", "random"])
     args = parser.parse_args()
 
     engine = MockExamEngine()
