@@ -16,10 +16,14 @@
   - `area` 改知识领域：三文件同步 + 重算新旧领域正确率
   - `delete` 删题：三文件一并清理
   - `latest` 查看最新记录，供定位题目
+- **模考放弃归档可恢复**：`abandon` 不再直接清空，进度先归档到 `mock_exam_engine.abandoned.json`；新增 `recover` 命令 + 微信端「恢复模考」硬路由
 
 ### 🐛 修复
 
 - 每日一练切题漏题：题号与【之间卡水印字（如「7．迹【单选题】」）导致整题被吞进上一题
+- 每日一练题号错位（`3【. 单选题】`，【 与 . 顺序颠倒）导致漏题
+- 每日一练双语题干被截断（英文问号在前、中文问号在后，`find` 截到英文 ? 把中文题干砍掉）→ 改 `rfind` 取最后一个问号
+- **模考「继续」失效**：暂停后 resume 未分发，`继续` 落到 Claude；进度显示读错字段恒为 0 → 补 resume 分发 + 改读 `current_index`
 - **截图录入错题失效**（微信发图 → 落到通用菜单）：`analyze_exam.py` 相对导入 `from .exam_recorder` 在桥接以独立脚本调用时 `ImportError`，改 try/except 兜底
 - **选项解析越界**：`_parse_options_enumerated` 在选项 ≥5 时 `letters[len(options)]` 越界，越界保护提前
 - **答案表头+值分两行解析失败**：希赛作答页「正确答案/我的答案」表头与值（B/C）分两行，单行正则失效致 `my_answer`/`correct_answer` 均 None；新增 `_extract_table_answers` 按表头顺序映射下一行字母
