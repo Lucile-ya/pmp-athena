@@ -322,6 +322,8 @@ _MULTI_MARKERS = (
 
 def _normalize_pdf_text(text: str) -> str:
     text = text.replace("．", ".")
+    # 修正 OCR 题号错位：3【. 单选题】→ 3. 【单选题】
+    text = re.sub(r"(\d+)\s*【\s*\.", r"\1. 【", text)
     text = re.sub(r"^内部资料\s*\n", "", text.strip())
     return text
 
