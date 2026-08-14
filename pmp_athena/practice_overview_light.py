@@ -85,6 +85,9 @@ def generate_summary() -> str:
 
     for m in sorted_months:
         for r in monthly[m]:
+            if r.get("is_correct") is None:
+                # 待判卷题不计入正确率统计
+                continue
             q_sig = r.get("question", "")[:50]
             if q_sig not in first_seen_questions:
                 first_seen_questions.add(q_sig)
@@ -127,8 +130,10 @@ def generate_summary() -> str:
     for m in sorted_months:
         records = monthly[m]
         t = len(records)
-        c = sum(1 for r in records if r.get("is_correct"))
-        rate = c / max(1, t) * 100
+        judged = [r for r in records if r.get("is_correct") is not None]
+        c = sum(1 for r in judged if r.get("is_correct"))
+        rate = c / max(1, len(judged)) * 100
+        pending = t - len(judged)
 
         f_t = month_first_total.get(m, 0)
         f_c = month_first_correct.get(m, 0)
@@ -142,7 +147,8 @@ def generate_summary() -> str:
         n_exams = len(month_exams.get(m, []))
 
         lines.append(f"📅 {_MONTH_CN[ym[1]]}（{date_range}）")
-        lines.append(f"刷题：{t} 题 | 正确率 {_format_monthly_rate(c, t)}")
+        pending_note = f"（待判卷 {pending} 题）" if pending > 0 else ""
+        lines.append(f"刷题：{t} 题 | 正确率 {_format_monthly_rate(c, len(judged))}{pending_note}")
         lines.append(f"  首次正确率 {_format_monthly_rate(f_c, f_t)}  |  二次正确率 {_format_monthly_rate(s_c, s_t)}")
 
         if n_exams > 0:
@@ -190,12 +196,16 @@ def generate_summary() -> str:
             lines.append("")
 
     # ── 总览 ──
-    correct = sum(1 for r in bank if r.get("is_correct"))
-    overall_pct = correct / max(1, total) * 100
+    judged_all = [r for r in bank if r.get("is_correct") is not None]
+    correct = sum(1 for r in judged_all if r.get("is_correct"))
+    overall_pct = correct / max(1, len(judged_all)) * 100
 
     # 薄弱领域
     area_stats: dict[str, dict] = defaultdict(lambda: {"total": 0, "correct": 0})
     for r in bank:
+        if r.get("is_correct") is None:
+            # 待判卷题不计入薄弱领域统计
+            continue
         area = r.get("knowledge_area", "未分类")
         if area == "综合":
             continue

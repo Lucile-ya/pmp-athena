@@ -21,6 +21,8 @@ pmp_notes/pending_plain_question.json
 # ── 运行时状态 / 推送队列 ─────────────────────────────────
 pmp_notes/prep_push_queue.json
 pmp_notes/knowledge_query_state.json
+pmp_notes/error_evolution.json
+pmp_notes/prep_push_state.json
 pmp_notes/_test_plain_e2e/
 
 # ── 培训机构 PDF（题目资料，上传共享）────────────────────
@@ -48,6 +50,7 @@ Thumbs.db
 
 # ── 运行时日志 ──────────────────────────────────────────
 watchdog.log
+bridge_guard.log
 
 # ── 环境变量（本地配置）───────────────────────────────────
 .env
