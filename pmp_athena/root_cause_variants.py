@@ -609,6 +609,15 @@ def grade_variant_answer_v2(
     is_correct = my_ans == correct_ans
     new_correct = variant_correct + (1 if is_correct else 0)
 
+    # 变式连续答对 streak：答对 +1，答错清零（持久化到 review_state）
+    state = _load_review_state()
+    card = state.get(str(error_id), {})
+    variant_streak = card.get("variant_streak", 0)
+    variant_streak = variant_streak + 1 if is_correct else 0
+    card["variant_streak"] = variant_streak
+    state[str(error_id)] = card
+    _save_review_state(state)
+
     if is_correct:
         mark_variant_mastered(error_id, current_variant_id)
         feedback = "✅ 正确！已标记为已攻克。"
@@ -629,13 +638,11 @@ def grade_variant_answer_v2(
 
         if passed:
             lines.append("✅ 变式通过！")
-            state = sr._read_state()
-            card = state.get(str(error_id), {})
-            consec = card.get("consecutive_correct", 0)
-            if consec >= 2 and is_high_frequency_marked(error_id):
+            # 移除判定：连续答对 2 道变式题
+            if variant_streak >= 2 and is_high_frequency_marked(error_id):
                 unmark_high_frequency(error_id)
                 sr.update_high_frequency_status(error_id, False)
-                lines.append("🏆 连续 2 次正确 + 变式通过，已取消高频错题标记！")
+                lines.append("🏆 连续答对 2 道变式，已移出高频列表！")
         else:
             lines.append("⚠️ 变式未达标（需 ≥2/3 正确），保留高频标记。")
             # 降级提示
@@ -685,7 +692,10 @@ def grade_variant_answer_v2(
 
 def _study_advisor_review_next():
     """桥接 study_advisor.review_next，通过函数引用避免循环导入。"""
-    from pmp_athena.study_advisor import review_next as rn
+    try:
+        from pmp_athena.study_advisor import review_next as rn
+    except ImportError:
+        from study_advisor import review_next as rn
     return rn(include_header=False)
 
 

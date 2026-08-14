@@ -652,6 +652,79 @@ def _enhance_high_frequency_question(error_id: int, record: dict) -> str:
     return "\n".join(lines)
 
 
+def _enhance_stubborn_question(error_id: int, record: dict) -> str:
+    """高频顽疾深度拆解格式：锚点 + 等级 + 每次错选记录 + 根因诊断 + 口诀 + 反向训练预告"""
+    try:
+        from pmp_athena.error_insights import count_mistakes, build_mnemonic
+    except ImportError:
+        from error_insights import count_mistakes, build_mnemonic
+    try:
+        from pmp_athena.root_cause_engine import diagnose as rc_diagnose, format_root_cause_card
+    except ImportError:
+        from root_cause_engine import diagnose as rc_diagnose, format_root_cause_card
+    try:
+        from pmp_athena.semantic_anchors import format_anchor_with_cue
+    except ImportError:
+        from semantic_anchors import format_anchor_with_cue
+
+    mistake_info = count_mistakes(error_id)
+    total_wrong = mistake_info["total"]
+
+    # 全部错选记录（按日期正序，展示每次错选）
+    bank = load_json(QUESTION_BANK)
+    if not isinstance(bank, list):
+        bank = []
+    wrong_records = sorted(
+        [r for r in bank if r.get("error_log_id") == error_id and r.get("is_correct") is False],
+        key=lambda r: r.get("date", ""),
+    )
+
+    # 根因诊断
+    root_cause = rc_diagnose(record, wrong_records)
+
+    # 锚点话术（优先显示）
+    try:
+        anchor_text = format_anchor_with_cue(record, wrong_records)
+    except Exception:
+        anchor_text = ""
+
+    # 口诀
+    mnemonic = build_mnemonic(record)
+
+    area = record.get("knowledge_area", "综合")
+    question = record.get("question", "").strip()
+
+    lines = []
+    if anchor_text:
+        lines.append(anchor_text)
+        lines.append("")
+
+    lines.append(f"📌 错题等级：🔥 高频顽疾（已错 {total_wrong} 次）")
+    lines.append("📖 错误记录：")
+    for i, wr in enumerate(wrong_records, 1):
+        d = str(wr.get("date", ""))[:10]
+        lines.append(
+            f"  第{i}次 · {d}: 错选 {wr.get('my_answer', '?')}"
+            f"（正确 {wr.get('correct_answer', '?')}）"
+        )
+    if root_cause:
+        lines.append(f"⚠️ 根因诊断：{format_root_cause_card(root_cause)}")
+    lines.append(f"🎯 破解口诀：{mnemonic}")
+    lines.append("")
+    lines.append(f"📝 复习 #{error_id} [{area}]")
+    lines.append(question)
+    if not _has_options(question):
+        lines.append("")
+        lines.append("⚠️ 本题选项缺失，无法作答")
+        lines.append("  ① 回复「补录 #{}」手动补录选项".format(error_id))
+        lines.append("  ② 回复「跳过」暂时跳过，排到队列末尾")
+    else:
+        lines.append("")
+        lines.append("💡 反向训练（必做）：答对后推送同考点变式题，连续答对 2 道才移出高频列表。")
+
+    return "\n".join(lines)
+
+
 def review_next(*, include_header: bool = False) -> dict:
     """
     获取下一道待复习错题（微信硬路由用）。
@@ -709,14 +782,22 @@ def review_next(*, include_header: bool = False) -> dict:
     try:
         from pmp_athena.error_insights import (
             is_high_frequency, is_high_frequency_marked, mark_high_frequency,
+            count_mistakes,
         )
     except ImportError:
         from error_insights import (
             is_high_frequency, is_high_frequency_marked, mark_high_frequency,
+            count_mistakes,
         )
     is_hf = is_high_frequency_marked(error_id) or is_high_frequency(error_id, threshold=3)
+    # 高频顽疾判定：累计错误 ≥4 次
+    is_stubborn = count_mistakes(error_id)["total"] >= 4
 
-    if is_hf:
+    if is_stubborn:
+        if not is_high_frequency_marked(error_id):
+            mark_high_frequency(error_id)
+        body = _enhance_stubborn_question(error_id, record)
+    elif is_hf:
         if not is_high_frequency_marked(error_id):
             mark_high_frequency(error_id)
         body = _enhance_high_frequency_question(error_id, record)
@@ -759,8 +840,12 @@ def review_next(*, include_header: bool = False) -> dict:
     if include_header:
         sprint_tag = "🔥 冲刺" if is_sprint else ("⚡ 30天" if is_pre30 else "")
         limit_hint = f"（今日上限 {limit} 题，已完成 {completed_today}/{limit}）{sprint_tag}"
+        # 高频顽疾统计（累计错误 ≥4 次的到期错题）
+        stubborn_count = sum(1 for eid in pending if count_mistakes(eid)["total"] >= 4)
+        stubborn_line = f"\n🔥 高频顽疾：{stubborn_count} 道待攻克" if stubborn_count > 0 else ""
         text = (
-            f"📚 今日待复习错题: {len(due_ids)} 道（还剩 {len(pending)} 道）{limit_hint}\n\n"
+            f"📚 今日待复习错题: {len(due_ids)} 道（还剩 {len(pending)} 道）{limit_hint}"
+            f"{stubborn_line}\n\n"
             f"{body}"
         )
     else:
@@ -882,16 +967,23 @@ def grade_review(error_id: int, user_answer: str) -> dict:
     # ── 高频错题变式触发 ──
     if is_correct:
         try:
-            from pmp_athena.error_insights import is_high_frequency_marked, unmark_high_frequency
+            from pmp_athena.error_insights import (
+                is_high_frequency_marked, unmark_high_frequency, count_mistakes,
+            )
         except ImportError:
-            from error_insights import is_high_frequency_marked, unmark_high_frequency
+            from error_insights import (
+                is_high_frequency_marked, unmark_high_frequency, count_mistakes,
+            )
         if is_high_frequency_marked(error_id):
+            # 高频顽疾判定：累计错误 ≥4 次
+            is_stubborn = count_mistakes(error_id)["total"] >= 4
             state = sr._read_state()
             card = state.get(str(error_id), {})
             consec = card.get("consecutive_correct", 0)
 
-            # 连续正确 ≥2 且题库有变式 → 直接 unmark，跳过变式
-            if consec >= 2:
+            # 普通高频错题：连续正确 ≥2 → 直接 unmark，跳过变式
+            # 高频顽疾：必须走变式，只有连续答对 2 道变式才移除
+            if not is_stubborn and consec >= 2:
                 unmark_high_frequency(error_id)
                 sr.update_high_frequency_status(error_id, False)
                 lines.append("🏆 连续 2 次正确，已取消高频错题标记！")
@@ -931,11 +1023,13 @@ def grade_review(error_id: int, user_answer: str) -> dict:
                 elif variant_result["status"] == "insufficient":
                     lines.append("")
                     lines.append(variant_result["text"])
-                    # 变式题不足 → 降级：连续 2 次正确即可 unmark
-                    if consec >= 1:
+                    # 变式题不足：普通高频错题降级为连续正确 unmark；高频顽疾保留标记
+                    if not is_stubborn and consec >= 1:
                         unmark_high_frequency(error_id)
                         sr.update_high_frequency_status(error_id, False)
                         lines.append("🏆 该领域变式题不足，已按连续正确判定，取消高频标记！")
+                    elif is_stubborn:
+                        lines.append("⚠️ 高频顽疾变式题不足，暂不移除标记，待题库补充变式题。")
 
     nxt = review_next(include_header=False)
     if nxt["status"] == "question":
