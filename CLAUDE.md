@@ -734,6 +734,7 @@ d:\miniconda\python.exe pmp_athena/record_answer.py wrong --question "..." --my-
 **第0步：分层 + 限量**
 执行 `python pmp_athena/review_scheduler.py plan` 获取分层计划：
 - 🔴 高频错题（错 ≥3 次）：每天优先推送，不限量
+  - 🔥 高频顽疾（错 ≥4 次）：深度拆解（完整错误记录每次错选 + 根因诊断 + 反向训练预告），答对后必须走变式题，**连续答对 2 道变式才移出高频列表**（`variant_streak` 持久化）
 - 🟡 近期错题（7 天内）：每天推送 ≤10 道
 - 🟢 低频错题（错 1-2 次，>30 天）：归入考前冲刺包，考前 7 天推送
 - ⚪ 粗心错题（标记为"粗心"）：不计入复习队列，仅记录
