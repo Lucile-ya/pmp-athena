@@ -10,9 +10,9 @@
 """
 
 try:
-    from pmp_athena.config import ERROR_LOG_PATH, EXAM_CONFIG_PATH, OPTIONS_SUPPLEMENT_PATH, QUESTION_BANK_PATH, REVIEW_STATE_PATH
+    from pmp_athena.config import ARCHIVED_QUESTIONS_PATH, ERROR_LOG_PATH, EXAM_CONFIG_PATH, OPTIONS_SUPPLEMENT_PATH, QUESTION_BANK_PATH, REVIEW_STATE_PATH
 except ModuleNotFoundError:
-    from config import ERROR_LOG_PATH, EXAM_CONFIG_PATH, OPTIONS_SUPPLEMENT_PATH, QUESTION_BANK_PATH, REVIEW_STATE_PATH
+    from config import ARCHIVED_QUESTIONS_PATH, ERROR_LOG_PATH, EXAM_CONFIG_PATH, OPTIONS_SUPPLEMENT_PATH, QUESTION_BANK_PATH, REVIEW_STATE_PATH
 
 import argparse
 import json
@@ -28,6 +28,7 @@ ERROR_LOG = ERROR_LOG_PATH
 REVIEW_STATE = REVIEW_STATE_PATH
 EXAM_CONFIG = EXAM_CONFIG_PATH
 OPTIONS_SUPPLEMENT = OPTIONS_SUPPLEMENT_PATH
+ARCHIVED_QUESTIONS = ARCHIVED_QUESTIONS_PATH
 
 # ── 错误类型标签（与 error_logger.ERROR_TYPES 同步）─────────
 ERROR_TYPE_LABELS = {
@@ -526,34 +527,32 @@ def _find_full_question(error_id: int, errors: list, bank: list) -> dict:
 
 
 def _format_review_question(error_id: int, record: dict) -> str:
-    """格式化单道复习题（不含答案、解析、历史作答）"""
-    area = record.get("knowledge_area", "综合")
+    """格式化单道复习题（不含答案、解析、历史作答）；缺选项降级为知识点回顾"""
     question = record.get("question", "").strip()
-    lines = [f"📝 复习 #{error_id} [{area}]", question]
     if not _has_options(question):
-        lines.append("")
-        lines.append("⚠️ 本题选项缺失，无法作答")
-        lines.append("  ① 回复「补录 #{}」手动补录选项".format(error_id))
-        lines.append("  ② 回复「跳过」暂时跳过，排到队列末尾")
+        return _format_option_missing_knowledge(error_id, record)
+    area = record.get("knowledge_area", "综合")
+    lines = [f"📝 复习 #{error_id} [{area}]", question]
     return "\n".join(lines)
 
 
 def _format_option_missing_knowledge(error_id: int, record: dict) -> str:
-    """选项缺失时的「知识点回顾」模式降级输出。"""
+    """选项缺失时的「知识点回顾」模式降级输出：题干 + 考点 + 口诀，不要求作答。"""
     try:
         from pmp_athena.error_insights import build_summary, build_mnemonic
     except ImportError:
         from error_insights import build_summary, build_mnemonic
     area = record.get("knowledge_area", "综合")
+    question = record.get("question", "").strip()
     summary = build_summary(record)
     mnemonic = build_mnemonic(record)
     lines = [
-        f"📖 本题选项缺失，转为知识点回顾",
-        f"📌 核心考点：[{area}]",
-        f"💡 正确思路：{summary}",
+        f"📚 知识点回顾 #{error_id} [{area}]",
+        question,
+        f"💡 核心考点：{summary}",
         f"🎯 口诀：{mnemonic}",
         "",
-        "💬 回复「已掌握」继续下一题，回复「未掌握」标记明天再复习。",
+        "💬 本题缺选项，已降级为回顾。回复「已掌握」继续，「未掌握」明天再复习，「无法补录」移出队列。",
     ]
     return "\n".join(lines)
 
@@ -638,9 +637,7 @@ def _enhance_high_frequency_question(error_id: int, record: dict) -> str:
     lines.append(question)
     if not _has_options(question):
         lines.append("")
-        lines.append("⚠️ 本题选项缺失，无法作答")
-        lines.append("  ① 回复「补录 #{}」手动补录选项".format(error_id))
-        lines.append("  ② 回复「跳过」暂时跳过，排到队列末尾")
+        lines.append("💬 本题缺选项，已降级为回顾。回复「已掌握」继续，「无法补录」移出队列。")
     else:
         lines.append("")
         if root_cause:
@@ -715,9 +712,7 @@ def _enhance_stubborn_question(error_id: int, record: dict) -> str:
     lines.append(question)
     if not _has_options(question):
         lines.append("")
-        lines.append("⚠️ 本题选项缺失，无法作答")
-        lines.append("  ① 回复「补录 #{}」手动补录选项".format(error_id))
-        lines.append("  ② 回复「跳过」暂时跳过，排到队列末尾")
+        lines.append("💬 本题缺选项，已降级为回顾。回复「已掌握」继续，「无法补录」移出队列。")
     else:
         lines.append("")
         lines.append("💡 反向训练（必做）：答对后推送同考点变式题，连续答对 2 道才移出高频列表。")
@@ -919,6 +914,36 @@ def grade_review(error_id: int, user_answer: str) -> dict:
             "correct": cmd_result.get("correct", None),
             "error_id": error_id,
             "text": cmd_result["text"],
+        }
+
+    # ── 无法补录：移出复习队列，标记 can_review: false ──
+    if user_ans_lower.startswith("无法补录") or user_ans_lower in ("补不了", "无法补"):
+        errs = load_json(ERROR_LOG)
+        if isinstance(errs, list):
+            for e in errs:
+                if e.get("id") == error_id:
+                    e["can_review"] = False
+                    break
+            ERROR_LOG.write_text(json.dumps(errs, ensure_ascii=False, indent=2), encoding="utf-8")
+        sr = SpacedRepetition()
+        state = sr._read_state()
+        state.pop(str(error_id), None)
+        sr._write_state(state)
+        lines = [f"🗑️ #{error_id} 已标记「无法补录」，移出复习队列。"]
+        nxt = review_next(include_header=False)
+        if nxt["status"] == "question":
+            lines.append("")
+            lines.append(nxt["text"])
+        else:
+            lines.append("")
+            lines.append(nxt["text"])
+        return {
+            "status": "graded",
+            "correct": None,
+            "error_id": error_id,
+            "next_error_id": nxt.get("error_id"),
+            "done": nxt["status"] in ("done", "empty"),
+            "text": "\n".join(lines),
         }
 
     # ── 特殊模式：知识回顾（选项缺失时用户回复「已掌握」/「未掌握」）──
@@ -1337,8 +1362,8 @@ def review_skip_current(error_id: int) -> dict:
     else:
         total_skips = 1
 
-    # 连续跳过 3 次 → 降级为知识回顾
-    is_knowledge_review = total_skips >= 3
+    # 连续跳过 ≥3 次 → 归档（移出队列 + 写 archived_questions.json）
+    should_archive = total_skips >= 3
     errors = load_json(ERROR_LOG)
     if not isinstance(errors, list):
         errors = []
@@ -1349,17 +1374,21 @@ def review_skip_current(error_id: int) -> dict:
         f"⏭️ 已跳过 #{error_id}，排到明天复习。",
     ]
 
-    if is_knowledge_review and error:
-        # 降级为知识回顾模式
-        from pmp_athena.error_insights import build_summary, build_mnemonic
-        area = error.get("knowledge_area", "综合")
-        summary = build_summary(error)
-        mnemonic = build_mnemonic(error)
-        lines.append(f"\n⚠️ 已连续跳过 {total_skips} 次，降级为知识点回顾：")
-        lines.append(f"📌 核心考点：[{area}]")
-        lines.append(f"💡 正确思路：{summary}")
-        lines.append(f"🎯 口诀：{mnemonic}")
-        lines.append("\n💬 回复「已掌握」继续，回复「未掌握」标记明天再复习。")
+    if should_archive and error:
+        # 归档到 archived_questions.json，从复习队列移除
+        archived = load_json(ARCHIVED_QUESTIONS)
+        if not isinstance(archived, dict):
+            archived = {"archived": []}
+        archived.setdefault("archived", []).append({
+            "error_id": error_id,
+            "archived_at": date.today().isoformat(),
+            "reason": "缺选项跳过≥3次",
+            "knowledge_area": error.get("knowledge_area", "综合"),
+        })
+        ARCHIVED_QUESTIONS.write_text(json.dumps(archived, ensure_ascii=False, indent=2), encoding="utf-8")
+        state.pop(key, None)
+        sr._write_state(state)
+        lines.append(f"\n🗄️ 已跳过 {total_skips} 次，自动归档，移出复习队列。")
     else:
         if nxt["status"] == "question":
             lines.append("")
@@ -1372,8 +1401,8 @@ def review_skip_current(error_id: int) -> dict:
         "status": "skipped",
         "error_id": error_id,
         "next_error_id": nxt.get("error_id"),
-        "done": nxt["status"] in ("done", "empty") if not is_knowledge_review else False,
-        "is_knowledge_review": is_knowledge_review,
+        "done": nxt["status"] in ("done", "empty") if not should_archive else False,
+        "is_knowledge_review": should_archive,
         "text": "\n".join(lines),
     }
 
