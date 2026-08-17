@@ -206,7 +206,7 @@ rm pmp_notes/knowledge_mastery.json
 .\restart_bridge.ps1
 
 # 安装计划任务（5 分钟自动检测恢复）
-schtasks /Create /TN "PMP-Athena-Bridge" /SC MINUTE /MO 5 /TR 'wscript.exe "D:\pmp-athena\bridge_guard.vbs"' /IT /F
+schtasks /Create /TN "PMP-Athena-Bridge" /SC MINUTE /MO 5 /TR 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "D:\pmp-athena\bridge_guard.ps1"' /IT /F
 ```
 详见 [README 桥接章节](../README.md#桥接自动守护防锁屏断连)。
 

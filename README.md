@@ -268,7 +268,6 @@ pmp-athena/
 ├── CLAUDE.md                # Agent 行为规则 + 判题推理框架（微信 / Cursor 共用）
 ├── restart_bridge.ps1       # 重启微信桥接
 ├── bridge_guard.ps1         # 桥接自动守护脚本（防锁屏断连）
-├── bridge_guard.vbs         # VBS 隐身启动壳（计划任务零窗口）
 ├── start_bridge.bat         # 手动启动桥接
 └── docs/                    # 桥接补丁说明
 ```
@@ -397,14 +396,13 @@ Windows Modern Standby（锁屏）会切断用户态 TCP 连接，导致桥接�
 schtasks /Create `
   /TN "PMP-Athena-Bridge" `
   /SC MINUTE /MO 5 `
-  /TR 'wscript.exe "D:\pmp-athena\bridge_guard.vbs"' `
+  /TR 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "D:\pmp-athena\bridge_guard.ps1"' `
   /IT /F
 ```
 
 | 文件 | 用途 |
 |------|------|
-| `bridge_guard.ps1` | 检测桥接存活 → 清了残留锁 → `npm build` → 启动 |
-| `bridge_guard.vbs` | VBS 隐身壳（`Run(…, 0)`），计划任务零窗口弹出 |
+| `bridge_guard.ps1` | 检测桥接存活 → 清了残留锁 → `npm build` → 启动（计划任务直接调 PowerShell，零窗口） |
 | `bridge_guard.log` | 只记录拉起操作（桥接正常时静默，不写日志） |
 | `monitor_bridge.ps1` | 持续监控（30s 循环），Claude Monitor 后台运行 |
 

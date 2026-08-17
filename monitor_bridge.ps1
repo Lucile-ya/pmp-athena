@@ -15,7 +15,7 @@ while ($true) {
         Write-Output "$(Get-Date -Format 'HH:mm:ss') [OK] Alive PID $pid"
     } else {
         Write-Output "$(Get-Date -Format 'HH:mm:ss') [DEAD] guard triggered"
-        wscript "D:\pmp-athena\bridge_guard.vbs"
+        powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "D:\pmp-athena\bridge_guard.ps1"
         Start-Sleep -Seconds 5
         foreach ($p in (Get-Process -Name "node" -ErrorAction SilentlyContinue)) {
             try {

@@ -4,6 +4,14 @@
 
 ---
 
+## — 2026-08-17
+
+### 🔧 修复
+
+- **桥接守护去掉 .vbs 依赖**：计划任务 `PMP-Athena-Bridge` 从 `wscript bridge_guard.vbs` 改为直接 `powershell.exe -WindowStyle Hidden -File bridge_guard.ps1`，避免杀毒软件误删 .vbs 导致每 5 分钟弹「脚本找不到」；移除 `bridge_guard.vbs`，同步更新 `monitor_bridge.ps1` / README / FAQ
+
+---
+
 ## — 2026-08-14
 
 ### 🆕 新增
