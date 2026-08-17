@@ -8,7 +8,9 @@
 
 ### 🔧 修复
 
-- **桥接守护去掉 .vbs 依赖**：计划任务 `PMP-Athena-Bridge` 从 `wscript bridge_guard.vbs` 改为直接 `powershell.exe -WindowStyle Hidden -File bridge_guard.ps1`，避免杀毒软件误删 .vbs 导致每 5 分钟弹「脚本找不到」；移除 `bridge_guard.vbs`，同步更新 `monitor_bridge.ps1` / README / FAQ
+- **桥接守护去掉 .vbs 依赖**：计划任务 `PMP-Athena-Bridge` 从 `wscript bridge_guard.vbs` 改为 `conhost --headless powershell.exe -WindowStyle Hidden -File bridge_guard.ps1`，彻底无窗口 + 避免杀毒软件误删 .vbs 导致每 5 分钟弹「脚本找不到」；移除 `bridge_guard.vbs`，同步更新 `monitor_bridge.ps1` / README / FAQ
+- **截图录入 OCR 崩溃**：`image_processor.py` 的 main() 缺 stdout UTF-8 编码，Windows GBK 下输出含 emoji 时抛 UnicodeEncodeError，导致发图录入错题 fall back 到兜底菜单 → 补 `sys.stdout.reconfigure(encoding="utf-8")`
+- **发图+配文被微信拆成两条消息**：桥接逐条处理导致「先文后图」场景配文失效 → 桥接记住上一条文字消息，图片消息无配文时自动关联
 
 ---
 

@@ -396,7 +396,7 @@ Windows Modern Standby（锁屏）会切断用户态 TCP 连接，导致桥接�
 schtasks /Create `
   /TN "PMP-Athena-Bridge" `
   /SC MINUTE /MO 5 `
-  /TR 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "D:\pmp-athena\bridge_guard.ps1"' `
+  /TR 'conhost.exe --headless powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "D:\pmp-athena\bridge_guard.ps1"' `
   /IT /F
 ```
 
