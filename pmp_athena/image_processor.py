@@ -1558,6 +1558,10 @@ def process_and_validate(
 
 
 def main():
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except AttributeError:
+        pass
     parser = argparse.ArgumentParser(
         description="微信图片预处理：压缩 + OCR",
         formatter_class=argparse.RawDescriptionHelpFormatter,
