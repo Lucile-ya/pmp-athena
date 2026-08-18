@@ -13,14 +13,14 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
 try:
-    from pmp_athena.config import REVIEW_STATE_PATH, ERROR_LOG_PATH
+    from pmp_athena.config import REVIEW_STATE_PATH, ERROR_LOG_PATH, BROKEN_QUESTIONS_LOG_PATH
 except ModuleNotFoundError:
-    from config import REVIEW_STATE_PATH, ERROR_LOG_PATH
+    from config import REVIEW_STATE_PATH, ERROR_LOG_PATH, BROKEN_QUESTIONS_LOG_PATH
 
 VARIANT_STATE_PATH = REVIEW_STATE_PATH  # 复用 review state 存 variant 状态
 
@@ -234,11 +234,69 @@ def _score_variant_by_rc(variant_question: str, root_cause_name: str) -> float:
     return min(1.0, 0.5 + overlap * 0.25)
 
 
-def _has_complete_options(question_text: str, min_markers: int = 3) -> bool:
-    """检查题干是否包含足够的选项标记（≥3 个 A/B/C/D 标记）。"""
-    import re as _re
-    count = sum(1 for m in _re.finditer(r'(?:^|\n|\s)[A-D][\.、．\)]\s*\S', question_text))
-    return count >= min_markers
+_POLLUTION_MARKERS = (
+    "正确答案", "我的答案", "全站做答", "全站正确率", "全站作答", "所属知识点",
+)
+
+_OPT_MARKER_RE = re.compile(r"(?:^|\n|\s)([A-E])[\.、．\)]\s*\S")
+
+
+def _validate_variant_format(record: dict) -> tuple[bool, str]:
+    """校验变式题格式，返回 (是否合格, 不合格原因)。
+
+    拦截截图录入时把「正确答案/我的答案/全站正确率」等解析页表格当题干抽进来的坏题。
+    """
+    question = str(record.get("question", "") or "").strip()
+    correct = str(record.get("correct_answer", "") or "").strip().upper()
+
+    if not question:
+        return False, "题干为空"
+    if not correct:
+        return False, "缺正确答案"
+    if correct not in "ABCDE":
+        return False, "答案非单选（多选题或格式异常）"
+
+    # 解析页表格标记 → 必为坏题
+    for marker in _POLLUTION_MARKERS:
+        if marker in question:
+            return False, f"题干含解析页表格标记「{marker}」"
+
+    # 选项：恰好 A/B/C/D（无 E、无缺失、无重复）
+    matches = list(_OPT_MARKER_RE.finditer(question))
+    letters = [m.group(1) for m in matches]
+    if sorted(set(letters)) != ["A", "B", "C", "D"]:
+        shown = "/".join(sorted(set(letters))) or "无"
+        return False, f"选项不完整（{shown}）"
+
+    # 题干完整性：选项之前的部分应有问号（或填空式「：」结尾），且不过短
+    stem = question[: matches[0].start()].strip()
+    if len(stem) < 8:
+        return False, "题干过短"
+    has_question_mark = "?" in stem or "？" in stem
+    ends_colon = stem.endswith("：") or stem.endswith(":")
+    if not (has_question_mark or ends_colon):
+        return False, "题干不完整（无问号）"
+
+    return True, ""
+
+
+def _log_broken_question(record: dict, reason: str) -> None:
+    """把格式异常的变式题追加到 broken_questions.log，供后续修复（同题去重）。"""
+    qid = record.get("id")
+    try:
+        if BROKEN_QUESTIONS_LOG_PATH.exists():
+            existing = BROKEN_QUESTIONS_LOG_PATH.read_text(encoding="utf-8")
+            if f"#{qid} " in existing:
+                return
+        stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        line = (
+            f"[{stamp}] #{qid} [{record.get('knowledge_area', '?')}] {reason}\n"
+            f"  question: {str(record.get('question', ''))[:160]!r}\n"
+        )
+        with open(BROKEN_QUESTIONS_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except OSError:
+        pass
 
 def _get_mastered_variants(error_id: int) -> list[int]:
     """获取某错题的已攻克变式题 ID 列表。"""
@@ -514,13 +572,30 @@ def review_variant_start_v2(error_id: int) -> dict:
         scored.sort(key=lambda x: -x[1])
         candidates = [c for c, _ in scored]
 
-    # 过滤：已攻克 + 排除标记 + 选项不完整
-    fresh = [
-        c for c in candidates
-        if c.get("id") not in mastered_ids
-        and not c.get("excluded")
-        and _has_complete_options(str(c.get("question", "")))
-    ]
+    # 过滤：已攻克 + 排除标记 + 格式校验（坏题跳过并记录）
+    fresh: list[dict] = []
+    consecutive_broken = 0
+    max_consecutive_broken = 0
+    for c in candidates:
+        if c.get("id") in mastered_ids or c.get("excluded"):
+            continue
+        ok, reason = _validate_variant_format(c)
+        if not ok:
+            _log_broken_question(c, reason)
+            consecutive_broken += 1
+            max_consecutive_broken = max(max_consecutive_broken, consecutive_broken)
+            continue
+        fresh.append(c)
+        consecutive_broken = 0
+
+    # 凑不够 2 道可用题，且出现过连续 3 道坏题 → 池子大概率全坏，提示稍后再试
+    if len(fresh) < 2 and max_consecutive_broken >= 3:
+        return {
+            "status": "variant_unavailable",
+            "error_id": error_id,
+            "root_cause": root_cause_name,
+            "text": "⚠️ 当前根因变式题库暂无可用的变式题，请稍后再试",
+        }
 
     if len(fresh) < 2:
         # ── 降级：根因专项总结 ──

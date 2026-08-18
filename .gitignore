@@ -53,6 +53,7 @@ Thumbs.db
 # ── 运行时日志 ──────────────────────────────────────────
 watchdog.log
 bridge_guard.log
+pmp_notes/broken_questions.log
 
 # ── 环境变量（本地配置）───────────────────────────────────
 .env
