@@ -328,9 +328,110 @@ def generate_daily_plan() -> dict:
     }
 
 
+def generate_three_step_plan() -> dict:
+    """生成今日三步练习计划：① 清账（复习错题）→ ② 定点爆破（薄弱专项）→ ③ 高频错题收尾。"""
+    today = date.today()
+    today_str = today.isoformat()
+
+    bank = _load(QUESTION_BANK_PATH)
+    bank = bank if isinstance(bank, list) else []
+    errors = _load(ERROR_LOG_PATH)
+    errors = errors if isinstance(errors, list) else []
+    review = _load(REVIEW_STATE_PATH)
+    review = review if isinstance(review, dict) else {}
+
+    # ── 第一步：清账 ──
+    overdue = sum(
+        1 for v in review.values()
+        if isinstance(v, dict) and v.get("next_date", "9999") <= today_str
+    )
+    today_new_wrong = sum(
+        1 for r in bank
+        if r.get("date") == today_str and r.get("is_correct") is False
+    )
+
+    # ── 第二步：定点爆破（正确率最低的 2 个领域）──
+    area_stats: dict[str, dict] = {}
+    for r in bank:
+        a = r.get("knowledge_area", "综合")
+        s = area_stats.setdefault(a, {"correct": 0, "wrong": 0})
+        if r.get("is_correct") is True:
+            s["correct"] += 1
+        elif r.get("is_correct") is False:
+            s["wrong"] += 1
+
+    area_rates: list[tuple[str, float, int, int]] = []
+    for a, s in area_stats.items():
+        judged = s["correct"] + s["wrong"]
+        if judged >= 3:
+            rate = s["correct"] / judged
+            area_rates.append((a, rate, s["correct"], judged))
+    area_rates.sort(key=lambda x: x[1])  # 正确率升序，最低在前
+    weak_two = area_rates[:2]
+
+    # ── 第三步：高频错题收尾（错 ≥3 次）──
+    bank_wrong_by_err: dict[int, int] = {}
+    for r in bank:
+        if r.get("is_correct") is False and r.get("error_log_id"):
+            eid = r["error_log_id"]
+            bank_wrong_by_err[eid] = bank_wrong_by_err.get(eid, 0) + 1
+
+    high_freq = 0
+    for e in errors:
+        eid = e.get("id")
+        card = review.get(str(eid), {})
+        review_wrong = sum(
+            1 for h in card.get("history", [])
+            if isinstance(h, dict) and int(h.get("quality", 5)) < 3
+        )
+        total = max(bank_wrong_by_err.get(eid, 0), 1) + review_wrong
+        if total >= 3:
+            high_freq += 1
+
+    # ── 组装文本 ──
+    lines = [
+        "📋 今日练习 · 三步走",
+        "══════════════════════",
+        "",
+    ]
+
+    # 第一步
+    lines.append("① 清账（复习错题）")
+    lines.append(f"   今日错题到期 {overdue} 道，建议优先复习")
+    if today_new_wrong > 0:
+        lines.append(f"   （今日已新增 {today_new_wrong} 道，目标：清理 ≥ 新增）")
+    lines.append("   → 发送「复习错题」开始")
+    lines.append("")
+
+    # 第二步
+    lines.append("② 定点爆破（薄弱领域专项）")
+    if weak_two:
+        weak_names = "、".join(a for a, _, _, _ in weak_two)
+        lines.append(f"   今日薄弱专项：{weak_names}")
+        lines.append("   建议各刷 15-20 题")
+        lines.append(f"   → 发送「专项 {weak_two[0][0]}」开始")
+    else:
+        lines.append("   当前领域数据不足，建议「随机每日一练」拓宽覆盖面")
+    lines.append("")
+
+    # 第三步
+    lines.append("③ 高频错题收尾")
+    lines.append(f"   今日高频错题处理 {high_freq} 道")
+    lines.append("   （完成前两步后，发送「复习错题」收尾高频错题）")
+
+    return {
+        "status": "ok",
+        "overdue": overdue,
+        "today_new_wrong": today_new_wrong,
+        "weak_areas": [(a, round(rate * 100, 1)) for a, rate, _, _ in weak_two],
+        "high_freq": high_freq,
+        "text": "\n".join(lines),
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description="备考建议生成器")
-    parser.add_argument("command", choices=["advice", "daily-plan"])
+    parser.add_argument("command", choices=["advice", "daily-plan", "three-step", "today-practice"])
     parser.add_argument("--target", type=int, default=RECOMMENDED_QUESTIONS, help="目标刷题量")
     parser.add_argument("--json", action="store_true", default=True)
     args = parser.parse_args()
@@ -342,6 +443,8 @@ def main():
 
     if args.command == "advice":
         result = generate_advice(args.target)
+    elif args.command in ("three-step", "today-practice"):
+        result = generate_three_step_plan()
     else:
         result = generate_daily_plan()
 

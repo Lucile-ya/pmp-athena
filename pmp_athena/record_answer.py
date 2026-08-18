@@ -36,6 +36,7 @@ SourceType = Literal[
 
 VALID_SOURCES = {
     "daily_practice", "mock_exam", "manual", "screenshot", "review",
+    "area_practice",
     "daily", "mock",  # 别名
 }
 

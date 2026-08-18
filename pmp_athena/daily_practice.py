@@ -560,6 +560,120 @@ def load_random_questions(count: int = 10) -> tuple[list[dict[str, Any]], str]:
     return picked, label
 
 
+# 专项领域练习 — 从题库按知识领域抽题互动
+_AREA_ALIASES: dict[str, str] = {
+    "时间管理": "进度管理", "时间": "进度管理", "工期": "进度管理",
+    "费用": "成本管理",
+    "整体": "整合管理",
+    "相关方": "干系人管理", "干系人": "干系人管理",
+    "团队": "资源管理", "人力": "资源管理",
+}
+
+
+def _resolve_area(area: str) -> str:
+    area = (area or "").strip()
+    return _AREA_ALIASES.get(area, area)
+
+
+def _parse_bank_question(record: dict[str, Any]) -> dict[str, Any] | None:
+    """把题库一条记录解析成题目格式（题干 + A/B/C/D 选项）。不合格返回 None。"""
+    text = record.get("question", "") or ""
+    correct = str(record.get("correct_answer", "") or "").strip().upper()
+    if not correct or correct not in "ABCDE":
+        return None
+
+    opt_re = re.compile(r"(?:^|\n|\s)([A-E])\s*[\.、．\)]\s*")
+    matches = list(opt_re.finditer(text))
+    letters = [m.group(1) for m in matches]
+    if sorted(set(letters)) != ["A", "B", "C", "D"]:
+        return None
+
+    stem = text[: matches[0].start()].strip()
+    if len(stem) < 8:
+        return None
+    if not ("?" in stem or "？" in stem or stem.endswith("：") or stem.endswith(":")):
+        return None
+
+    options: dict[str, str] = {}
+    for i, m in enumerate(matches):
+        letter = m.group(1)
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        content = text[m.end():end].strip()
+        options[letter] = content
+
+    return {
+        "index": 0,
+        "num": record.get("id"),
+        "stem": stem,
+        "options": options,
+        "correct_answer": correct,
+        "explanation": record.get("explanation", ""),
+        "knowledge_area": record.get("knowledge_area", "综合"),
+        "question_type": "single",
+        "source": "area_practice",
+    }
+
+
+def load_area_questions(area: str) -> list[dict[str, Any]]:
+    """从题库加载指定知识领域的可用题目（含选项 + 正确答案），按题干去重。"""
+    try:
+        from pmp_athena.question_bank import QuestionBank
+    except ModuleNotFoundError:
+        from question_bank import QuestionBank
+
+    qb = QuestionBank()
+    records = qb.list_by_area(_resolve_area(area))
+
+    questions: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for r in records:
+        q = _parse_bank_question(r)
+        if not q:
+            continue
+        key = q["stem"][:50]
+        if key in seen:
+            continue
+        seen.add(key)
+        questions.append(q)
+    return questions
+
+
+def start_area_session(area: str) -> dict[str, Any]:
+    """启动「专项 <领域>」练习会话，复用每日一练的判卷状态机。"""
+    _clear_state()
+    resolved = _resolve_area(area)
+    questions = load_area_questions(resolved)
+    if not questions:
+        return {
+            "status": "error",
+            "text": f"⚠️ 未找到「{resolved}」领域的可用题目（可能该领域未录入，或题干缺选项）。",
+        }
+    for i, q in enumerate(questions, start=1):
+        q["index"] = i
+
+    state = {
+        "mode": "area",
+        "date": None,
+        "label": resolved,
+        "questions": questions,
+        "current_index": 0,
+        "correct_count": 0,
+        "wrong_count": 0,
+        "wrong_items": [],
+    }
+    _save_state(state)
+
+    header = f"🎯 专项练习 [{resolved}]（共 {len(questions)} 题）"
+    q0 = questions[0]
+    return {
+        "status": "question",
+        "question_index": 1,
+        "total": len(questions),
+        "mode": state["mode"],
+        "text": _format_question(q0, header=header),
+    }
+
+
 def _format_options(options: dict[str, str]) -> str:
     parts = []
     for letter in sorted(options.keys()):
@@ -937,7 +1051,7 @@ def grade_batch(user_answer: str) -> dict[str, Any]:
         total = last_result.get("total", graded)
         correct_total = last_result.get("correct", batch_correct)
         rate = last_result.get("rate", 0)
-        lines.append(f"📋 每日一练完成：正确 {correct_total}/{total}（{rate}%）")
+        lines.append(f"📋 {_session_title(state)}完成：正确 {correct_total}/{total}（{rate}%）")
         finish_text = last_result.get("text", "")
         if "💾 已记录完成" in finish_text:
             for fl in finish_text.split("\n"):
@@ -1034,13 +1148,21 @@ def _record_answer(q: dict[str, Any], my_answer: str, *, is_correct: bool) -> No
         correct_answer=q.get("correct_answer", ""),
         knowledge_area=q.get("knowledge_area", "综合"),
         explanation=q.get("explanation", ""),
-        source="daily_practice",
+        source=q.get("source", "daily_practice"),
         parsed_by="daily_practice.py",
     )
     if is_correct:
         record_correct_answer(**kwargs)
     else:
         record_wrong_answer(**kwargs)
+
+
+def _session_title(state: dict[str, Any]) -> str:
+    if state.get("mode") == "area":
+        return f"专项练习 [{state.get('label', '')}]"
+    if state.get("mode") == "random":
+        return "随机每日一练"
+    return "每日一练"
 
 
 def _finish_session(state: dict[str, Any], prefix_lines: list[str]) -> dict[str, Any]:
@@ -1054,7 +1176,7 @@ def _finish_session(state: dict[str, Any], prefix_lines: list[str]) -> dict[str,
 
     lines = list(prefix_lines)
     lines.append("")
-    lines.append(f"📋 每日一练完成：正确 {correct}/{total}（{rate}%）")
+    lines.append(f"📋 {_session_title(state)}完成：正确 {correct}/{total}（{rate}%）")
 
     wrong_items = state.get("wrong_items", [])
     if wrong_items:
@@ -1293,6 +1415,10 @@ def main() -> None:
     p_start.add_argument("--random", action="store_true")
     p_start.add_argument("--json", action="store_true")
 
+    p_area = sub.add_parser("area-start", help="专项领域练习（专项 <领域>）")
+    p_area.add_argument("--area", required=True, help="知识领域名，如 成本管理")
+    p_area.add_argument("--json", action="store_true")
+
     p_grade = sub.add_parser("grade", help="判卷")
     p_grade.add_argument("answer")
     p_grade.add_argument("--json", action="store_true")
@@ -1364,6 +1490,8 @@ def main() -> None:
     elif args.command == "start":
         td = date.fromisoformat(args.date) if args.date else None
         result = start_session(target_date=td, random_mode=args.random)
+    elif args.command == "area-start":
+        result = start_area_session(args.area)
     elif args.command == "grade":
         result = grade_answers(args.answer)
     elif args.command == "audit":
