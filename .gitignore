@@ -12,6 +12,7 @@ pmp_notes/config.json
 pmp_notes/batch_practice_state.json
 pmp_notes/daily_practice_state.json
 pmp_notes/mock_exam_state.json
+pmp_notes/mock_exam_engine.json
 pmp_notes/knowledge_mastery.json
 pmp_notes/bedtime_tracker.json
 pmp_notes/chapter_practice_pending.json
