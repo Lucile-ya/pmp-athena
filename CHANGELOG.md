@@ -4,6 +4,29 @@
 
 ---
 
+## — 2026-08-25
+
+### 🆕 新增
+
+- **模考重发当前题**（`mock_exam_engine.py`）：新增 `show` 子命令 + `show_current()`，模考 `active` 态可重发当前待答题（供微信「继续」「当前题」等触发）
+- **微信桥接 Windows 原生守护**（wechat-claude-code fork）：新增 `scripts/daemon.ps1` + `scripts/daemon-cli.mjs`；`npm run daemon -- start|stop|restart|status|logs` 在 Windows 上走 PowerShell，不再依赖 WSL/bash（修复 `execvpe /bin/bash failed`）
+- **每日一练 PDF**：8月19日～8月25日（题目 + 答案解析，8月25日仅题目）
+- **模考 PDF**：2609期 PMP®模考题 + 参考答案、骐迹 2609期模考一（8月22日）答案解析
+
+### 🔧 修复 / 改进
+
+- **模考进行中误触「模考」/发「继续」无题目**：微信 `athena-router.ts` 在 `active` 态下，`继续`/`继续模考`/`当前题`/`重发题目`/`模考` 等 → 硬路由 `mock_exam_engine.py show` 重发本题；未知指令提示补「发当前题可重发本题」
+- **恢复模考题目双发**：`recover` 返回时 Python 已将 `next` 合并进 `text`，路由侧不再重复拼接 `next?.text`
+- **重新 setup 扫码后桥接未生效**：setup 绑定新 bot 账号后需 `npm run daemon -- restart`（或 `restart_bridge.ps1`）；工作目录应填 `D:\pmp-athena`；旧对话积压消息可能因 seq 去重新消息被丢弃，需在新对话发新消息验证
+- **重新绑定后微信完全无回复**：`msg-dedup` 仅按 seq 去重，新 bot 的 seq 从 1 重计与旧 `1.marker` 冲突 → 全部消息被 `cross-process duplicate` 丢弃；改为按 `{accountId}-{seq}` 去重 + setup/启动时清理旧 marker
+- **消息队列优化**（对齐 [上游 wechat-claude-code](https://github.com/Wechat-ggGitHub/wechat-claude-code) README 后续计划）：入站短消息 700ms 合并（A/B/C/D、拆词指令）；出站 `sendText` 串行链防串线；`flushPending` 失败时保留剩余队列项
+
+### 📝 文档
+
+- CHANGELOG 补录 2026-08-25 条目
+
+---
+
 ## — 2026-08-18
 
 ### 🔧 修复
@@ -258,4 +281,4 @@
 
 ---
 
-*最新更新：2026-08-10*
+*最新更新：2026-08-25*

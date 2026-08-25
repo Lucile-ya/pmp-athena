@@ -880,6 +880,21 @@ class MockExamEngine:
             ),
         }
 
+    def show_current(self) -> dict:
+        """重发当前待答题（进行中「继续」/「当前题」用）。"""
+        state = self._read()
+        if not state:
+            return {"status": "error", "error": "没有活跃的模考。"}
+        if state["status"] != "active":
+            return {"status": "error", "error": f"模考状态为 {state['status']}，无法重发题目。"}
+        idx = state["current_index"]
+        q = self._fmt_q(state, idx)
+        return {
+            "status": "question",
+            "text": f"📌 模考进行中（第 {idx + 1} 题 / 共 {state['total']} 题）",
+            "next": q,
+        }
+
     def abandon(self) -> dict:
         """放弃模考：进度归档到 .abandoned.json，可 recover 找回（防误删）。"""
         state = self._read()
@@ -982,7 +997,7 @@ class MockExamEngine:
 def main():
     parser = argparse.ArgumentParser(description="模考引擎")
     parser.add_argument("command", choices=[
-        "start", "answer", "pause", "resume", "grade", "status", "abandon", "recover",
+        "start", "answer", "pause", "resume", "grade", "status", "show", "abandon", "recover",
     ])
     parser.add_argument("arg", nargs="?", default="", help="答案字母或试卷名")
     parser.add_argument("--paper", default="random", choices=["one", "two", "three", "five", "six", "random"])
@@ -1009,6 +1024,8 @@ def main():
         result = engine.grade()
     elif args.command == "status":
         result = engine.get_status()
+    elif args.command == "show":
+        result = engine.show_current()
     elif args.command == "abandon":
         result = engine.abandon()
     elif args.command == "recover":
