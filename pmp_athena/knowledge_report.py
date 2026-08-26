@@ -45,13 +45,48 @@ _TYPE_ALIASES: dict[str, str] = {
 }
 
 
+DOMAIN_ASCII: dict[str, str] = {
+    "商业环境": "business",
+    "成本管理": "cost",
+    "质量管理": "quality",
+    "进度管理": "schedule",
+    "范围管理": "scope",
+    "整合管理": "integration",
+    "敏捷/混合方法": "agile",
+    "敏捷混合方法": "agile",
+    "敏捷": "agile",
+    "资源管理": "resource",
+    "干系人管理": "stakeholder",
+    "沟通管理": "communication",
+    "风险管理": "risk",
+    "采购管理": "procurement",
+    "领导力/人员": "leadership",
+}
+
+TITLE_ASCII: dict[str, str] = {
+    "薄弱知识点推送": "weak-knowledge-hub",
+    "薄弱点诊断": "weakness",
+    "学习计划": "study-plan",
+}
+
+
+def _ascii_slug(text: str) -> str:
+    """文件名用纯 ASCII，避免小程序/GitHub 中文路径 404。"""
+    t = (text or "").strip()
+    for cn, en in TITLE_ASCII.items():
+        if cn in t:
+            return en
+    # 长领域名优先
+    for cn, en in sorted(DOMAIN_ASCII.items(), key=lambda x: len(x[0]), reverse=True):
+        if cn in t:
+            return en
+    t = re.sub(r"[^\w\-]+", "-", t, flags=re.ASCII)
+    t = re.sub(r"-+", "-", t).strip("-").lower()
+    return t or "report"
+
+
 def _slug(text: str, *, max_len: int = 40) -> str:
-    t = re.sub(r"\s+", "-", (text or "").strip())
-    t = re.sub(r'[<>:"/\\|?*]', "", t)
-    t = t.replace("知识点", "").replace("速查", "")
-    if not t:
-        t = "report"
-    return t[:max_len]
+    return _ascii_slug(text)[:max_len]
 
 
 def _escape(s: str) -> str:
@@ -491,6 +526,21 @@ def generate_report(
     }
 
 
+def _label_for_file(name: str) -> str:
+    if "weak-knowledge-hub" in name:
+        return "⭐ 薄弱知识点推送（入口）"
+    if "-weakness" in name:
+        return "薄弱点诊断"
+    if "-study-plan" in name:
+        return "学习计划"
+    for cn, en in DOMAIN_ASCII.items():
+        if f"-{en}-combo" in name:
+            return f"{cn} L1+L2"
+        if f"-{en}-l1" in name:
+            return f"{cn} L1"
+    return Path(name).stem
+
+
 def update_index(out_dir: Path | None = None) -> Path:
     """刷新 reports/index.html 列表。"""
     out = out_dir or REPORTS_DIR
@@ -501,11 +551,13 @@ def update_index(out_dir: Path | None = None) -> Path:
             for p in out.glob("*.html")
             if p.name not in ("index.html", "gallery.html")
         ],
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
+        key=lambda p: (
+            0 if "weak-knowledge-hub" in p.name else 1,
+            -p.stat().st_mtime,
+        ),
     )
     items = "\n".join(
-        f'    <li><a href="{_escape(p.name)}">{_escape(p.stem)}</a></li>'
+        f'    <li><a href="{_escape(p.name)}">{_escape(_label_for_file(p.name))}</a></li>'
         for p in files[:30]
     )
     index_html = f"""<!DOCTYPE html>
