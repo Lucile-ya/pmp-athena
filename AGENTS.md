@@ -175,6 +175,30 @@
 
 **输出：** 按月分组（刷题量/首次正确率/二次正确率）→ 月度对比（趋势箭头 + 变化量）→ 总览（累计正确率 + SM-2 复习进度 + 薄弱领域）。
 
+### 手机 HTML 报告（微信风控平替 · 只读）
+
+**适用：** OpenClaw 微信通道不可用时的 **知识点 / 薄弱点 / 学习计划 / 对账摘要** 手机阅读。参考 [wechat-reports](https://github.com/duzitong/wechat-reports) + 「GH HTML 查看器」小程序。**不用于交互刷题。**
+
+**触发词：**
+- `生成手机版知识点 X` / `手机报告 成本管理知识点` / `手机版薄弱点`
+- `生成手机报告` + 任意知识点/薄弱点/学习计划指令
+
+**执行：**
+```bash
+python pmp_athena/knowledge_report.py generate --text "<用户原文或知识点>"
+python pmp_athena/knowledge_report.py generate --text "挣值" --level combo   # L1+L2 同页
+python pmp_athena/knowledge_report.py generate --type weakness
+python pmp_athena/knowledge_report.py generate --type plan
+python pmp_athena/knowledge_report.py generate --type session --title "8月26日每日一练" --body "<对账摘要>"
+python pmp_athena/knowledge_report.py generate --text "成本管理知识点" --push  # 可选 git push
+```
+
+**输出目录：** `reports/`（自动刷新 `reports/index.html`）
+
+**流程：** 调用现有 `dynamic_knowledge.py` / `study_advisor.py` 取正文 → 生成 mp-html 兼容 HTML → 可选 push 到 GitHub → 用户在「GH HTML 查看器」小程序打开 private 仓库对应文件。
+
+**完成每日一练/模考判卷后：** 若用户需要手机查看，自动生成 `session` 报告（仅错题摘要，不含完整题干答案泄露）。
+
 ## 睡前复习（手动触发）
 
 用户说 **「睡前复习」** / **「睡前回顾」** 时执行（非定时）。

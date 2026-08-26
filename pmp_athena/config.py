@@ -36,6 +36,7 @@ CONFIG_JSON_PATH = NOTES_DIR / "config.json"
 DAILY_PRACTICE_DIR = NOTES_DIR / "每日一练"
 MOCK_EXAM_DIR = NOTES_DIR / "模考"
 KNOWLEDGE_INDEX_PATH = PROJECT_ROOT / "pmp_knowledge_index.json"
+REPORTS_DIR = PROJECT_ROOT / "reports"
 
 # ── Embedding 模型 ──────────────────────────────────────────
 # 使用多语言模型，中英文混合场景表现好
