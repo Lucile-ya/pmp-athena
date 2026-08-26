@@ -16,13 +16,27 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from pmp_athena.config import ERROR_LOG_PATH, PROJECT_ROOT, QUESTION_BANK_PATH, REPORTS_DIR
-from pmp_athena.knowledge_report import DOMAIN_ASCII, TITLE_ASCII, _ascii_slug, update_index
 
 EXAM_DATE = date(2026, 9, 12)
 
 def _area_links() -> dict[str, str]:
     d = date.today().isoformat()
-    return {cn: f"{d}-{_ascii_slug(cn)}-combo.html" for cn in DOMAIN_ASCII}
+    slug_map = {
+        "商业环境": "商业环境",
+        "成本管理": "成本管理",
+        "质量管理": "质量管理",
+        "进度管理": "进度管理",
+        "范围管理": "范围管理",
+        "整合管理": "整合管理",
+        "敏捷/混合方法": "敏捷混合方法",
+        "敏捷": "敏捷混合方法",
+        "资源管理": "资源管理",
+        "干系人管理": "干系人管理",
+        "沟通管理": "沟通管理",
+        "风险管理": "风险管理",
+        "采购管理": "采购管理",
+    }
+    return {k: f"{d}-{v}-combo.html" for k, v in slug_map.items()}
 
 GENERATE_AREAS = [
     "商业环境知识点",
@@ -137,7 +151,7 @@ footer{{margin-top:24px;font-size:.75rem;color:#94a3b8;text-align:center}}
 <h1>📚 薄弱知识点推送</h1>
 <p class="sub">基于做题记录 · {datetime.now().strftime("%Y-%m-%d %H:%M")} · 距考试 {days} 天</p>
 <div class="box">💡 今日优先攻克：<strong>{H.escape(tip)}</strong>。错题复习逾期 <strong>{overdue}</strong> 道。</div>
-<p><a href="{d}-weakness.html">📊 完整薄弱点诊断报告 →</a></p>
+<p><a href="{d}-薄弱点诊断.html">📊 完整薄弱点诊断报告 →</a></p>
 <h2>按薄弱程度（点击进入 L1+L2 知识点）</h2>
 <ul>
 {"".join(items)}
@@ -157,16 +171,17 @@ def main() -> None:
     generate_area_reports()
 
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    hub_name = f"{date.today().isoformat()}-weak-knowledge-hub.html"
+    hub_name = f"{date.today().isoformat()}-薄弱知识点推送.html"
     hub_path = REPORTS_DIR / hub_name
     hub_path.write_text(build_hub_html(rows, overdue), encoding="utf-8")
 
     from pmp_athena.knowledge_report import update_index
 
     update_index()
+
     print(f"✅ 已生成 {len(GENERATE_AREAS)} 个领域 combo 报告")
     print(f"✅ 汇总入口: reports/{hub_name}")
-    print(f"📱 小程序打开 reports/index.html")
+    print(f"📱 小程序打开 reports/index.html 或 {hub_name}")
 
 
 if __name__ == "__main__":
