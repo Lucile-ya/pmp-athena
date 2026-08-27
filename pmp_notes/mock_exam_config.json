@@ -54,6 +54,14 @@
       "status": "pending",
       "total_questions": 180,
       "has_pdf": true
+    },
+    {
+      "id": "M007",
+      "name": "2609英文模考",
+      "pdf_name": "PMP模考题-2609",
+      "status": "pending",
+      "total_questions": 180,
+      "has_pdf": true
     }
   ],
   "target_weekly_exams": 2

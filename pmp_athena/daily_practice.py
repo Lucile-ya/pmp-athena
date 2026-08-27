@@ -323,7 +323,7 @@ _OPTION_LINE = re.compile(
     re.I,
 )
 _ANSWER_LINE = re.compile(
-    r"答案\s*[料资部内育教迹骐练一日每\s]*[:：]\s*([A-E,\s]+)",
+    r"答案\s*[料资部内育教迹骐练一日每\s]*[:：]\s*([A-E,\s，、]+)",
     re.I,
 )
 _MULTI_MARKERS = (
@@ -476,7 +476,14 @@ def _parse_answers(text: str) -> dict[int, dict[str, str]]:
         am = _ANSWER_LINE.search(block)
         if not am:
             continue
-        raw = am.group(1).upper().replace(",", "").replace(" ", "")
+        raw = (
+            am.group(1)
+            .upper()
+            .replace(",", "")
+            .replace("，", "")
+            .replace("、", "")
+            .replace(" ", "")
+        )
         is_multi = _is_multichoice_block(block) or len(raw) > 1
         answer = _normalize_answer_text(raw, multi=is_multi)
         answers[num] = {

@@ -14,10 +14,12 @@ if str(ROOT) not in sys.path:
 from pmp_athena.mock_exam_engine import (  # noqa: E402
     MOCK_DIR,
     PAPER_FILES,
+    PAPER_HISAI,
     PAPER_MAP,
     PAPER_QIJI,
     PAPER_TEXT,
     _parse_text_pdf,
+    load_hisai_mock_exam,
     load_qiji_mock_exam,
     load_scanned_mock_exam,
     load_text_mock_exam,
@@ -71,6 +73,14 @@ def audit_wired_papers() -> list[dict]:
             row["pdf_exists"] = (MOCK_DIR / q_pdf).exists()
             row["answer_exists"] = (MOCK_DIR / a_pdf).exists()
             qs = load_qiji_mock_exam(key) if row["pdf_exists"] else []
+        elif key in PAPER_HISAI:
+            q_pdf, a_pdf = PAPER_HISAI[key]
+            row["type"] = "希赛英文"
+            row["pdf"] = q_pdf
+            row["answer_pdf"] = a_pdf
+            row["pdf_exists"] = (MOCK_DIR / q_pdf).exists()
+            row["answer_exists"] = (MOCK_DIR / a_pdf).exists()
+            qs = load_hisai_mock_exam(key) if row["pdf_exists"] else []
         elif key in PAPER_FILES:
             q_pdf, a_pdf = PAPER_FILES[key]
             row["type"] = "扫描版"

@@ -12,6 +12,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from pmp_athena.daily_practice import (  # noqa: E402
+    _parse_answers,
     _parse_questions,
     _strip_question_header,
     load_questions_for_date,
@@ -176,6 +177,30 @@ def test_grade_batch() -> None:
     _clear_state()
 
 
+def test_parse_multichoice_answer_chinese_comma() -> None:
+    block = """
+10.【多选题】新成员不愿参与讨论，团队应采取哪两个行动？
+答案:C，E
+解析：选项C和E正确。
+"""
+    ans = _parse_answers(block)
+    assert 10 in ans
+    assert ans[10]["answer"] == "CE"
+    assert ans[10]["question_type"] == "multi"
+
+
+def test_aug24_q10_if_present() -> None:
+    pdf = _ROOT / "pmp_notes" / "每日一练" / "2609每日一练8月24日.pdf"
+    if not pdf.exists():
+        print("⏭️  SKIP aug24 pdf: 文件不存在")
+        return
+    qs = load_questions_for_date(date(2026, 8, 24))
+    assert len(qs) == 10
+    q10 = qs[9]
+    assert q10["correct_answer"] == "CE", q10.get("correct_answer")
+    assert q10.get("question_type") == "multi"
+
+
 def test_grade_multichoice() -> None:
     from pmp_athena.daily_practice import _clear_state, _save_state, grade_answers
 
@@ -228,8 +253,10 @@ def main() -> int:
         test_recover_orphan_option_c,
         test_option_not_watermark_tail,
         test_grade_batch,
+        test_parse_multichoice_answer_chinese_comma,
         test_grade_multichoice,
         test_july16_pdf_if_present,
+        test_aug24_q10_if_present,
         test_july17_pdf_if_present,
         test_july20_pdf_if_present,
         test_qiji_2609_mock_if_present,

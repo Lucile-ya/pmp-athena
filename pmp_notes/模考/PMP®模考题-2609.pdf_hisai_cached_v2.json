@@ -1,0 +1,2357 @@
+[
+  {
+    "question": "A project team is faced with deciding on the next steps to take in order to address recently identified tasksscheduledelays.Theprojectmanagerexpectsteammemberstomaketheappropriatedecisionsfor their respectively assigned tasks and proceed to implement them.Which type of leadership style is the project manager using in this instance? 一个项目团队正面临决定下一步行动，以解决近期发现的任务进度延误问题。项目经理期望团队成员针对各自负责 的任务做出恰当的决策，并着手实施。在此情况下，项目经理采用的是哪种领导风格？",
+    "options": [
+      "A. Democratic",
+      "B. Autocratic",
+      "C. Free rein",
+      "D. Smoothing"
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager has engaged the sponsor and discussed concerns regarding noncompliance.The project manager understands that this could be a potential audit situation.What should the project manager do? 某项目经理已与发起人沟通，并讨论了关于不符合要求的担忧。该项目经理意识到这可能构成潜在的审计问题。该 项目经理应如何处理？",
+    "options": [
+      "A. Do nothing and continue to work as before,assuming there will be an audit.",
+      "B. Disengage the noncompliant department,as this is problematic.",
+      "C. Disclose the source of the problem to the auditors and let them decide.",
+      "D. Gain the commitment and approval from leadership on noncompliance."
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Which of the following project artifacts do not utilize the WBS as an input? 以下哪个项目产出不以工作分解结构（WBS）作为输入？",
+    "options": [
+      "A. Project schedule",
+      "B. Project scope",
+      "C. Risk management plan",
+      "D. Quality plan"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager is managing a project with a hybrid approach and has requested a senior team member to perform a quantitative risk analysis.The team member responds that they do not have the knowledge to perform such an analysis.What should the project manager do? has the knowledge to perform this task to the team. training. 一位项目经理正在采用混合方法管理一个项目，并要求一名资深团队成员进行定量风险分析。该团队成员回应称， 自己不具备进行此类分析的知识。项目经理应如何处理？",
+    "options": [
+      "A. Escalate the issue to the functional manager.",
+      "B. Contact the project management office(PMO)and request them to assign another team member who",
+      "C. Help the team member to perform the quantitative risk analysis through coaching,mentoring,and",
+      "D. Perform the quantitative risk analysis for the team member."
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager is working on requirement management in a pharmaceutical company.Which improvement is something the project manager's organization should expect as an outcome of the project? 某制药公司的项目经理正在负责需求管理工作。作为项目成果，该项目经理所在组织应期待实现哪项改进？",
+    "options": [
+      "A. Reduced quality",
+      "B. Increased costs",
+      "C. Reduced risks",
+      "D. Increased schedule"
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aprojectmanagerparticipatesinafocusgroupthatimplementsprojectmanagementchangesacross the organization.The goal is to improve project effectiveness and success.Which process should the project manager suggest for lasting and successful change within projects? 一位项目经理参加了一个焦点小组，该小组旨在全组织范围内推行项目管理变革。其目标是提高项目的有效性和成 功率。为了在项目中实现持久且成功的变革，项目经理应建议采用哪种流程？",
+    "options": [
+      "A. Conduct individualized skills assessments and provide targeted training for each team member.",
+      "B. Monitor external regulations and adapt project management practices accordingly.",
+      "C. Facilitate open communication and build buy-in from all project stakeholders.",
+      "D. Implement a project management change management plan aligned with industry best practices."
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "During a project steering committee meeting,the project manager reports that a formerly supportive key team member has become resistant to and negative about changes.Where should this information be captured? 在项目指导委员会会议上，项目经理报告称，一位此前支持变革的关键团队成员现在对变革产生了抵触情绪并持消 极态度。这一信息应记录在何处？",
+    "options": [
+      "A. Responsible,accountable,consult,and inform(RACI)matrix",
+      "B. Stakeholders engagement assessment matrix",
+      "C. Risk register and issue log",
+      "D. Work performance reports"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A company is kicking off anew hybrid project to be in compliance with new government regulations. The team has established a reliable velocity of 40 story points per iteration.Every iteration lasts 2 weeks. The sponsor wants to know when the project will be done if there are 800 story points remaining. 某公司正启动一个新的混合型项目，以符合新的政府法规。团队已确立了每迭代40个故事点的稳定速度，每个迭代 周期为2周。项目发起人想知道，如果剩余800个故事点，项目何时能完成。",
+    "options": [
+      "A. 4 hours",
+      "B. 8 weeks",
+      "C. 40 days",
+      "D. 10 months"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "An application developer took a story card to work that read \"Customer can pay using credit card\".After the implementation,the functionality was rejected because the application could not accept foreign credit cards.What should the project manager have done to avoid this issue? 一位应用程序开发人员接手了一张写着“客户可以使用信用卡支付”的故事卡。实现后，该功能因应用程序无法接 受外国信用卡而被否决。项目经理本应采取什么措施来避免此问题？",
+    "options": [
+      "A. Described the user story in more detail.",
+      "B. Scheduled the user story for the next iteration.",
+      "C. Performed iterative backlog grooming with the team.",
+      "D. Gathered more detailed requirement specifications from end users."
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A company is using Lean Six Sigma methodology on a project.Midway through the project,an external Lean consultant is invited to conduct an audit to ensure that the methodology isbeing properly applied.Which process is being employed? 一家公司正在一个项目中使用精益六西格玛方法。项目进行到一半时，邀请了一位外部精益顾问进行审核，以确保 该方法得到正确应用。正在采用的是哪种流程？",
+    "options": [
+      "A. Manage Quality",
+      "B. Control Quality",
+      "C. Perform Qualitative Risk Analysis",
+      "D. Plan Quality Management"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "When managing a strategic project for their organization,what four tools should a project manager use for risk analysis?(Choose four) 在为组织管理战略项目时，项目经理应使用哪四种工具进行风险分析？（选四项）",
+    "options": [
+      "A. Brainstorming",
+      "B. Inspection",
+      "C. Risk checklists",
+      "D. Product evaluation",
+      "E. Interviewing",
+      "F. Decision tree analysis"
+    ],
+    "correct_answer": "ACEF",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": true
+  },
+  {
+    "question": "After stakeholder data and information collection is complete,an analysis of the collected data begins.The power/interest scores are plotted for each stakeholder on a set of the axis to provide a visualizationofstakeholderpowerandinterest.Therearethreestakeholdersthathavelowpowerandlow interest.What are the actions for them? 在完成干系人数据和信息的收集后，开始对收集到的数据进行分析。将每个干系人的权力/兴趣得分绘制在一组坐 标轴上，以直观展示干系人的权力和兴趣。有三个干系人既缺乏权力又缺乏兴趣。针对他们应采取哪些行动？",
+    "options": [
+      "A. They must be kept satisfied by ensuring their concerns and questions are addressed adequately.",
+      "B. They require minimal management effort.",
+      "C. They must be kept informed and updated on the project.",
+      "D. They must be kept satisfied,but also actively engaged with and consulted on the project."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager is working on a long-term project in a complex environment.The project manager'sfocusisonmaintaininghealthyteamworkandcollaboration.Whatconflictresolutionstrategy should be used within the project team? 一位项目经理正在复杂的环境中开展一个长期项目。该项目经理的重点是保持健康的团队合作与协作。项目团队内 应采用哪种冲突解决策略？",
+    "options": [
+      "A. Problem solving",
+      "B. Compromising",
+      "C. Accommodating",
+      "D. Consultation"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "An agile project is running its fifth iteration out of 10.After the last retrospective,the team members realize that they had to work extra hours to deliver the committed work.What should the project manager do? 一个敏捷项目正在进行第10个迭代中的第5个迭代。在上一次回顾会议后，团队成员意识到为了交付承诺的工作， 他们不得不加班。项目经理应该怎么做？",
+    "options": [
+      "A. Ask the team to have a lower commitment for the next iteration.",
+      "B. Ask for additional team members to maintain the velocity.",
+      "C. Conduct a focused retrospective to help the team to discover the root cause.",
+      "D. Implement a checkpoint in the iteration to verify if the team is on track."
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A transportation company is transforming its operational processes and the main system this company uses to move freight.The scope statement is in place.An iterative delivery approach has been agreed byall stakeholders.What does the project manager need to donext to help the team understand the work that needs to be done? assignments for team members. required timeline for each team member to start the work. required deliverables and timelines. analyzed,and documented, and then assign requirements to team members. 某运输公司正在转型其运营流程及用于运输货物的核心系统。项目范围说明书已制定完毕，所有干系人均已同意采 用迭代交付方法。项目经理接下来需要做什么，才能帮助团队理解需要完成的工作？",
+    "options": [
+      "A. Start working on the project management plan with work packages,a detailed schedule,and work",
+      "B. Work directly with stakeholders on the work breakdown structure (WBS)and assign tasks with a",
+      "C. Work with the team to decompose the scope into a WBS and work packages in order to create",
+      "D. Create the requirements management plan to outline how project requirements will be collected,"
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "During the planning of a project with incremental deliveries,the team realizes that they will need specific expertise for one of the deliverables towards the end of the project.What should the project manager do next? 在规划一个采用增量交付的项目时，团队意识到在项目接近尾声时，其中一个交付成果需要特定的专业知识。项目 经理接下来应该怎么做？",
+    "options": [
+      "A. Enroll the team in training so they can be equipped with the needed expertise.",
+      "B. Request the availability of the needed resources with expertise from the project sponsor.",
+      "C. Ask the team members to acquire expertise through self-paced learning.",
+      "D. Define and share the work agreement with the team to coordinate activities to acquire expertise."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "During a complex project,a stakeholder informs the project manager about a requirement and proposes to call a meeting to inform team members mid-sprint.What should the project manager do first? 在一个复杂项目中，一位干系人向项目经理通报了一项需求，并提议在冲刺中期召开会议通知团队成员。项目经理 应首先做什么？",
+    "options": [
+      "A. Schedule a meeting with the stakeholder and a team member.",
+      "B. Ask the stakeholder to explain and implement the requirements immediately.",
+      "C. Host a meeting with all team members to discuss the requirements.",
+      "D. Request the product owner add to the product backlog to be treated in the next iteration."
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aproject managerplanning a strategic predictive project hassuddenly fallen ill.The project baseline mustbesubmittedtothecustomerwithin3days,andtheprojectmanagementoffice(PMO)directormust find someone to finish the planning.The choices are: Project manager A:highly experienced in Scrum projects only,available immediately for 2 days only; Project manager B:moderately experienced mainly in construction projects,available the next day for 1 week.Which project manager should the PMO director choose and on what basis? matter experts (SMEs). 一位正在规划战略预测项目的项目经理突然生病。项目基准必须在3天内提交给客户，项目管理办公室(PMO)主任 必须找到人来完成规划。选项如下： 项目经理A：仅在Scrum项目方面经验丰富，可立即上岗但仅能工作2天； 项目经理B：主要在建筑项目方面经验尚可，次日可上岗，可工作1周。 PMO主任应选择哪位项目经理？依据是什么？",
+    "options": [
+      "A. A is available immediately and has more experience to plan quickly and correctly.",
+      "B. B better understands the complexities of predictive planning and has use of a network of subject",
+      "C. A is more up to date and conversant with the latest project planning trends and methodologies.",
+      "D. B will be available to work for a longer period in case the submission deadline is missed."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Amultinationalcompanyislocallydevelopingadigitalproductusinganewtechnologyplatform.The only expert on this platform is located in the company's headquarters,and they are responsible for providing support to different countries.How can the local project manager ensure the involvement of this expert? 某跨国公司正在当地利用一个新技术平台开发数字产品。该平台唯一的专家位于公司总部，负责为不同国家提供支 持。当地项目经理如何确保该专家的参与？",
+    "options": [
+      "A. Design a travel schedule so that timely,onsite assistance can be provided.",
+      "B. Include the expert on the team using a virtual environment.",
+      "C. Ask the project sponsor to assign the expert as a full-time member of the team.",
+      "D. Ask team members to contact the expert as an external expertise source on an as-needed basis."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager was just given a new project to handle.She is working on the project documents and,after reading the Project Charter,is compiling the risks as she sees them.Once she completes the list,when should it be reviewed? 一位项目经理刚接到一个新项目。她正在处理项目文件，在阅读了项目章程后，正根据自己的判断整理风险清单。 待清单完成后，应何时进行审查？",
+    "options": [
+      "A. When starting the project and as each risk is closed.",
+      "B. While organizing,preparing,and carrying out the work.",
+      "C. During weekly meetings as new risks are identified and added.",
+      "D. Regularly and throughout the project."
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aprojectmanagerisleadinganagileproject.Foriterationsonethroughfive,theteam'svelocitychart displays18storypoints,30storypoints,22storypoints,23storypoints,and22storypoints.Whatdoesthis information demonstrate about the team's performance? 一位项目经理正在领导一个敏捷项目。在前五个迭代中，团队的速度图分别显示为18个故事点、30个故事点、22 个故事点、23个故事点和22个故事点。这些信息说明了团队的绩效如何？",
+    "options": [
+      "A. The team is not following agile practices properly.",
+      "B. The team's velocity is stabilizing over time.",
+      "C. The team is lagging behind as per the schedule.",
+      "D. The team needs to change their agile methodology."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager needs to ensure that the products of the organization meet certain government standardsandregulations.Theprojectmanager'steamisdevelopingabusinessrequirementsdocument (BRD) to help in this regard. Which of the following statements are correct about compliance requirements?(Choose 2). team. the BRD. 一位项目经理需要确保该组织的产品符合某些政府标准和法规。项目经理的团队正在编写一份业务需求文档（BRD） 以协助此项工作。关于合规性要求，以下哪些陈述是正确的？（选两项）。",
+    "options": [
+      "A. Compliance requirements are functional requirements and must be included in the BRD.",
+      "B. Compliance requirements are non-functional requirements and must be documented in the BRD.",
+      "C. Compliance requirements should be part of the project scope and should be managed by the project",
+      "D. Compliance requirements can be considered organization assets and do not need to be included in",
+      "E. Compliancerequirementscannotbeconsidered organizationassets andmustbeincluded intheBRD."
+    ],
+    "correct_answer": "BC",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": true
+  },
+  {
+    "question": "A demanding project stakeholder insists that an additional feature be added to a project product without changing the scope budget,or schedule.The project manager allows this feature to be included since it adds great value to the end product.However, the project manager discovers that adding this feature has lengthened the project schedule and increased project costs.Which process should the project manager have followed before including the additional product feature? 一位要求苛刻的项目干系人坚持要求在不改变项目范围、预算或进度的情况下，向项目产品中添加一项额外功能。 项目经理允许包含该功能，因为它为最终产品带来了巨大价值。然而，项目经理发现添加该功能延长了项目进度并 增加了项目成本。在包含该额外产品功能之前，项目经理本应遵循哪个流程？",
+    "options": [
+      "A. Change control",
+      "B. Schedule planning",
+      "C. Procurement planning",
+      "D. Quality audit"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "In a program,several groups are identifying problem solving techniques and each group presents a proposal.Among those listed, which is valid? 在一个项目组合中，多个小组正在确定问题解决技术，并各自提交了一份提案。在列出的选项中，哪一项是正确的？",
+    "options": [
+      "A. Performing project health checks",
+      "B. Reading literature related to your industry",
+      "C. Establishing a project suggestion box",
+      "D. All of the above"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "All quality controls have passed,and a project deliverable is ready to be released to the customer. However,a change request to add new quality criteria has been approved.What should the project manager do first? 所有质量控制均已通过，项目交付物已准备好交付给客户。然而，一项关于增加新质量标准变更请求已被批准。项 目经理应首先做什么？",
+    "options": [
+      "A. Update the project management plan.",
+      "B. Stop the release of the deliverable to the customer.",
+      "C. Use the new quality criteria for future deliverables.",
+      "D. Update the risk register."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "The project manager of an Al project leads with grace and confidence.They provide support,listen attentively,and allow their team members to work under little supervision. What model of worker behavior does the project manager exhibit? 某人工智能项目的项目经理以优雅和自信的姿态领导团队。他们提供支持、认真倾听，并允许团队成员在较少监督 下工作。该项目经理展现了哪种员工行为模式？",
+    "options": [
+      "A. Expectancy theory",
+      "B. Theory X",
+      "C. Theory Y",
+      "D. Theory Z"
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project team has successfully completed a project.The same team and three new people start another project led by a new scrum master.How will the new scrum master lead? 一个项目团队成功完成了一个项目。该团队与三名新成员在一位新Scrum Master的带领下启动了另一个项目。这 位新Scrum Master将如何领导？",
+    "options": [
+      "A. High directive,high supportive",
+      "B. Low directive,high supportive",
+      "C. High directive,low supportive",
+      "D. Low directive,low supportive"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Due to a recent incident,a dissatisfied stakeholder files a complaint about a project that has been closed.What can the project manager do to help resolve this? 由于最近发生的一起事件，一位不满意的干系人对一个已结束的项目提出了投诉。项目经理可以采取什么措施来帮 助解决这个问题？",
+    "options": [
+      "A. Execute the relationship management plan.",
+      "B. Consult with the project sponsor to manage the dissatisfied stakeholder.",
+      "C. Review the project management information system(PMIS)archives.",
+      "D. Update the risk register."
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "An experienced project manager is preparing a kick-off meeting for a new service assessment.A high-level description of the service has been provide.What should the project manager do first? 一位经验丰富的项目经理正在为一项新的服务评估筹备启动会议。目前已提供了该服务的高层级描述。项目经理首 先应该做什么？",
+    "options": [
+      "A. Develop the project charter.",
+      "B. Develop the responsible,accountable,consult,and inform(RACI)matrix.",
+      "C. Define the project scope statement.",
+      "D. Create the work breakdown structure(WBS)"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aprojectmanagerismanagingahybridproject.Astakeholderhasdirectlycontactedateammember and has requested a change. Due to the request,the team member was distracted from their work,which caused a loss in productivity.What should the team member do? project manager. change control board (CCB). on productivity. 某项目经理正在管理一个混合型项目。一位干系人直接联系了一名团队成员并提出变更请求。由于该请求，该团队 成员的工作受到干扰，导致生产力下降。该团队成员应如何处理？",
+    "options": [
+      "A. Inform the stakeholder that the correct procedure for new requirements is to provide it directly to the",
+      "B. Inform the stakeholder that the correct procedure for new requirements is to provide it directly to the",
+      "C. Informthe scrum masterregardingthe stakeholder'srequestfor achangeandthe impactthishashad",
+      "D. Inform the scrum master so that the change can be discussed directly with the stakeholder."
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project is being executed-The project's life cycle is defined as predictive;however,a major deliverable will be handed over incrementally to the customer.The assigned resources are experienced and reliable and are willing to make decisions that the project manager used to make after each incremental delivery on other projects.What should the project manager do? responsible for making decisions. 某项目正在执行中。该项目的生命周期被定义为预测型；然而，一项主要交付物将以增量方式交付给客户。所分配 的资源经验丰富且值得信赖，并愿意在每次增量交付后做出项目经理在其他项目中曾做出的决策。项目经理应如何",
+    "options": [
+      "A. Inform the team that although this is a hybrid environment,the project manager must still be",
+      "B. Consult the product owner about letting the resources make decisions.",
+      "C. Support the decisions of the team and transfer the decision making responsibility to them.",
+      "D. Schedule a steering committee meeting and obtain their approval on the request."
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A team receives outsourced deliverables and determines that they do not meet the agreed-upon acceptance criteria.What should the project manager reference to verify this with the vendor? 某团队收到外包交付物后，认定其不符合约定的验收标准。项目经理应参考什么来向供应商核实此事？",
+    "options": [
+      "A. Procurement management plan",
+      "B. Request for proposal(RFP)",
+      "C. Statement of work (SOW)",
+      "D. Inspections"
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A newly formed team has become accustomed to agile practices.The project lead has noticed that while they are performing according to expectations,there is boredom with daily team practices among many of the team members.What should the project lead do in this situation? self correct. in the team. 一个新组建的团队已习惯于敏捷实践。项目负责人注意到，虽然团队表现符合预期，但许多成员对日常团队实践感 到厌倦。在此情况下，项目负责人应如何应对？",
+    "options": [
+      "A. Allow the team to self-organize and have them analyze the situation in their retrospective session and",
+      "B. Challenge theteam to find new ways toachieve higherlevels ofperformance to improve thesituation.",
+      "C. Speakwith individualteam memberstodeterminewhattheywould liketodotoimprovethesituation",
+      "D. Have the team inform senior management of the situation and ask for recommendations."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "ProjectmanagerBhasbeenassignedtotakeoveraprojectfromProjectManagerA.ProjectManager A informs Project Manager B that the project is on schedule,only because Project Manager A constantly pushes the team to perform.What is the first action Project Manager B should take as the new project manager? 项目经理B被指派接手项目经理A负责的项目。项目经理A告知项目经理B，该项目之所以能按计划推进，完全是因 为项目经理A一直在督促团队高效工作。作为新任项目经理，项目经理B应采取的首要行动是什么？",
+    "options": [
+      "A. Check the risk status.",
+      "B. Check the cost performance.",
+      "C. Determine a management strategy.",
+      "D. Tell the team the new objectives."
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager considers compliance to be part of the organization's process assets.The project team, however, has decided to include compliance as inputs to the relevant processes rather than document these rules as requirements.What is the project manager's compliance responsibility? 某项目经理认为合规性是组织过程资产的一部分。然而，项目团队决定将合规性作为相关流程的输入，而非将这些 规则作为需求进行记录。项目经理在合规性方面的职责是什么？",
+    "options": [
+      "A. Acts as coordinator for the resources and activities",
+      "B. Conducts audits for the compliance requirement",
+      "C. Performs risk analyses of compliance risks",
+      "D. Changes process assets of the organization"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Duringtheweeklymeeting,teammembersarereviewingthetasksassignedbytheProjectManager.A few team members are complaining that there is not enough information to estimate how long it will take to complete the work.What is the most likely cause for this issue? 在每周例会上，团队成员正在审查项目经理分配的任务。部分成员抱怨称，现有信息不足以估算完成工作所需的时 间。导致这一问题最可能的原因是什么？",
+    "options": [
+      "A. Project objectives are not clearly defined",
+      "B. The business environment is very dynamic",
+      "C. Internal competition between team members",
+      "D. Roles & Responsibilities are not clearly defined"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A newly-hired project manager is running a project for the first time and is worried about rising tensions.Project team members are arguing during an effort-intensive phase and stakeholders have voiced some doubts about the project's performance.In a discussion with a senior project manager,the new project manager admits that they have a fear of conflict and asks the senior project manager how they perceive conflict.How should the senior project manager respond? 一位新聘用的项目经理正在首次负责一个项目，并担心紧张局势加剧。项目团队成员在工作强度大的阶段发生争执， 干系人也对项目的表现表达了一些疑虑。在与一位资深项目经理的讨论中，这位新项目经理承认自己害怕冲突，并 询问资深项目经理如何看待冲突。资深项目经理应该如何回应？",
+    "options": [
+      "A. Conflict in projects is inevitable-focus on managing it.",
+      "B. Conflict in projects is preventable-replan the mitigation.",
+      "C. Conflict in projects is disastrous-prepare a recovery plan.",
+      "D. Conflict in projects is healthy -refrain from interfering."
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager is leading an agile project.The product owner complains that the project team is constantly completing fewer story points than the Scrum team working on another project.What should the project manager do to address this issue? sprint. specific to each team. duration to increase velocity. 一位项目经理正在领导一个敏捷项目。产品负责人抱怨说，项目团队完成的用户故事点数总是少于正在处理另一个 项目的Scrum团队。项目经理应如何解决这个问题？",
+    "options": [
+      "A. Ask the team to address this issue as part of the retrospective to improve their velocity in the next",
+      "B. Tell the product owner that it is incorrect to compare velocity across teams because story points are",
+      "C. Get approval from the product owner to add a contingency buffer to the sprint,and change the",
+      "D. Take full responsibility for the team's low performance as compared to the other team and apologize."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager in an organization is considering implementing an agile project delivery.The organization has a strong project management office(PMO)and a well-defined change control process. What key aspect of agile project delivery should the project manageremphasize as the most compelling argument for its adoption? process. changes. 某组织的一位项目经理正在考虑实施敏捷项目交付。该组织拥有强大的项目管理办公室（PMO）和明确的变更控 制流程。作为采用敏捷项目交付的最有力论据，项目经理应强调其哪个关键方面？",
+    "options": [
+      "A. Agile delivery can improve quality through incremental delivery and efficient defect repair.",
+      "B. Agile teams offer flexibility in accommodating planned changes while streamlining the approval",
+      "C. The product owner utilizes a list known as the backlog to prioritize work items,including planned",
+      "D. Agile delivery is well-suited for handling unforeseen changes and shifting business expectations."
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager is working on a complex project that has high interest from senior management. There are many stakeholders with competing priorities,which requires significant negotiation skills to overcome rising conflicts.Which two principles should the project manager follow when developing the negotiation strategy?(Choose two). 某项目经理正在负责一个复杂项目，该项目受到高层管理层的高度关注。项目涉及众多干系人，且各方优先级相互 冲突，这要求项目经理具备出色的谈判技巧以化解日益加剧的冲突。在制定谈判策略时，项目经理应遵循哪两项原",
+    "options": [
+      "A. Separate the people from the problem.",
+      "B. Focus on political issues first.",
+      "C. Focus on management priorities.",
+      "D. Focus on interests,not positions.",
+      "E. Delegate the decisions to the team."
+    ],
+    "correct_answer": "AD",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": true
+  },
+  {
+    "question": "Aprojectmanagerforalargegovernmentorganizationdecidestosavemoneybychangingthelocal implementation partner,and is considering using offshore resources instead.What are the main risks associated with using offshore resources?(Choose3). 某大型政府机构的项目经理决定通过更换本地实施合作伙伴来节省成本，并考虑改用海外资源。使用海外资源主要 存在哪些风险？（选三项）",
+    "options": [
+      "A. Offshore resources may need more supervision due to time and cultural differences",
+      "B. Offshore resources may not have the same business domain knowledge as the previous vendor",
+      "C. Offshore resources may need more effort in planning and managing project budgets",
+      "D. Offshore resources may need longer onboarding due to geopolitical differences",
+      "E. Offshore resources may need detailed documentation due to time and cultural differences"
+    ],
+    "correct_answer": "ACD",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": true
+  },
+  {
+    "question": "A project team recently completed a long-term project using a predictive approach.The team then started a new project with the same project manager,but now they are using an agile approach.After the initialsprint,the team waits forthe project manager tomake decisions on behalfofthe team,ashas been done in previous projects.What should the project manager do? 一个项目团队最近使用预测性方法完成了一个长期项目。随后，该团队在同一位项目经理的带领下启动了一个新项 目，但这次采用的是敏捷方法。在第一个冲刺结束后，团队像以往项目一样，等待项目经理代表团队做出决策。项 目经理应该怎么做？",
+    "options": [
+      "A. Ask the product owner to make decisions for the team.",
+      "B. Give continuous positive feedback to all team members.",
+      "C. Remind the team that they are using an agile approach.",
+      "D. Coach the team to guide and support their own decisions."
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aprojectmanagerhasnoticedapparentinterpersonalconflictbetweensometeammembersduring the initiation of a project.When should the project manager address this problem? 某项目经理在项目启动阶段注意到部分团队成员之间存在明显的人际冲突。项目经理应何时解决这一问题？",
+    "options": [
+      "A. At the earliest time possible to prevent the conflict from escalating later in the project",
+      "B. Prior to every meeting by reminding the project team to be respectful with each other",
+      "C. Directly after an outburst or dispute between members to determine which member is right",
+      "D. At the end of the project to let the conflict de-escalate and record it in the lessons learned"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager is leading a project that is vital to their organization and the local environmental and energy authority.During a team meeting to discuss project risks,the team raised a high risk that an important senior manager is not currently involved with project What should the project manager do to mitigate this risk? 一位项目经理正在领导一个对组织以及当地环境和能源主管部门至关重要的项目。在一次讨论项目风险的团队会议 上，团队提出了一个高风险：一位重要的高级经理目前未参与该项目。项目经理应采取什么措施来缓解这一风险？",
+    "options": [
+      "A. Implement regular status reporting.",
+      "B. Escalate this risk to senior management.",
+      "C. Develop a highly detailed project management plan",
+      "D. Invite the senior manager to daily project meetings."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "During a retrospective meeting,the project team confirmed that all deliverables were completed according to the specifications provided in the product backlog.However,the number of errors found during testing increased dramatically.What should the project manager do? 在一次回顾会议上，项目团队确认所有交付成果均已按照产品待办事项列表中的规格完成。然而，测试过程中发现 的错误数量却急剧增加。项目经理应采取什么措施？",
+    "options": [
+      "A. Meet with quality assurance specialists to clarify the issue and seek resolutions.",
+      "B. Review the risk management plan to determine the mitigation strategy.",
+      "C. Perform a Monte Carlo analysis to identify possible scenarios and actions.",
+      "D. Register the risk in the risk register and monitor it during the next iteration."
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aproject steering group hasmade adecision tochange thevendorthat willdeliver acomponent of a project. Which of the following activities should be included in the handover?(Choose 2). 项目指导小组已决定更换负责交付项目某部分的供应商。以下哪些活动应纳入交接工作？（选两项）。",
+    "options": [
+      "A. The old vendor should provide training for the new one and assist with the transition.",
+      "B. Both vendors should provide additional incentives for staff during the transition.",
+      "C. The new vendor should take over activities as per the existing project plan.",
+      "D. The new vendor should shadow the old vendor to ensure knowledge transfer."
+    ],
+    "correct_answer": "AD",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": true
+  },
+  {
+    "question": "Aprojectmanagerengagedinthedeliveryofaglobalprojectisintheprocessofrecruitingaproject team.After the team is formed, what should the project manager do? know each other. and procedures. scope. 一位负责交付全球项目的项目经理正在组建项目团队。团队组建完成后，项目经理应采取什么行动？",
+    "options": [
+      "A. Send a welcome email and host a team introductory event with the team members so they get to",
+      "B. Send a project management plan and charter to team members to familiarize them with project goals",
+      "C. Arrange a meeting for team members to discuss any concerns regarding requirements and project",
+      "D. Send the team members a survey to learn more about each member,share the results via email."
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "An impact assessment reveals that a deliverable could be delayed by two weeks.A key resource has not been available to work on a non-critical activity due to other priorities.This could cause work overload on the other remaining resources.Since cost is a major constraint for this project,what should the project manager do immediately? 影响评估显示，某项交付成果可能会推迟两周。由于其他优先事项，一名关键资源无法参与非关键活动的工作。这 可能会导致其余资源的工作量过重。鉴于成本是本项目的主要约束条件，项目经理应立即采取什么措施？",
+    "options": [
+      "A. Determine if the task has available float to meet the project end date.",
+      "B. Hire a temporary resource to do the job.",
+      "C. Consult the team and reduce the scope.",
+      "D. Change the resource calendar to avoid major delays."
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "During a team meeting,team members asked the project manager to advise them on project dependencies. What should the project manager ask the team to do for internal dependencies? 在一次团队会议上，团队成员请项目经理就项目依赖关系提供指导。对于内部依赖关系，项目经理应要求团队做什",
+    "options": [
+      "A. Become familiar with the latest organizational changes.",
+      "B. Read about the merger with a competing organization.",
+      "C. Check the changes related to the work-from-home policy.",
+      "D. Become familiar with the upgrade of the Internet provider."
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A team is working on acomplex and fast-changing new product development project.After arecent processevaluation,theteamdecidestoaddanagiletoolkittothepredictiveapproachtheyareusing.This addition is intended to improve the overall project delivery, success, and productivity.Which of the following describes how this change is intended to add value to the overall delivery, success, and productivity? maintaining the benefits of a predictive approach to project management. poor productivity. future projects. they will work more effectively and productively. 一个团队正在从事一个复杂且变化迅速的新产品开发项目。在最近的一次流程评估后，该团队决定在其正在使用的 预测性方法中加入敏捷工具包。此举旨在提升项目的整体交付质量、成功率和生产力。以下哪项描述了这一变更旨 在如何为整体交付、成功率和生产力增添价值？",
+    "options": [
+      "A. Use the agile toolkit to leverage the ability of agile methods to respond effectively to change,while",
+      "B. Use the agile toolkit to replace all predictive methods with new agile methods,and by doing so,reduce",
+      "C. Use the agile toolkit to compare agile against predictive methods,then choose the best approach for",
+      "D. Use the agile toolkit and ask team members to choose between agile and predictive methods so that"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "While preparing a project charter for a new project,a project manager reviews lessons learned from previous projects.The lessons learned documents show frequent issues with low engagement levels and stakeholder misalignment on project objectives.What should the project manager do to avoid repetition of this issue in the new project? deliverables. breakdown structure(WBS). project charter. 在为新项目编制项目章程时，项目经理回顾了以往项目的经验教训。经验教训文件显示，项目中经常出现参与度低 以及干系人对项目目标意见不一致的问题。项目经理应采取什么措施，以避免在新项目中重蹈覆辙？",
+    "options": [
+      "A. Allow any stakeholder to join the change control board (CCB)at any time in the project.",
+      "B. Include all stakeholders in the responsibility assignment matrix(RAM) for acceptance of the",
+      "C. Gather all the requirements provided by every individual stakeholder and include in the work",
+      "D. Buildacommonunderstandingamongstakeholdersaboutkeydeliverablesdescribedintheapproved"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager is working on a complex project with many stakeholders that have conflicting priorities.Seniormanagementaskedtheprojectmanagertoavoid\"noise\"becausethisisahighlypolitical project.Theproject manageropted to useexpert opinion from wellknown industry profiles.Whatdid the project manager do to satisfy senior management's request? 一位项目经理正在处理一个涉及众多干系人且优先级相互冲突的复杂项目。由于这是一个高度政治化的项目，高层 管理人员要求项目经理避免“噪音”。项目经理选择采用知名行业专家的意见。项目经理采取了什么措施来满足高 层管理人员的要求？",
+    "options": [
+      "A. Responded in a friendly manner to senior management",
+      "B. Appeared to be consistent in the use of words and actions",
+      "C. Cooperated with senior management to achieve mutual goals",
+      "D. Took action based on the senior management's power to act"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Anagilecoachiscounselingalargesoftwareorganizationthathasbeenusingwaterfallmethodology and now plans to start using agile or hybrid methodology. What would be a project manager's suggestion? 一位敏捷教练正在为一家大型软件公司提供咨询，该公司此前一直采用瀑布式开发方法，现在计划开始采用敏捷或 混合开发方法。项目经理会提出什么建议？",
+    "options": [
+      "A. Continue using waterfall,since hybrid does not fit with the organizational structure.",
+      "B. Start with agile and then move to hybrid,although agile takes time to implement",
+      "C. Start using hybrid methodologies because waterfall knowledge is transferable.",
+      "D. Start using hybrid,the more appropriate methodology for software organizations."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "While working on a project,the project team realizes that recent data center upgrades could impact the project's outcome. Certain modules of the project deliverable are incompatible with the new environment.Theteamidentifiestheappropriatestepstoaddresstheissue.Whatisthenextstepforthe project manager? 在项目执行过程中，项目团队意识到近期数据中心的升级可能会影响项目成果。项目交付物中的某些模块与新环境 不兼容。团队已确定了解决该问题的适当步骤。项目经理的下一步行动是什么？",
+    "options": [
+      "A. Request a budget increase.",
+      "B. Submit a change request.",
+      "C. Change the project schedule.",
+      "D. Update the requirements document."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "You are the project manager in an organization that is implementing agile delivery. You have experience as a scrum master and will perform this role in addition to the project management responsibilities.Oneoftheteammemberswantstoknowwhatthemainfocusofaservantleaderis.What will be your response? 你是某组织中正在实施敏捷交付的项目经理。你有担任Scrum Master的经验，并将在此项目管理职责之外兼任该 角色。一名团队成员想知道仆人式领导者的主要关注点是什么。你会如何回应？",
+    "options": [
+      "A. Client satisfaction and value delivered demonstration.",
+      "B. Growth and well-being of people and communities they belong to.",
+      "C. Stakeholders expectation management and communication.",
+      "D. Productivity and efficiency to achieve commitments made."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aprojectmanagerisfacingadelayinaprojectduetoadecisionmadebythefunctionalmanagerto provide onsite support for another project without consulting other parties impacted by this decision. What should the project manager do first? 由于职能经理在未征询受此决定影响的其他各方意见的情况下，决定为另一个项目提供现场支持，导致项目经理面 临项目延误。项目经理应首先做什么？",
+    "options": [
+      "A. Check the impact of the delay on schedule and cost.",
+      "B. Share the work schedule with the functional manager.",
+      "C. Meet with stakeholders to agree on a communications management plan.",
+      "D. Inform the customer about the delay and set a new delivery date."
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "What interpersonal skill do project managers or teams need to monitor stakeholder relationships, evaluate engagement strategies, and modify these approaches as needed? 项目经理或团队需要具备何种人际交往技能，才能监控干系人关系、评估参与策略，并在必要时调整这些方法？",
+    "options": [
+      "A. Active listening,leadership,and cultural and political awareness",
+      "B. Coaching,decision-making,and cultural and political awareness",
+      "C. Active listening,team building,leadership,and networking",
+      "D. Networking,influencing,and cultural awareness"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project team decides to document new aspects of a regulation as additional elements in the work breakdown structure(WBS). Which ofthe following are potential downsidesto this approach?(Choose 2). 一个项目团队决定将法规的新内容作为附加要素记录在工作分解结构（WBS）中。以下哪两项是这种做法的潜在弊",
+    "options": [
+      "A. Traceability improves but requirements will likely remain fragmented.",
+      "B. Traceability of requirements becomes more difficult at the project level.",
+      "C. Some of these requirements may not be completed as part of the project itself.",
+      "D. Regulatory requirements are not necessarily tied to the scope of the project.",
+      "E. Splitting the new items takes time and also requires effort to update the WBS."
+    ],
+    "correct_answer": "AC",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": true
+  },
+  {
+    "question": "A project manager is working on a complex, political project with many stakeholders having conflicting priorities.Senior management asked the project manager to ensure that there was no \"noise\" regarding the project.During a stakeholder meeting, the project manager asked a series of questions to confirm acceptance for each deliverable before asking for acceptance of the whole project. What did the project manager do to satisfy stakeholders? 一位项目经理正在处理一个复杂且涉及政治因素的项目，该项目有许多干系人，且他们的优先级相互冲突。高层管 理人员要求项目经理确保项目方面没有“噪音”。在一次干系人会议上，项目经理提出了一系列问题，以确认每个 交付成果是否被接受，然后才要求对整个项目进行验收。项目经理采取了什么措施来满足干系人的要求？",
+    "options": [
+      "A. Responded to positive actions of the stakeholders to reward actions",
+      "B. Acted in a manner that was consistent in the use of words and actions",
+      "C. Engaged with stakeholders by cooperating toward mutual goals",
+      "D. Acted based on the power authorized by senior management"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "An agile team hasbeen struggling to keep up with the planned pace,which is frequently resulting in sprint failures.What should the project manager do to help avoid this situation in the future? adjusting the plan. compensate for the budget gap. 一个敏捷团队一直难以跟上计划进度，这经常导致冲刺失败。项目经理应采取什么措施来避免今后出现这种情况？",
+    "options": [
+      "A. Ask the project sponsor to approve overtime to compensate for the lack of performance while",
+      "B. Review the velocity of the team over the last several sprints and adjust the plan accordingly.",
+      "C. Replace junior team members with more experienced ones,and negotiate the project scope to",
+      "D. Switch to a Kanban approach to have better control on the planned pacebylimiting work in progress."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Inanagileenvironment,a projectleadershouldalwaysconsideratimeforopenandfreediscussions between team members on how the team can increase their performance.Why is this practice important for the team? 在敏捷环境中，项目负责人应始终安排时间，让团队成员就如何提高团队绩效进行开放、自由的讨论。这一做法对 团队为何重要？",
+    "options": [
+      "A. Teams should take actions to continuously increase productivity",
+      "B. Teams should continuously experiment new ways of doing things",
+      "C. Teams should continuously seek to improve their processes",
+      "D. Teams should continuously push their members to work harder"
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A customer's requested design change is approved by the change control board(CCB).The project manager then discovers that the change will cause a three-month project delay.What should the project manager have done to avoid this? 客户提出的设计变更已获变更控制委员会（CCB）批准。随后项目经理发现该变更将导致项目延期三个月。项目经 理本应采取何种措施来避免这种情况？",
+    "options": [
+      "A. Increased the authorized budget,and requested additional resources",
+      "B. Redefined the project scope to include the new design",
+      "C. Fast tracked and crashed the schedule",
+      "D. Thoroughly assessed the request in accordance with the risk management plan"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "An operational support project is running smoothly,but a customer consistently complains about a lack of visibility into the quality of the support work.How should the project manager address this customer concern? future review. agreements reached during all discussions. shared folder for future review. oversee updating them. 一个运营支持项目正在顺利进行，但客户持续抱怨无法了解支持工作的质量。项目经理应如何解决客户的这一担",
+    "options": [
+      "A. Prepare relevant reports,send them to the customer daily,and publish them in a shared folder for",
+      "B. Request the customer to appoint a manager from their area to review day-to-day activities and",
+      "C. Plan a recurring governance meeting with the customer to present progress and publish data in a",
+      "D. Inform the customer that every day after the most important discussions occur,one team member will"
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A new project manager is attempting to enable shared leadership within their virtual team.Which of the following options should the project manager avoid? 一位新任项目经理正试图在其虚拟团队中建立共享领导力。项目经理应避免以下哪种做法？",
+    "options": [
+      "A. Respect team members' competencies",
+      "B. Loosen the reins and avoid the“responsibility trap”",
+      "C. Encourage leadership behaviors",
+      "D. Maintain a \"natural distance\"with the team"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aprojectteamjustcompletedanenvironmentalscanandhaveuncoveredalotofrelatedhindrances thatcouldpotentiallyaffecttheprojectdeliverynegatively.Theprojectmanagerisworkingwiththeteam to understand the details of each identified hindrance and how the hindrances relate to each other,in ordertounderstandtheoverallcomplexityoftheproject.Thiswillenabletheteam toarriveataplanthat addresses the challenges identified.Which of the following techniques has the project manager used in this instance? 一个项目团队刚刚完成环境扫描，并发现许多可能对项目交付产生负面影响的相关障碍。项目经理正与团队合作， 了解每个已识别障碍的细节及其相互关联，以便掌握项目的整体复杂性。这将使团队能够制定出应对已识别挑战的 计划。在此情况下，项目经理使用了以下哪种技术？",
+    "options": [
+      "A. Pareto analysis",
+      "B. Critical analysis",
+      "C. Systems thinking",
+      "D. Total quality management"
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "During project closure,the project manager finds it difficult to obtain successful project completion feedback.Some stakeholders disagree with the project's success criteria and have been frustrated with the project from the beginning.To what should the project manager refer to address these concerns? 在项目收尾阶段，项目经理难以获得项目成功完成的反馈。部分干系人对项目的成功标准持异议，且自项目伊始便 对此感到不满。项目经理应参考什么来解决这些担忧？",
+    "options": [
+      "A. Project charter",
+      "B. Quality management plan",
+      "C. Scope statement",
+      "D. Requirements documentation"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager has just completed the initiation phase of a project and needs to identify and analyze the stakeholders.The project charter focused on scope and budget approval only.What should the project manager do to identify stakeholders? 某项目经理刚完成项目的启动阶段，需要识别并分析干系人。项目章程仅侧重于范围和预算的批准。项目经理应采 取什么措施来识别干系人？",
+    "options": [
+      "A. Review lessons learned from previous projects.",
+      "B. Review the project charter.",
+      "C. Conduct a brainstorming session with the project team.",
+      "D. Review the organization chart."
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A new warehouse facility is under construction.The project manager implements team development efforts such as training that will result in a lower defect ratio.What should the project manager do next? 一个新仓库设施正在建设中。项目经理实施了团队发展措施，例如培训，这将降低缺陷率。项目经理接下来应该做",
+    "options": [
+      "A. Introduce a training program.",
+      "B. Update the resource management plan.",
+      "C. Increase quality control reviews.",
+      "D. Add training costs to the budget."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager is on a mega industrial project.The project team is distributed throughout six different countries and time zones. During a review meeting,it was noticed that important baselined milestone dates were missed.What is the most likely reason for the missed deadlines? 某项目经理负责一个大型工业项目。项目团队分布于六个不同国家及时区。在一次审查会议中，发现重要的基准里 程碑日期未能如期达成。导致延误的最可能原因是什么？",
+    "options": [
+      "A. Lack of buy-in commitment",
+      "B. Poor team communication",
+      "C. Misunderstanding stakeholder expectations",
+      "D. Stakeholders' expectation is set too high"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Acompanyisconsideringadoptingtheagilemethodologyforfutureprojects.Theprojectmanageris leading a discussion focused on the benefits associated with the agile methodology.Which of the following points should the project manager highlight? 某公司正考虑在未来项目中采用敏捷方法。项目经理正在主持一场关于敏捷方法相关益处的讨论。项目经理应重点 强调以下哪一点？",
+    "options": [
+      "A. Transparency is central,early and reliable delivery,methodology embraces change",
+      "B. Product based method,divides projects into valuable phases,focuses on business justification",
+      "C. Clear documentation exist,single point of responsibility,effective collaboration",
+      "D. No overtime if possible,face-to-face contact and constantly looking back to move forward"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aproject managerrecentlyjoined anew organization.Theproject sponsorisasubjectmatterexpert and wants to manage scope by delivering in small increments and changing the scope based on feedback.Which of the following approaches should be the recommended option? 一位项目经理最近加入了一个新组织。项目发起人是一位领域专家，希望通过小步交付并根据反馈调整范围来管理 范围。以下哪种方法应作为推荐选项？",
+    "options": [
+      "A. Scrum",
+      "B. Waterfall",
+      "C. Kanban",
+      "D. Predictive"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "During project implementation,an issue arises that requires the execution of the project's contingency plan,which will impact the project schedule.What should the project manager do? 在项目实施过程中，出现了一个问题，需要执行项目的应急计划，这将影响项目进度。项目经理应该怎么做？",
+    "options": [
+      "A. Initiate a risk audit.",
+      "B. Issue a change request.",
+      "C. Review the cost impact.",
+      "D. Update the contingency plan"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager is leading a project team composed of members from different departments, including engineering,marketing, and sales.During the development process,a conflict arises between theengineeringandmarketingteams.Theengineeringteamisfocusedondeliveringtheproductontime and within budget,while the marketing team is focused on ensuring that the product meets the needs of the target market.What should the project manager do? both teams. within budget. solution. 一位项目经理正领导一个由工程、市场营销和销售等不同部门成员组成的项目团队。在开发过程中，工程团队与市 场营销团队之间出现了冲突。工程团队专注于按时且在预算范围内交付产品，而市场营销团队则专注于确保产品满 足目标市场的需求。项目经理应如何处理？",
+    "options": [
+      "A. Suggest that the engineering and marketing teams each give up something to reach an agreement.",
+      "B. Suggest that the engineering and marketing teams work together to find a solution that works for",
+      "C. Suggest that the engineering team is correct and ensure that the product is delivered on time and",
+      "D. Suggest that the engineering and marketing teams compete to see who can come up with the best"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A large infrastructure organization is reviewing and standardizing project tools and techniques. Regarding the question\"When should the decision be made to take corrective action?\",which process group can this question come from? 一家大型基础设施组织正在审查并标准化项目工具和技术。关于问题“何时应决定采取纠正措施？”，该问题可能 来自哪个过程组？",
+    "options": [
+      "A. Initiating Process Group",
+      "B. Planning Process Group",
+      "C. Executing Process Group",
+      "D. Monitoring and Controlling Process Group"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aprojectmanagerinacross-functionalorganizationneedstoinformthedepartmentmanagerofthe number and type of resources required,and the length of time they will be needed.What should the project manager use to present this resource information? 某跨职能组织中的项目经理需要向部门经理通报所需资源的数量、类型以及所需时间。项目经理应使用什么来呈现 这些资源信息？",
+    "options": [
+      "A. Resource assignments",
+      "B. Resource histogram",
+      "C. Responsibility assignment matrix(RAM)",
+      "D. Project organization chart"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "An executive stakeholder has crucial decision power on the execution and success of a project.How should this stakeholder's importance be reflected in the stakeholder engagement plan? various project needs. stakeholders. are up to date. engagement level on a case-by-case basis. 一位高管干系人对项目的执行和成功拥有关键的决策权。在干系人参与计划中，应如何体现该干系人的重要性？",
+    "options": [
+      "A. Describetheexecutive'ssupportlevel,expectations,riskthreshold,andappropriatecommunicationsfor",
+      "B. Rank the executive in an organizational chart and illustrate any affinities or hostilities with other",
+      "C. Label the executive as\"supportive\"and ensure that email,phone numbers,and absence/vacation times",
+      "D. Describe the executive's involvement in similar past projects in order to decide the appropriate"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project team is working on a complex high-priority project.The project manager is informed that there is a superficial disagreement between a project sponsor and a project team member.This conflict could negatively impact the project timeline and must be resolved immediately.The team member desires to maintain a good relationship with the project sponsor and asks the project manager how they should approach the situation. What conflict resolution approach should the project manager suggest? 一个项目团队正在处理一个复杂的高优先级项目。项目经理获悉，项目发起人与一名项目组成员之间存在表面上的 分歧。这一冲突可能会对项目进度产生负面影响，必须立即解决。该组员希望与项目发起人保持良好关系，并询问 项目经理应如何处理这一情况。项目经理应建议采用哪种冲突解决方法？",
+    "options": [
+      "A. Collaborating",
+      "B. Accommodating",
+      "C. Compromising",
+      "D. Forcing"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "There is a variety of communication styles along a continuum that includes passive at one end -expressive in the middle- aggressive at the other end.As a project manager,which is the best style for success in communications with stakeholders. 沟通风格存在一个连续体，一端是被动型，中间是表达型，另一端是攻击型。作为项目经理，哪种风格最有利于与 干系人进行成功的沟通？",
+    "options": [
+      "A. Passive",
+      "B. Aggressive",
+      "C. Passive-Aggressive",
+      "D. Expressive"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Agroupofstakeholdersatafinancialinstitutionareconductingaprojectclosurereview.Someofthe stakeholders are concerned that the project deliverables do not satisfy the established closure criteria. What is the first thing that the project manager should do to address this issue? 某金融机构的一组干系人正在进行项目收尾评审。部分干系人担心项目交付成果未能满足既定的收尾标准。项目经 理应首先采取什么措施来解决这一问题？",
+    "options": [
+      "A. Assure the stakeholders that the project deliverables satisfy all established closure criteria.",
+      "B. Propose that the closure criteria be amended by removing the criteria that have not been met.",
+      "C. Take corrective measures by adapting the closure criteria and extending the project timeline.",
+      "D. Perform a thorough analysis to determine why the closure criteria have not been satisfied."
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A senior manager informs a project manager that the project is not performing as well as other projects.What can the project manager use to improve performance for the next series of iterations? 一位高级经理告知项目经理，该项目表现不如其他项目。项目经理可以利用什么来改善下一系列迭代的绩效？",
+    "options": [
+      "A. Retrospective session",
+      "B. Backlog analysis",
+      "C. Team building",
+      "D. Team motivation"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A team has been working for two months and has consistently missed planned user stories.How should the project manager address this issue? 一个团队已工作两个月，却始终未能完成计划中的用户故事。项目经理应如何解决此问题？",
+    "options": [
+      "A. Promote changing the iteration duration in order to commit as planned.",
+      "B. Ensure the sprint size is appropriate for the iteration duration.",
+      "C. Engage in recruiting a highly skilled resource to reinforce the skills.",
+      "D. Consider using a reward system to encourage timely delivery"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A customer requires knowing exactly the state of a product,the overall project,and the next steps planned for the next month each month.How should the project manager communicate with this customer? review of the product. understanding of the status. 某客户要求每月准确了解产品的状态、项目整体情况以及下个月的计划步骤。项目经理应如何与该客户沟通？",
+    "options": [
+      "A. Send a weekly status email,including a complete assessment of earned value.",
+      "B. Generate a monthly status report and include technical issues as an attachment.",
+      "C. Have a monthly call with the customer to summarize what happened recently and give a general",
+      "D. Present the project progress in monthly increments with a formal validation and comprehensive"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aprojectmanagerisleadingateamonanewdevelopmentproject.Theteamismadeupofadiverse group of people with different personalities and work styles. The project manager is committed to creating a cohesive and productive team,so they decided to introduce the DISC behavior model to help team members understand each other better.Based on the DISC behavior model,which of the following characteristics best describes the Influence style? 某项目经理正带领团队开展一项新开发项目。该团队由性格和工作风格各异的人员组成。项目经理致力于打造一个 团结且高效的团队，因此决定引入DISC行为模型，以帮助团队成员更好地相互理解。根据DISC行为模型，以下哪 项特征最能描述“影响力型”风格？",
+    "options": [
+      "A. Direct,result-oriented,and firm",
+      "B. Outgoing,enthusiastic,optimistic",
+      "C. Accommodating,patient,humble,tactful",
+      "D. Analytical,reserved,and precise"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager's team has identified the lack of proper knowledge transfer expectations in the project.Which of the obstacles does not apply in this situation? 某项目经理的团队发现项目中缺乏明确的知识转移预期。以下哪项障碍不适用于此情况？",
+    "options": [
+      "A. A systematic review of the completed project",
+      "B. Personally handled failures and mistakes",
+      "C. Insufficient individual motivation to document the lessons learned",
+      "D. Sparse leadership involvement to promote knowledge transfer"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Ateam lead isassignedto an ongoingproject.The team members havebeen working togetherfor a while. How should the team lead start building relationships? team. 一名团队负责人被分配到一个正在进行的项目中。团队成员已经一起工作了一段时间。该团队负责人应如何开始建",
+    "options": [
+      "A. Distribute tasks and observe the quality of the deliverables.",
+      "B. Talk about personal preferences and make sure the team understands your approach.",
+      "C. Ask some team members to share information about other members to become familiar with the",
+      "D. Ask the team members directly about both personal and work-related matters."
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager discovers a significant flaw in a major project deliverable. Which project management process is being performed? 一位项目经理在某项主要项目交付成果中发现了一个重大缺陷。正在执行的是哪个项目管理过程？",
+    "options": [
+      "A. Manage Quality",
+      "B. Control Quality",
+      "C. Plan Quality Management",
+      "D. Statistical Sampling"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Which of the following steps gives special attention to the group decision making processes? 以下哪个步骤特别关注群体决策过程？",
+    "options": [
+      "A. Problem Definition",
+      "B. Problem Solution Generation",
+      "C. Ideas to Action",
+      "D. Solution Action Planning"
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "The project team members are dispersed across different countries.Suddenly,travel restrictions do not allow team members to collocate.When analyzing project risks,which risk analysis tools should the project manager use?(Choose two). 项目团队成员分散在不同国家。突然，旅行限制导致团队成员无法集中办公。在分析项目风险时，项目经理应使用 哪些风险分析工具？（选两项）。",
+    "options": [
+      "A. Risk checklist",
+      "B. Context diagram",
+      "C. Meetings",
+      "D. Data representation",
+      "E. Diagramming techniques"
+    ],
+    "correct_answer": "AE",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": true
+  },
+  {
+    "question": "During release planning,a conflict arises between stakeholders regarding prioritizing certain needs, which is causing the development team to lose focus.To align all stakeholders and resolve this conflict, which conflict resolution technique should the project manager employ? 在发布规划期间，干系人之间就某些需求的优先级排序产生了冲突，导致开发团队无法集中精力。为了协调所有干 系人并解决这一冲突，项目经理应采用哪种冲突解决技巧？",
+    "options": [
+      "A. Forcing",
+      "B. Collaboration",
+      "C. Withdrawal",
+      "D. Smoothing"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Which of the following is different to the other options for managing external stakeholders in mega projects? 在大型项目中管理外部干系人方面，以下哪项与其他选项不同？",
+    "options": [
+      "A. Persuasion",
+      "B. Deputation",
+      "C. Give and take",
+      "D. Strict orders"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "An educational institution raises a complaint after placing an order for a software module from a company using agile practices.The complaint claims that billing for payment of a partial delivery violates the Agile Manifesto if the customer was not involved in progress meetings.The customer's claim is supported by which of the Four Values of the Agile Manifesto? 某教育机构向一家采用敏捷实践的公司订购软件模块后提出投诉。该投诉称，若客户未参与进度会议，则针对部分 交付的付款计费行为违反了《敏捷宣言》。客户的这一主张得到了《敏捷宣言》四项价值观中的哪一项的支持？",
+    "options": [
+      "A. Processes maintaining a constant pace indefinitely",
+      "B. Software delivery frequently and in short periods",
+      "C. Customer collaboration over contract negotiation",
+      "D. Working software as a primary measure of progress"
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A team member is hosting an event and invites several colleagues through their work calendars. Another team member,who was not invited to the event,is noticeably distracted during several standup meetings. What should the project manager do? 某团队成员正在组织一场活动，并通过工作日历邀请了几位同事。另一位未受邀的团队成员在几次站立会议中明显 心不在焉。项目经理应该怎么做？",
+    "options": [
+      "A. Ask the individual who is hosting the event to mark it as private.",
+      "B. Set up a meeting with the distracted team member to discuss any issues.",
+      "C. Ask the individual who is hosting the event to use private communication methods.",
+      "D. Add a social events section to the charter to handle these situations."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Project managers must be able to identify flaws that cause errors in decision making.Which option would help a project manager make optimal decisions? 项目经理必须能够识别导致决策失误的缺陷。以下哪个选项有助于项目经理做出最优决策？",
+    "options": [
+      "A. Utilizing biases",
+      "B. Using false assumptions",
+      "C. Checking with others",
+      "D. Applying logical errors"
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "An internal project has delivered its scope on time,within budget,and with the expected quality.The clientwassatisfiedwiththeresultanditenabledthemtolaunchthenewproducttomarket.However,the product did not attractthe expected interest and did not cover the investment made.The project team is aware of these results and it is impacting their morale to deliver the next project.How should the project manager handle this situation?(Choose 2 answers.) and it does not reflect their performance. this result. 某内部项目已按时、在预算范围内且达到预期质量标准地完成了交付。客户对结果表示满意，并借此将新产品推向 市场。然而，该产品并未引起预期的关注，也未能收回所投入的成本。项目团队已意识到这些结果，这正影响着他 们执行下一个项目的士气。项目经理应如何处理这种情况？（选两项）",
+    "options": [
+      "A. Haveadiscussion with the team toexplain that theproduct successis notadirectresult ofthe project",
+      "B. Have a meeting with the business to make sure they understand the project met its objectives",
+      "C. No action is necessary,as the project manager is only responsible for the project deliverables.",
+      "D. Have a conversation with the business sponsor to validate the strategy for the new project based on"
+    ],
+    "correct_answer": "AD",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": true
+  },
+  {
+    "question": "At the midway point of a project,the project manager was informed of a market movement that would make the project results useless to the client.This information could cause the project to be cancelled or at least a big change on the scope and desired outcome.What should the project manager do next? successful. needed. manager. 在项目进行到一半时，项目经理获悉了一项市场动态，该动态将导致项目成果对客户毫无用处。这一信息可能导致 项目被取消，或至少对项目范围和预期成果产生重大改变。项目经理接下来应该怎么做？",
+    "options": [
+      "A. Prepareallstatusreportsanddemostokeep theclientfocused ontheprojectexecutionthathasbeen",
+      "B. Have a transparent discussion with the project sponsor,offering support on the strategy evaluation if",
+      "C. Continue working on the project execution,as the business strategy is not responsibility of the project",
+      "D. Halt the project immediately,as the project manager knows it will be useless to the client."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "What tool should a project manager incorporate to better identify and respond to common stakeholder resistance to change challenges? 项目经理应采用什么工具来更好地识别和应对干系人对变革的普遍抵触？",
+    "options": [
+      "A. Change management",
+      "B. Risk management",
+      "C. Stakeholder management",
+      "D. Communication management"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A pharmaceutical project in the initiation phase is likely to be impacted by new market regulations. Which stakeholder categories should the project manager assign to the relevant regulatory body? 处于启动阶段的制药项目可能会受到新市场法规的影响。项目经理应将哪些干系人类别分配给相关监管机构？",
+    "options": [
+      "A. External with high power/influence",
+      "B. Internal with high power/influence",
+      "C. Internal with antagonist/resistant support level",
+      "D. External with antagonist/resistant support level"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "In an industrial plant,the owner has decided to add more capacity to the plant by installing a new machine and updating the software used in production.This capacity enlargement will occur while the plant is still functioning and producing.The software update will be accomplished using an agile approach in order to minimize risk. The machine procurement, installation, and integration will be accomplishedusing predictive approaches.What typesof communicationswill theproject manager have to design into the schedule management plan to ensure the project will be on schedule? 在一家工业工厂中，业主决定通过安装新机器并更新生产中使用的软件来增加工厂产能。此次产能扩建将在工厂正 常运转和生产期间进行。软件更新将采用敏捷方法进行，以最大限度地降低风险。设备采购、安装和集成将采用预 测性方法进行。项目经理必须在进度管理计划中设计哪些类型的沟通机制，以确保项目按计划进行？",
+    "options": [
+      "A. Weekly colocated meetings with the relevant stakeholders",
+      "B. Biweekly written status reports from the relevant stakeholders",
+      "C. Weekly one-on-one meetings with each of the relevant stakeholders",
+      "D. Biweekly conference calls with the relevant stakeholders"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager is leading a project with a scope partially delivered by a vendor.The vendor's processes and tools differ from the project team's,which may pose a risk.How should the project manager mitigate this risk? 某项目经理负责一个项目，其中部分工作范围由供应商交付。供应商的流程和工具与项目团队的不同，这可能带来 风险。项目经理应如何缓解此风险？",
+    "options": [
+      "A. Coach the internal project team to use the vendor's processes and tools.",
+      "B. Train the vendor to use the same processes and tools as the internal team.",
+      "C. Develop a strategy to align the internal and vendor processes and tools.",
+      "D. Recommend engaging a new vendor that uses the internal processes and tools."
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "In the middle of a project incremental delivery,due to a change in the technology,a team member informed the project leader that due to a lack of knowledge in the technology the delivery will be delayed and suggests outsourcing services.What should the project manager do? 在项目增量交付过程中，因技术变更，一名团队成员告知项目负责人，由于缺乏相关技术知识，交付将延迟，并建 议外包服务。项目经理应如何处理？",
+    "options": [
+      "A. Inform the end user of the delay of the specific delivery due to the new technology",
+      "B. Search for an outsourcing service with the experience needed",
+      "C. Inform the sponsor of the delay and ask for their support and approval",
+      "D. Discuss the impact of the new technology with the team and decide action jointly"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Whichisanessentialcomponentfor maintainingthesupport andcommitmentofallstakeholders? 以下哪项是维持所有干系人支持与承诺的关键要素？",
+    "options": [
+      "A. Honesty",
+      "B. Effective communication",
+      "C. Transparency",
+      "D. Reliability"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A large corporation is transforming itself from a predictive to agile approach.A project team with knowledge of agile practices is experiencing significant conflicts with the executives regarding the processes to be followed.How should these conflicts be resolved? 某大型企业正从预测型模式向敏捷型模式转型。一个熟悉敏捷实践的某个项目团队，正与高管层就应遵循的流程问 题上与高管层产生了严重冲突。这些冲突应如何解决？",
+    "options": [
+      "A. Negotiate with the executives and agree on a process.",
+      "B. Train the executives on agile practices.",
+      "C. Include the executives in team retrospectives.",
+      "D. Request that the executives use agile practices."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A complex construction project entails the meeting of several regulations throughout project execution.The project team is brainstorming how to implement an effective method to ensure compliance throughout the term of the project. Which compliance review process is suitable for this situation? 一个复杂的建筑项目在整个项目执行过程中需要满足多项法规要求。项目团队正在集思广益，探讨如何实施一种有 效的方法，以确保在项目整个周期内保持合规。哪种合规审查流程适合这种情况？",
+    "options": [
+      "A. Conduct a gated review throughout the project phases.",
+      "B. Review at the end of the project.",
+      "C. Review before the closure of the project.",
+      "D. Conduct an informal review only that is based on need."
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager is assigned to a very complex and technical project.The project manager is currently working on the resources plan,and intends to recommend to the project sponsor that external resources should be used instead.What risks can be mitigated using one or more vendors to deliver components of the project?(Choose 3). 某项目经理被指派负责一个非常复杂且技术性很强的项目。该项目经理目前正在制定资源计划，并打算向项目发起 人建议改用外部资源。利用一个或多个供应商来交付项目组件可以缓解哪些风险？（选三项）。",
+    "options": [
+      "A. Financial",
+      "B. Schedule",
+      "C. Technical",
+      "D. Political",
+      "E. Scope"
+    ],
+    "correct_answer": "ABD",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": true
+  },
+  {
+    "question": "A lengthy,ongoing project exhausts a project team.Due to deadline issues,the project manager cannot extend the project schedule.What should the project manager do next? 一个漫长且持续的项目会耗尽项目团队的精力。由于截止日期的问题，项目经理无法延长项目进度。项目经理接下 来应该怎么做？",
+    "options": [
+      "A. Review the project charter.",
+      "B. Provide more recognition to team members.",
+      "C. Discuss the situation with the team.",
+      "D. Request additional resources."
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aprojectmanagerdecidedtoinvolveathirdpartytomanageprojectriskgiventhattheyhadmore experience than the current project team.What kind of response strategy did the project manager apply to address overall project risk? 鉴于第三方比当前项目团队经验更丰富，某项目经理决定引入第三方来管理项目风险。该项目经理采用了何种应对 策略来处理整体项目风险？",
+    "options": [
+      "A. Avoid",
+      "B. Exploit",
+      "C. Transfer",
+      "D. Reduce"
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "In the Project team meeting the team members are complaining of a drop in motivation and that they don't feel that their efforts are appreciated.You decided to build and present the team as a high performance team to the organization. Which of the following attributes of the organizational environment and managerial style will lead to a high performance team? (Choose 3) 在项目团队会议上，团队成员抱怨工作积极性下降，并表示感觉自己的努力未被认可。你决定将该团队打造并向组 织展示为一支高绩效团队。以下哪些组织环境特征和管理风格将有助于打造高绩效团队？（选三项）",
+    "options": [
+      "A. Personal Driving Forces.",
+      "B. Work Challenge Dividend.",
+      "C. Progressive Financial Rewards.",
+      "D. Stimulating Environment.",
+      "E. Problem Solving Techniques",
+      "F. Theory of Constraints"
+    ],
+    "correct_answer": "ABD",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": true
+  },
+  {
+    "question": "A project manager is working with a Scrum team that is continually missing deadlines.The steering committee is concerned about the project as it is not clear that it will deliver the expected value.After some analysis,the project manager discovers there is a mismatch of competencies in one of the teams. What should the project manager do? 一位项目经理正与一个屡屡延误截止日期的Scrum团队合作。指导委员会对该项目表示担忧，因为尚不确定该项目 能否交付预期价值。经过分析，项目经理发现其中一个团队存在能力不匹配的问题。项目经理应采取什么措施？",
+    "options": [
+      "A. Accept the risk of the project missing deadlines due to the mismatch.",
+      "B. Provide appropriate training to compensate for the mismatch.",
+      "C. Update the project schedule to reflect the delay.",
+      "D. Emphasize to the teams the importance of meeting the agreed deadlines."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "The sponsor notified the product owner that the budget was approved for a project.However,any additional investment for the project would have to wait until the next fiscal year.The product owner is concerned that this will hold up the project.What should the product owner do? 发起人通知产品负责人，某项目的预算已获批准。然而，该项目的任何额外投资都必须等到下一财年。产品负责人 担心这会阻碍项目进展。产品负责人应如何应对？",
+    "options": [
+      "A. Track the budget based on the release plan and show the value to the business.",
+      "B. Explain that the project is just starting and the budget will need to be adjusted.",
+      "C. Track the budget based on each sprint and remove nice-to-have deliverables.",
+      "D. Ensure that the project manager monitors every invoice from the project."
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aprojectmanagerworksforaglobalcompanyandunderstandstheimportanceoftherequirement management plan.When should the requirement management plan be implemented? 某全球性公司的项目经理深知需求管理计划的重要性。需求管理计划应在何时实施？",
+    "options": [
+      "A. At the start of the project",
+      "B. Prior to executing",
+      "C. After customer contract signature",
+      "D. During the planning phase"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Select three ways to improve and practice leadership skills.(Choose 3) 请选择三种提升并实践领导力技能的方法。（选三项）",
+    "options": [
+      "A. Engage the team in the project process.",
+      "B. Be actively involved in the project tasks.",
+      "C. Treat each team member the same way.",
+      "D. Ask for feedback and analyze the results.",
+      "E. Use democracy for all team decisions."
+    ],
+    "correct_answer": "ABD",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": true
+  },
+  {
+    "question": "A company has an existing contract to maintain and enhance a client's customer database.The company's legal department informs the project manager that a new piece of legislation requiring stricter protection of customer information might soon besigned into law.The law will require additional securityfeaturestobeimplementedintothedatabasetheprojectmanagerismaintaining.Thesefeatures are not included in the scope of the current contract.What should the project manager do? 某公司有一份现行合同，负责维护和优化某客户的客户数据库。公司法务部门告知项目经理，一项要求更严格保护 客户信息的新法规可能很快将签署生效。该法规将要求在项目经理维护的数据库中实施额外的安全功能。这些功能 未包含在当前合同的范围内。项目经理应如何处理？",
+    "options": [
+      "A. Seek the project sponsor's support to influence the client to amend the contract immediately.",
+      "B. Ask the legal department to raise the issue in the next contract negotiation with the customer.",
+      "C. Update the risk register with the issue and plan risk response with the project sponsor and client.",
+      "D. Wait until the legal requirements are finalized so the change in scope can be concretely defined."
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A new project has high uncertainty in the cost required for completion.What approach should the project manager use to determine the expected costs? 一个新项目在完成所需成本方面存在高度不确定性。项目经理应采用何种方法来确定预期成本？",
+    "options": [
+      "A. Analogous estimating",
+      "B. Statistical techniques estimating",
+      "C. Parametric estimating",
+      "D. Three-point estimating"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager is struggling to figure out the performance of the project teams in an agile environment.Forthe same scopeof work,team A hascalculated and delivered 100 story points and team B has calculated and delivered 125 story points.Which team is performing better? 一位项目经理正努力评估敏捷环境下各项目团队的绩效。对于相同的工作范围，A团队计算并交付了100个故事点， 而B团队计算并交付了125个故事点。哪个团队的表现更优？",
+    "options": [
+      "A. Team A as they have calculated fewer story points than team B.",
+      "B. Team B as they have calculated more story points than team A.",
+      "C. The team that completes the most stories selected from the sprint backlog.",
+      "D. The team with the least amount of defects in their deliverables."
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project team uses the Internal Rate of Return (IRR)occasionally to select the project projected to be most beneficial to the company.On one such occasion the IRR figures for the four projects were: Project A=5%, Project B=0%, Project C=3%, Project D=10%. Which of these projects should be selected based on these IRR figures provided? 一个项目团队偶尔会使用内部收益率（IRR）来选择预计对公司最有利的项目。在某次评估中，四个项目的IRR数据 分别为：项目 A=5%，项目 B=0%，项目 C=3%，项目 D=10%。根据上述IRR数据，应选择哪个项目？",
+    "options": [
+      "A. Project A",
+      "B. Project B",
+      "C. Project C",
+      "D. Project D"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aprojectmanagerwantstomotivatetheirteammembersandimproveprojectperformance.Which approach is most likely to be effective? 一位项目经理希望激励团队成员并提升项目绩效。以下哪种方法最有可能奏效？",
+    "options": [
+      "A. Reward all team members equally with formal awards to publicly recognize their achievements.",
+      "B. Implement initiatives based on the project manager's understanding of what motivates others.",
+      "C. Delegate motivation to team members,assuming they are professionals who self-motivate.",
+      "D. Offer a diverse range of motivational incentives tailored to individual team member needs."
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aprojectmanagerismanagingaprojectinvolvingafewvendors.Theprojectsponsoraskshow the project will acquire goods and external services.Where should this information be documented? 某项目经理正在管理一个涉及多家供应商的项目。项目发起人询问该项目将如何采购货物和外部服务。该信息应记 录在何处？",
+    "options": [
+      "A. In the Procurement Management Plan",
+      "B. In the Master Service Agreement",
+      "C. In the Bill of Materials Contract",
+      "D. In the Service Level Agreement"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "After an annual staff review,discussing project management and soft skill knowledge,the company made a decision to train all staff members to face new challenges.The method to train all staff members will be on a website where all content,exams,templates,and other organizational assets are available. What method is being used for training purposes? 在进行年度员工考核并讨论了项目管理和软技能知识后，公司决定对所有员工进行培训，以应对新的挑战。培训所 有员工的方法将通过一个网站进行，该网站上提供所有内容、考试、模板和其他组织资产。培训采用的是哪种方法？",
+    "options": [
+      "A. Pull",
+      "B. Push",
+      "C. Interactive",
+      "D. Interpersonal"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aprojectmanagerisonaprojectthatispartofabusinesstransformationinitiativeimpactingmost of the 10,000 employees in the company.The scope of the project is the improvement of collaboration between teams by implementing a new cloud platform that will replace a 20-year-old communication tool.What will be the most critical success factor? 某项目经理负责一个项目，该项目是业务转型计划的一部分，将影响公司10,000名员工中的大多数。项目范围是通 过实施一个新的云平台来改善团队间的协作，该平台将取代使用了20年的旧通信工具。最关键的成功因素是什么？",
+    "options": [
+      "A. Good quality,go-live should have zero critical defects.",
+      "B. Good user interface developed by talented graphical artists",
+      "C. Good change management planning and execution",
+      "D. Good change control process with fast approvals"
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Whiledevelopingthestakeholdermanagementplanforalargeproject,aprojectmanagerorganizes aworkshoptoidentifyandassessstakeholderpowerandinfluence.Duetotimeconstraints,theworkshop can only be one day long.What should the project manager do to achieve this goal within the workshop time frame? 在为一个大型项目制定干系人管理计划时，项目经理组织了一次研讨会，旨在识别和评估干系人的权力和影响力。 由于时间限制，研讨会只能进行一天。项目经理应采取什么措施，才能在研讨会的时间范围内实现这一目标？",
+    "options": [
+      "A. Use a Power-Interest Matrix",
+      "B. Use Nominal Group Technique",
+      "C. Use a Stakeholder Cube Model",
+      "D. Use a Pareto Diagram"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project is set to install three MRI units in a hospital;one unit has passed acceptance testing and two are under construction.The client requests a changeorder to add a fourth unit with slightly different requirements.What should the project manager do to accurately estimate the additional unit's delivery? 某项目计划在一家医院安装三台核磁共振成像（MRI）设备；其中一台已通过验收，另外两台正在建设中。客户提 出变更单，要求增加第四台设备，且其要求略有不同。项目经理应采取何种措施来准确估算新增设备的交付时间？",
+    "options": [
+      "A. Rely on historical data from similar projects.",
+      "B. Break the work down into smaller tasks and estimate each individually.",
+      "C. Use industry formulas or models based on project characteristics.",
+      "D. Compare the new unit to the existing ones and adjust the existing estimates."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Duringprojectexecution,aprojectmanagerlearnsthatateammember'sfunctionalmanagerwants to remove them from a project because they believe they should not execute a certain task due to conflicting priorities.What should the project manager do first? 在项目执行过程中，项目经理获悉某团队成员的职能经理希望将其从项目中撤出，理由是该成员因优先级冲突而不 应执行某项任务。项目经理应首先采取什么行动？",
+    "options": [
+      "A. Check the responsibility assignment matrix(RAM).",
+      "B. Check the work breakdown structure (WBS).",
+      "C. Check the organizational chart.",
+      "D. Check the resource management plan."
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A new graduate recently joined a mature agile R&D team.A mentor,assigned to work with the graduate,is overwhelmed by the extra workload.Team performance and motivation are dropping.How can the project manager help with this situation? guidance to the graduate. the mentor role. immersion. workload by 75%. 一名应届毕业生最近加入了一个成熟的敏捷研发团队。被指派指导该毕业生的导师因额外的工作量而不堪重负。团 队绩效和士气正在下降。项目经理应如何应对这种情况？",
+    "options": [
+      "A. Maintain a laissez-faire leadership style with the team,but use a transactional style to give firm",
+      "B. Ask the mentor to use a collaborative servant leader approach to perform the usual duties along with",
+      "C. Cancelthementorplanandfocusonkeepingthegraduatemotivatedbylearningthroughanintensive",
+      "D. Ask three more team members to share the mentor role in order to reduce the individual mentor"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager is in a successful automotive company with high quality standards.The project manager needs to ensure that they create a high-quality WBS.Which of the following is not a key characteristic of a high quality WBS? 某项目经理就职于一家质量标准极高的成功汽车公司。该项目经理需要确保创建高质量的工作分解结构（WBS）。 以下哪项不是高质量 WBS 的关键特征？",
+    "options": [
+      "A. Deliverable oriented",
+      "B. Hierarchical",
+      "C. The100%rule",
+      "D. Customer focused"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager has identified stakeholders for a software development project:the sales team will be the primary users of the new software application;the IT department will be responsible for deploying and maintaining the new software application;and the project sponsor is the executive who is responsible for approving the project and providing funding.The project manager is in the planning phase of the project,and must engage the stakeholders.What is the most important thing for the project manager to do to build shared understanding? 某项目经理已确定了软件开发项目的干系人：销售团队将是新软件应用程序的主要用户；IT部门将负责部署和维护 新软件应用程序；项目发起人是负责批准项目并提供资金的高管。项目经理正处于项目的规划阶段，必须与干系人 进行沟通。为了建立共识，项目经理最需要做的是什么？",
+    "options": [
+      "A. Hold a kick-off meeting with all stakeholders.",
+      "B. Create a stakeholder register and communication plan.",
+      "C. Identify the stakeholders' needs and expectations.",
+      "D. Document the stakeholders' concerns and risks."
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aprojectrequirestheservicesofaspecializedvendortoinstallaverycomplexandexpensivepiece of equipment.The project manager sent an email a week ago to a partner to request a specialist come on-site.Unfortunately,the vendor has not replied to confirm.What communication method was used in this case? 某项目需要一家专业供应商提供服务，以安装一台非常复杂且昂贵的设备。项目经理一周前向合作伙伴发送了一封 电子邮件，要求派一名专家到现场。遗憾的是，供应商尚未回复确认。在此情况下，使用了哪种沟通方式？",
+    "options": [
+      "A. Pull",
+      "B. Interactive",
+      "C. Push",
+      "D. Interpersonal"
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "The steering committee has asked a project manager experienced in agile to provide an indication of the time remaining on a medium-sized project.What tools can be used to provide this information? 指导委员会要求一位具有敏捷项目管理经验的项目经理，提供一个中型项目剩余工期的预估。可以使用哪些工具来 提供这一信息？",
+    "options": [
+      "A. Analysis of the business requirements document",
+      "B. A release burndown chart",
+      "C. Story points for the remaining user stories",
+      "D. Surrogate measurements"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project is being audited to ensure compliance with organizational policies.What process is being conducted? 某项目正在接受审计，以确保符合组织政策。正在进行的是哪个过程？",
+    "options": [
+      "A. Audit Schedule",
+      "B. Plan Quality Management",
+      "C. Control Quality",
+      "D. Manage Quality"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aprojectmanagerisworkingonalargebusinesstransformationproject.Alofthebuilddeliverables were signed off and the project manager is managing the transition to BAU(Business as Usual).Which of the following are important operational readiness considerations that the project manager needs to consider?(Choose 2). 某项目经理正在负责一个大型业务转型项目。所有构建交付物均已通过验收，项目经理正在管理向BAU（常规业务） 的过渡。以下哪些是项目经理需要考虑的重要运营就绪事项？（选两项）",
+    "options": [
+      "A. A cheat sheet for core functionality is provided and self training is encouraged.",
+      "B. Formal training and access to documentation should be provided to all users.",
+      "C. Responsibility and accountability are formally handed over to operational teams.",
+      "D. The project team remains responsible for operational support during BAU."
+    ],
+    "correct_answer": "BC",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": true
+  },
+  {
+    "question": "A project manager is assigned to a project that is already in progress because the original project manager left the organization unexpectedly.Unfortunately,the previous project manager did not adhere to the organization's knowledge transfer procedures prior to leaving the organization.What can the new project manager do to fill the knowledge gaps?(Choose 3) 由于原项目经理意外离职，一名项目经理被指派接手一个正在进行中的项目。遗憾的是，前任项目经理在离职前未 遵守组织的知识转移程序。新项目经理应采取哪些措施来填补知识缺口？（选三项）",
+    "options": [
+      "A. Reviewtheprojectdocumentation,includingtheprojectplan,requirementsdocument,andriskregister.",
+      "B. Proceed with the project as planned and engage in job shadowing activities.",
+      "C. Meet with key stakeholders to understand their expectations and priorities.",
+      "D. Interview team members to learn about their areas of expertise and experience with the project.",
+      "E. Reach out to the previous project manager and request a comprehensive knowledge transfer."
+    ],
+    "correct_answer": "ACD",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": true
+  },
+  {
+    "question": "Aprojectmanageriscreatingasoftwareproject'squalitymanagementplan.Whilereviewinglessons learned from past,similar projects,the project manager discovers that rework due to quality issues resulted in cost overruns.What should the project manager do to ensure that quality is addressed throughout the software development life cycle? 某项目经理正在制定一个软件项目的质量管理计划。在回顾以往类似项目的经验教训时，该项目经理发现，因质量 问题导致的返工造成了成本超支。为了确保在整个软件开发生命周期中都重视质量，该项目经理应采取什么措施？",
+    "options": [
+      "A. Conduct recurring retrospectives to regularly check on the effectiveness of quality processes.",
+      "B. Assign a resource to focus solely on the project's quality.",
+      "C. Ensure that quality is tied to performance reviews.",
+      "D. Identify new quality policies and procedures for the project."
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project team recently experienced delays due to noncompliance which have made the project schedule less flexible and increased risk to cost and poor quality.The team is brainstorming about ways to avoid this in future.What is most far-reaching implication for the organization if this noncompliance is not resolved? 某项目团队近期因违规行为导致项目延期，这使得项目进度安排变得不那么灵活，并增加了成本超支和质量低下的 风险。团队正在集思广益，探讨未来避免此类情况的方法。如果该违规问题得不到解决，对组织而言影响最深远的",
+    "options": [
+      "A. Business survival and continuity",
+      "B. Unhappy clients or end users",
+      "C. Slower response to system",
+      "D. Fines and penalties"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project team has identified a number of defects with some deliverables and intends to resolve these as soon as possible.The project manager will need to submit a change request to the change control board(CCB).What should the project manager do before the request is submitted? 一个项目团队发现某些交付物存在若干缺陷，并打算尽快解决这些问题。项目经理需要向变更控制委员会（CCB） 提交变更请求。在提交请求之前，项目经理应该做什么？",
+    "options": [
+      "A. Implement the changes immediately due to time constraints.",
+      "B. Send the change request to the client for approval.",
+      "C. Complete an impact analysis of each requested change.",
+      "D. Send the change requests to the sponsor for approval."
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project vendor has informed a project manager that an outsourced project deliverable will be available 6 months later than the agreed project schedule.The vendor stated that they are focusing on other project deliverables with priority dependencies,and this particular deliverable had no stated dependencies.What should the project manager do to avoid schedule delays in future? 某项目供应商告知项目经理，一项外包项目交付物将比约定的项目进度晚6个月交付。供应商表示，他们正在专注 于其他具有优先级依赖关系的项目交付物，而该特定交付物没有明确的依赖关系。项目经理应采取什么措施来避免 未来出现进度延误？",
+    "options": [
+      "A. Monitor the dependencies and respond to challenges.",
+      "B. Ensure that all new dependencies are finish to start",
+      "C. Specify any dependencies if they exist.",
+      "D. Conduct a meeting to inform the customer."
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "After an organization trained and implemented a new mandatory project management software application for all project staff,the project manager noticed that several team members show low levels of commitment to the new software.What is the cause for this? 某组织为所有项目人员培训并实施了一款新的强制性项目管理软件应用程序后，项目经理注意到一些团队成员对新 软件的投入度较低。原因是什么？",
+    "options": [
+      "A. Fear of the unknown",
+      "B. Lack of required skills",
+      "C. Lack of clear project vision",
+      "D. Too much communication"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aprojectmanagerisworkingwithateamtodevelopworkpackages.Theprojectmanagernoticeda gap in the requirements gathering where important points were missing,which would impact the project timeline.What should the project manager do? 一位项目经理正在与团队合作开发工作包。项目经理注意到需求收集存在缺口，遗漏了一些重要内容，这将影响项 目进度。项目经理应该怎么做？",
+    "options": [
+      "A. Meet with the project sponsor to discuss canceling the project.",
+      "B. Meet with the project sponsor and stakeholders to request a budget increase.",
+      "C. Meet with the product manager to create a backlog with the missing requirements.",
+      "D. Evaluate the impact,update the risk register,and present it to the stakeholders."
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager is working on a complex project that has a very high environmental impact.The project was approved by the organization's PMO and is now in the planning phase.The project sponsor provided the project manager with a list of all project stakeholders.What will be the next activity in the Stakeholder Management Plan? 一位项目经理正在负责一个对环境影响极大的复杂项目。该项目已获得组织项目管理办公室（PMO）的批准，目 前处于规划阶段。项目发起人向项目经理提供了一份所有项目干系人的名单。干系人管理计划中的下一步活动是什",
+    "options": [
+      "A. Analyze",
+      "B. Monitor",
+      "C. Engage",
+      "D. Identify"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project team is working on determining the dependencies for activities for an ongoing project. What action should the project team take first to manage dependencies successfully? 一个项目团队正在确定一个正在进行的项目中各项活动的依赖关系。为了成功管理依赖关系，项目团队应首先采取 什么行动？",
+    "options": [
+      "A. Monitor and track the dependencies.",
+      "B. Communicate the dependencies to the sponsor.",
+      "C. Assess and document the dependencies.",
+      "D. Appoint project schedulers for all tasks."
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "During a group activity to identify an input to the Plan Procurement Management process,some participants disagree with the ranking of compliance-related items.What tool or technique should the project manager use to resolve this? 在确定“计划采购管理”过程输入的集体活动中，一些参与者对合规相关项目的排序持不同意见。项目经理应使用 哪种工具或技术来解决这个问题？",
+    "options": [
+      "A. Affinity diagram",
+      "B. Multicriteria decision analysis",
+      "C. Nominal group technique",
+      "D. Brainstorming"
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Ateammemberapproachestheprojectmanagerimmediatelyafter theendoftheproject meeting about his need for help to complete a late-due-date task.What should the project manager do? 项目会议结束后，一名团队成员立即向项目经理寻求帮助，希望完成一项逾期任务。项目经理应如何处理？",
+    "options": [
+      "A. Ignore the team member's request,and ask for double the efforts to complete the task",
+      "B. Discuss the issue during the daily meeting,and decide the course of action with the team",
+      "C. Ask the team member to step out from the task and re-allocate the task to someone else",
+      "D. Ask a junior team member to help in the completion of the task on the due date"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project team is in the process of identifying the benefits associated with two projects in order to choosetheonethat willdelivermorebusiness value.Thetask involvesanalyzingwhichproject besthelps the company meet its compliance and regulatory requirements,as well as improve customer satisfaction. Which of the following best describes the category of the benefits being analyzed in this task? 一个项目团队正在识别两个项目的相关收益，以便选择能带来更高商业价值的项目。该任务包括分析哪个项目最有 助于公司满足合规和监管要求，以及提高客户满意度。 下列哪项最准确地描述了该任务中正在分析的收益类别？",
+    "options": [
+      "A. Quantitative benefit",
+      "B. Qualitative benefit",
+      "C. Quality benefit",
+      "D. Real benefit"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager seeks to alleviate the IT department's workload while empowering the business to initiate new implementations and lay the groundwork for future solutions.How should the project manager facilitate this transition? control over all IT endeavors. any project can commence. projects independently. cooperation between stakeholders. 一位项目经理希望减轻IT部门的工作量，同时赋予业务部门启动新实施并为未来解决方案奠定基础的能力。项目经 理应如何促进这一过渡？",
+    "options": [
+      "A. Enforce stringent IT governance policies centralized within the IT department,ensuring uniformity and",
+      "B. MandatecomprehensiveITprojectproposalstotheITdepartmentforassessmentandapprovalbefore",
+      "C. Enable business units to use a simplified IT project management platform to initiate and monitor",
+      "D. Collaborate with cross-functional IT business teams to jointly plan and execute IT projects,fostering"
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "In two months,there will bea delivery of project machines from afactory.The project team is in the process of performing a follow- up meeting to review the commitments and dependencies regarding these machines.Which actions should the project team take to ensure that the deliveries are properly performed by the factory?(Choose 2) 两个月后，工厂将交付一批项目设备。项目团队正处于召开后续会议，以审查与这些设备相关的承诺和依赖关系。 项目团队应采取哪些行动来确保工厂能妥善完成交付？（选两项）",
+    "options": [
+      "A. Ensure that they track and monitor all dependencies and report at regular intervals.",
+      "B. Send an email to the research and development factory one week before delivery.",
+      "C. Specify exactly when a dependency is required and for how long this requirement holds.",
+      "D. Schedule a meeting with the factory regarding how the machine is going to be manufactured.",
+      "E. Talk to the factory employees to ascertain if they are qualified to build the machines."
+    ],
+    "correct_answer": "AC",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": true
+  },
+  {
+    "question": "Which one of the following is not a Resource-Based Power in relation to mega projects? 就大型项目而言，以下哪一项不属于资源型权力？",
+    "options": [
+      "A. Recruiting on a contractual basis",
+      "B. Recruiting expert talents",
+      "C. Recruitment on the basis of secondment",
+      "D. Recruitment via Direct Control"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "One in two dispersed teams fails to reach objectives due to: 每两个分散团队中就有一个因以下原因未能达成目标：",
+    "options": [
+      "A. Inability to manage the distributed workforce",
+      "B. Conflict management",
+      "C. Team purpose identification",
+      "D. Distribution of power"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project team has been tasked to build a new product.The team builds the demo first and add features to the initial product.This is an example of what technical practice? 一个项目团队受命开发一款新产品。该团队先构建演示版本，然后在初始产品上添加功能。这属于哪种技术实践？",
+    "options": [
+      "A. Test-Driven Development(TDD)",
+      "B. Continuous Delivery",
+      "C. Behavior-Driven Development",
+      "D. Spikes"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "An experienced project manager is managing a multi-milion dollar agile project.The project manager communicates the ground rules to the team,but after 12 iterations,the project manager starts noticing that some team members are not following the ground rules.What should the project manager do first to ensure team adherence to the ground rules? the ground rules. 一位经验丰富的项目经理正在管理一个价值数百万美元的敏捷项目。该项目经理向团队传达了基本规则，但在经历 了12个迭代后，项目经理开始注意到部分团队成员未遵守基本规则。项目经理应首先采取什么措施来确保团队遵守 基本规则？",
+    "options": [
+      "A. Contact human resources to request a written warning letter be sent to team members not following",
+      "B. Ask the functional manager to replace team members not following the ground rules.",
+      "C. Schedule a meeting with the project team to reinforce the ground rules.",
+      "D. Notify the project sponsor about this behavior and ask the sponsor to take disciplinary action."
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aprojectmanagerismanaginganagileproject.ThePMOmanagerisnotfamiliarwithagiledelivery. Which of the following statements describe the agile approach? 一位项目经理正在管理一个敏捷项目。PMO经理不熟悉敏捷交付。以下哪项陈述描述了敏捷方法？",
+    "options": [
+      "A. Responding to change over following a plan",
+      "B. Customer collaboration over following a plan",
+      "C. Responding to change over processes and tools",
+      "D. Customer collaboration over comprehensive testing"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Along-termagileprojecthasjustreacheditsmidwaymarkandanewprojectmanagerisappointed totakeover.Additionaltotheprojectmanager,acurrentstakeholderwasinterchanged withanotherwho has more experience regarding the projects' technology.What next step should the project manager take? project plan. 一个长期的敏捷项目刚刚过半，新任项目经理被任命接手。除了项目经理的更换外，原有的干系人也被替换为另一 位在项目技术方面经验更丰富的人。项目经理接下来应采取什么步骤？",
+    "options": [
+      "A. Discuss expectations from the stakeholder and revise the engagement plan accordingly.",
+      "B. Encourage the new stakeholder to convene with the product owner to review pertinent information.",
+      "C. Notify all stakeholders after revising the project plan with new contents added.",
+      "D. Hold all upcoming sprint review meetings with the new stakeholder in attendance and revise the"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "What are the four team-building leadership styles? 团队建设的四种领导风格是什么？",
+    "options": [
+      "A. Visionary,affiliative,coaching and participative",
+      "B. Visionary,affiliative,coaching and pace setting",
+      "C. Visionary,affiliative,coaching and directive",
+      "D. Visionary,affiliative,coaching and high waters"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager is leading a project with 34 team members from six countries.The scope of the project is to modernize a process used for almost 40 years in the organization.What criteria should the project manager consider while developing the communication plan?(Choose 3). 一位项目经理正在领导一个由来自六个国家的 34 名团队成员组成的项目。该项目的范围是使组织中使用了近 40 年的流程现代化。项目经理在制定沟通计划时应考虑哪些标准？（选3项）。",
+    "options": [
+      "A. Personal diversity",
+      "B. Age diversity",
+      "C. Cultural diversity",
+      "D. Skill diversity"
+    ],
+    "correct_answer": "ACD",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": true
+  },
+  {
+    "question": "A project manager wants to establish an incentive and rewards strategy for the project team.What approach should be taken? 一位项目经理希望为项目团队制定激励与奖励策略。应采取何种方法？",
+    "options": [
+      "A. Ask Human Resources department which incentives should be provided.",
+      "B. Check on budget availability in order to determine specific reward amounts.",
+      "C. Provide an opportunity for publicly presenting the outcomes.",
+      "D. Identify the specific needs for each team member to determine incentives."
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project is in the execution phase.Equipment and devices must be transported from the vendor's warehousetotheprojectsitethroughfivetowns.Whichstakeholdersshouldtheprojectmanagerinvolve in planning and executing a safe transport?(Choose 3). 一个项目正处于执行阶段。设备和器械必须从供应商的仓库运往项目现场，途中需经过五个城镇。项目经理应让哪 些干系人参与规划和执行安全的运输工作？（选三项）。",
+    "options": [
+      "A. City councils",
+      "B. Project sponsor",
+      "C. Equipment installers",
+      "D. Equipment suppliers",
+      "E. Warehouse technician"
+    ],
+    "correct_answer": "BCD",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": true
+  },
+  {
+    "question": "Someteammembersassignedtoanewtechnologyprojectexpressedtheirlackofknowledgeabout the technology and the challenges they will face during implementation.What should the project manager do? 被分配到新技术项目的部分团队成员表示，他们对该技术了解不足，且担心在实施过程中会面临挑战。项目经理应 如何应对？",
+    "options": [
+      "A. Due to the project due dates,replace the members with more knowledgeable staff.",
+      "B. Ask the team members to do some research and self-learning efforts about the technology.",
+      "C. Reallocate the members to work on and complete different tasks for which they have experience.",
+      "D. Reassure the team members that a training path is in place to learn the new technology."
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "You are managing a complex project with a large number of stakeholders.You decided to use the Salience Model to identify and group the most important stakeholders based on their power,urgency and legitimacy.Which of the following aspects is the most important in this instance? 您正在管理一个涉及大量干系人的复杂项目。您决定使用“显著性模型”根据权力、紧迫性和合法性来识别和分组 最重要的干系人。在此情况下，以下哪个方面最为重要？",
+    "options": [
+      "A. Dominant",
+      "B. Dependent",
+      "C. Demanding",
+      "D. Definitive"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "In an agile development environment,when should a risk analysis be performed? 在敏捷开发环境中，何时应进行风险分析？",
+    "options": [
+      "A. Before the start of each iteration",
+      "B. During the daily standup meeting",
+      "C. In the retrospective meeting",
+      "D. After every scrum meeting"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "During a project's initiation phase,the project manager reviews the business case and finds that information is incomplete.What should the project manager do? business needs. 在项目的启动阶段，项目经理审查商业案例时发现信息不完整。项目经理应如何处理？",
+    "options": [
+      "A. Add an information gap to the risk register.",
+      "B. Review the project statement of work(SOW)to create the project charter.",
+      "C. Revise the business case to narrow the project scope and create the project charter.",
+      "D. Review the business case with the sponsoring organization to confirm that the project aligns with"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager is leading a project that is being implemented simultaneously in two countries with an 11-hour time zone difference.The project manager needs to determine a mutually convenient time to provide stakeholders with information on the project's schedule,cost,and performance progress. What should the project manager do? 某项目经理正在领导一个在两个国家同时实施的项目，两国时差为11小时。项目经理需要确定一个双方都方便的时 间，向干系人提供项目进度、成本和绩效进展的信息。项目经理应采取什么行动？",
+    "options": [
+      "A. Use a world clock to identify a few potential times that work for all stakeholders.",
+      "B. Send a survey to stakeholders asking them for their availability during the week.",
+      "C. Schedule two separate meetings,one for stakeholders in each country.",
+      "D. Record the meeting and send it to stakeholders to watch on their own time."
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aprojectto create anew productiscompleted andintroduced intothe market,butsalesare much lower than expected.Analysis determines that the product is misaligned with the organization's core competencies.During what activity should this have been discovered? 一项新产品开发项目已完成并投入市场，但销量远低于预期。分析表明，该产品与组织的核心竞争力不符。这一问 题本应在哪个阶段被发现？",
+    "options": [
+      "A. What-if scenario analysis",
+      "B. Business case review",
+      "C. Strategic performance evaluation",
+      "D. Scope definition"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager is managing an agile project.A new team member,who has never worked in an agile team,joins theproject.The newmemberasks the projectmanagerto explain whyanagile approach is used.What should the project manager's response be? 一位项目经理正在管理一个敏捷项目。一位从未在敏捷团队工作过的新成员，加入了该项目。新成员请项目经理解 释为何采用敏捷方法。项目经理应如何回应？",
+    "options": [
+      "A. To eliminate the risk and increase the predictability and visibility",
+      "B. To deliver value faster and change the scope based on feedback",
+      "C. To reduce the costs and increase the quality of the end deliverables",
+      "D. To eliminate the need for documentation by delivering working products"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager has made compliance-related changes by adopting a new project delivery approach.During external validation, an audit revealed that some of the component work did not conform to the organization's standards.What should the project manager have done? 某项目经理通过采用新的项目交付方法，进行了与合规性相关的变更。在外部验证过程中，审计发现部分组件工作 不符合组织标准。项目经理本应采取什么措施？",
+    "options": [
+      "A. Executed only compliant deliverables.",
+      "B. Clarified interpretation of compliance guidelines.",
+      "C. Translated business requirements to design.",
+      "D. Researched regulations in the public sector."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "During an important project,one of the contractors complains that the approval process is difficult to handle and may delay the project schedule.What should the project manager do first? 在一个重要项目中，一位承包商抱怨审批流程难以处理，可能会延误项目进度。项目经理首先应该做什么？",
+    "options": [
+      "A. Hire additional resources for the team to mitigate this risk.",
+      "B. Discuss with the team to find options to mitigate the risk.",
+      "C. Escalate the risk to upper management as critical for timely delivery.",
+      "D. Add the risk to the risk register to be monitored and reviewed."
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager is helping an organization transition from traditional methods to agile.The infrastructure, data warehousing, and enterprise architecture teams operate very differently than the application development teams.How should the project manager implement agile in this organization? size-fits-all solution can provide consistency across all teams. environment and work at hand. in every team in the organization. implement scrum by learning from this team. 一位项目经理正在帮助一个组织从传统方法向敏捷转型。基础设施、数据仓库和企业架构团队的运作方式与应用程 序开发团队截然不同。项目经理应如何在这个组织中实施敏捷？",
+    "options": [
+      "A. Ask every team in the organization to implement the same agile methodology so that a one-",
+      "B. Tailortheimplementationbydeliberatelyadaptingtheapproachtomakeitmoresuitableforthegiven",
+      "C. Force the top-down transition approach by asking the CEO to provide support for implementing agile",
+      "D. Ask one team to implement scrum as a pilot so that all other teams in the organization can also"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "After consultation with executive stakeholders,it was decided that the project manager would replace a vendor while the project is in the execution phase.The new vendor simply has more domain knowledge and was not identified earlier,but is probably the right vendor candidate now.Which of the following documents would contain the best information for the new vendor? 经与高管干系人协商，决定在项目执行阶段由项目经理更换供应商。新供应商在领域知识方面更为丰富，虽然此前 未被识别，但现在可能是合适的供应商候选人。以下哪份文件包含关于新供应商的最佳信息？",
+    "options": [
+      "A. Request for Information (RFI)",
+      "B. Request for Quote(RFQ)",
+      "C. Request for Proposal(RFP)",
+      "D. Request for Contract(RFC)"
+    ],
+    "correct_answer": "C",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Acompany'sprojectmanagementoffice(PMO)isincorporatingmoreadaptivetechnologiesandhas hired a new project manager with hybrid project management experience.The team is slow in adopting the new methodology and has not been updating project artifacts in a timely manner.Which action should the project manager take to improve the team's performance? 某公司的项目管理办公室（PMO）正在引入更多适应性技术，并聘请了一位具有混合项目管理经验的新项目经理。 团队在采用新方法方面进展缓慢，且未能及时更新项目成果。项目经理应采取何种行动来提升团队绩效？",
+    "options": [
+      "A. Send an email asking all project team members to complete updates at the end of the day.",
+      "B. Set up a training session for all project team members.",
+      "C. Reach out to the functional managers for support.",
+      "D. Speak individually with each project team member about making the needed updates."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aproductownerhasrequested toincorporateembedded functionalityfor thepatientportalin the next sprint.The team decided to perform an Affinity Estimation session to define how much value will be delivered.Which role is responsible to facilitate the session? 一位产品负责人要求在下一个冲刺中为患者门户整合嵌入式功能。团队决定进行一次亲和力估算会议，以确定将交 付多少价值。哪个角色负责主持该会议？",
+    "options": [
+      "A. Product Owner",
+      "B. Scrum Master",
+      "C. Developer",
+      "D. Stakeholder"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Which of the following is a tactic that a project manager can employ to effectively monitor the impact of the risk on the project while monitoring risks? 在监控风险的同时，项目经理可以采用以下哪种策略来有效监控风险对项目的影响？",
+    "options": [
+      "A. Risk avoidance",
+      "B. Risk escalation",
+      "C. Risk acceptance",
+      "D. Risk reporting"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "AtwhichstageintheTuckman teamdevelopmentmodelshould theprojectmanagerputthemost focus on increasing team motivation? 在塔克曼团队发展模型的哪个阶段，项目经理应最侧重于提高团队的积极性？",
+    "options": [
+      "A. Forming",
+      "B. Storming",
+      "C. Norming",
+      "D. Performing"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "An approved project charter stated that an agile approach must be used.During a lessons learned session,the client indicates that the team was unable to provide reliable cost estimates for the project, and that more time should be allocated to define the scope during the first iteration.What lesson should be captured in the lessons learned repository? process. reliable cost estimates are performed. 一份已获批准的项目章程规定必须采用敏捷方法。在一次经验教训总结会上，客户指出团队无法为项目提供可靠的 成本估算，并且应在第一个迭代中分配更多时间来定义范围。应在经验教训库中记录哪条经验教训？",
+    "options": [
+      "A. The client should be exposed to the agile approach in advance to understand the cost estimating",
+      "B. The agile approach should not be used if the client requires reliable cost estimates.",
+      "C. During the first iteration of a project,time should be allocated to define the scope and ensure that",
+      "D. Client communications should be included in the daily standups."
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aprojectmanagerisassessingtwoinvestmentopportunities.ProjectAisexpectedtogeneratecash flows of $100,000 per year for five years,with an initial investment of $350,000.Project B is expected to generatecashflowsof$80,000peryearforfiveyears,withaninitialinvestmentofS250,000.Thecompany 's required rate of return is 10%. What is the Net Present Value (NPV)for each project, and which one should the project manager recommend? Project A because it generates higher annual cash flows. neither project because both have negative NPVs. neither project because their NPVs are similar. Project B because it has the higher NPV. 某项目经理正在评估两个投资机会。项目A预计在五年内每年产生100,000美元的现金流，初始投资为350,000美元。 项目B预计在五年内每年产生80,000美元的现金流，初始投资为250,000美元。该公司的要求回报率为10%。每个 项目的净现值（NPV）是多少？项目经理应推荐哪个项目？ 净现值均为负值 现值相差无几",
+    "options": [
+      "A. The NPV for Project A is $29,079,and for Project B is $53,263.The project manager should recommend",
+      "B. TheNPV forProject Ais-$29,079,and for Project Bis-$53,263.The project manager should recommend",
+      "C. The NPV for Project A is $29,079,and for Project B is $53,263.The project manager should recommend",
+      "D. The NPV for Project A is $29,079,and for Project B is $53,263.The project manager should recommend"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "What is the difference between risks and issues?(Choose two). 风险与问题有何区别？（选两项）",
+    "options": [
+      "A. Risks are uncertain and issues are certain.",
+      "B. Risks are certain and issues are uncertain.",
+      "C. Risks have occurred and issues may not occur.",
+      "D. Risks may not occur and an issue has occurred."
+    ],
+    "correct_answer": "AD",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": true
+  },
+  {
+    "question": "A project manager is working on a complex project.The project includes many stakeholders with conflicting priorities.Which two actions should theproject manager take to be prepared for negotiations and gain support from all of the stakeholders?(Choose two) 一位项目经理正在处理一个复杂的项目。该项目涉及许多干系人，且他们的优先级存在冲突。项目经理应采取哪两 项行动来为谈判做好准备并获得所有干系人的支持？（选两项）",
+    "options": [
+      "A. Allow enough contingency to cope with scope changes.",
+      "B. Develop a good relationship with the project team.",
+      "C. Understand the politics and personal interests of the stakeholders.",
+      "D. Develop a good communications management plan.",
+      "E. Develop a good risk management plan."
+    ],
+    "correct_answer": "BC",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": true
+  },
+  {
+    "question": "Aproductteamisusingaprototypingapproachtodeliveramultiyearbusinessinitiative.Theproject manager notices that a few user stories are taking longer to be delivered.What should the project manager do? 一个产品团队正在采用原型设计方法来交付一项为期多年的业务计划。项目经理注意到，有几个用户故事的交付时 间比预期更长。项目经理应该怎么做？",
+    "options": [
+      "A. Review the project timeline and reallocate resources.",
+      "B. Conduct a retrospective with the team to identify bottlenecks.",
+      "C. Escalate the issue to senior management for intervention.",
+      "D. Modify the project scope to remove the delayed user stories."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Aprojectmanagerisworkingonanewcomplianceprojectthatisdifferentfromregularprojectsas it will involve multinational partners and several government departments.The project will result in the adoption of new standards and procedures.What must the project manager do from the onset? 某项目经理正在负责一个新的合规项目，该项目与常规项目不同，因为它将涉及跨国合作伙伴和多个政府部门。该 项目将导致新标准和程序的采用。项目经理从一开始必须做什么？",
+    "options": [
+      "A. Ensure that the business requirements are defined and met",
+      "B. Ensure solution design is available from the start of the project",
+      "C. Ensure execution and handover are done effectively",
+      "D. Ensure the interpretation of compliance guidance and validation"
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "During the team meeting,two of the team members who worked on the same tasks are arguing about who is at fault for the task being late.None of them want to be perceived as the one who caused the delay.What is the most likely cause of this issue? 在团队会议上，两名负责相同任务的成员正在争论任务延误的责任归属。他们都不愿被视为导致延误的肇事者。导 致这一问题的最可能原因是什么？",
+    "options": [
+      "A. Conflicting Priorities",
+      "B. Unclear Responsibilities",
+      "C. Personal Competition",
+      "D. Personnel Selection"
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager has just taken over a project that is halfway through its schedule. In a brief meetingwiththeclient’skeyprojectteam,theprojectmanagerreceivesseveralrequestsfromaspecific client team member who was not at the project team meeting. The requests for information seem to be for trivial information that was previously submitted in project documents. What should the project manager do first?",
+    "options": [
+      "A. Send an email to the client team member explaining that they have the information already.",
+      "B. Review the stakeholder register to gain insight into the expectations of that team member.",
+      "C. Inform the client project manager that they are sending too many trivial requests.",
+      "D. Update the project risk register to include potential delays in answering these requests."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "Midway through the execution of an agile project,there is a shift in the strategic objectives at the organization level to promote digital transformation.What should the project manager do next? 在敏捷项目执行的中途，组织层面的战略目标发生了转变，以促进数字化转型。项目经理接下来应该做什么？",
+    "options": [
+      "A. Prepare a user story to handle the change and assign it to the next iteration.",
+      "B. Escalate to the product owner and cancel the upcoming iterations.",
+      "C. Update the risk-prioritized backlog with the strategic change.",
+      "D. Schedule a meeting with the team to assess the impact of the change."
+    ],
+    "correct_answer": "D",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A key stakeholder for a construction project has been spending a lot of time at the site and interrupting the team's efforts. What should the project manager do in this situation? reports. progress. 一个建设项目的关键干系人在工地花了很多时间，打断了团队的努力。在这种情况下，项目经理应该做什么？",
+    "options": [
+      "A. Work to understand the key stakeholder's concerns and provide feedback in regular project status",
+      "B. Arrange an ad hoc meeting to address the key stakeholder's concerns with team members.",
+      "C. Reinforce with the key stakeholder that the project is performing on schedule.",
+      "D. Escalate the situation to the project sponsor because the key stakeholder's behavior is impacting"
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "A project manager joins a team that is providing a customized enterprise resource planning (ERP)systemtoaclient.Apotentialdesignproblemisidentifiedbythedevelopmentteam.Afterreviewing this issue with the project owner and team members,all agreed to revise the design to avoid a system defectwhen deployed.Thedesign isalreadyapproved.Whatshould betheprojectmanager's nextsteps? 项目经理加入一个为客户提供定制企业资源规划(ERP)系统的团队。开发团队发现了一个潜在的设计问题。项目经 理在与项目负责人和团队成员讨论这个问题后，所有人都同意修改设计，以避免系统部署时出现缺陷。设计已经获 得批准。项目经理接下来应该采取什么步骤？",
+    "options": [
+      "A. Inform the client of the problem and follow the change request process.",
+      "B. Amend the design specifications and pass them to the development team for reprogramming.",
+      "C. Make a change request and get formal approval from the project owner.",
+      "D. Conduct a proof of concept to make sure there are no problems in the revised design."
+    ],
+    "correct_answer": "A",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  },
+  {
+    "question": "In a periodic review, the manager of an agile project realized that key stakeholders lacked information about some function keys being developed. Inorder to improve communication and reduce the risk of deploying wrong functions, what should the project manager do? regularly report the status of progress meetings. the project progress and collect their opinions. and interest in the project. 在一次定期审查中，一个敏捷项目的经理意识到关键干系人缺少关于正在开发的一些功能键信息。为了改善沟通， 减少部署错误功能的风险，项目经理应该怎么做？",
+    "options": [
+      "A. Evaluate the needs and communication methods of stakeholders, propose targeted methods, and",
+      "B. Invitestakeholdersto participatein regular\"presentation and explanation\"meetings tolet themknow",
+      "C. Redrawingstakeholders,evaluatingandcommunicatingwith stakeholdersaccordingtotheirinfluence",
+      "D. Involve stakeholders in regular project exchanges so that decisions can be closely tracked."
+    ],
+    "correct_answer": "B",
+    "explanation": "",
+    "_area": "综合",
+    "_is_multi": false
+  }
+]

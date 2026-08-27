@@ -57,6 +57,7 @@ PAPER_MAP = {
     "three": "考前冲刺卷3", "four": "模考卷二",
     "five": "模拟一", "six": "模拟二",
     "seven": "2609期模考一",
+    "eight": "2609英文模考",
     "random": "随机模考",
 }
 
@@ -77,6 +78,14 @@ PAPER_QIJI: dict[str, tuple[str, str]] = {
     "seven": (
         "2609期PMP模考一（8月22日）-骐迹教育.pdf",
         "2609期PMP模考一（8月22日）答案和解析-骐迹教育.pdf",
+    ),
+}
+
+# 希赛英文模考（题目 PDF + 参考答案网格 PDF）
+PAPER_HISAI: dict[str, tuple[str, str]] = {
+    "eight": (
+        "PMP®模考题-2609.pdf",
+        "PMP®模考题（参考答案）-2609.pdf",
     ),
 }
 
@@ -397,6 +406,52 @@ def load_qiji_mock_exam(paper_key: str) -> list[dict]:
     return questions
 
 
+def load_hisai_mock_exam(paper_key: str) -> list[dict]:
+    """加载希赛英文模考（题目 + 参考答案网格 PDF）。"""
+    if paper_key not in PAPER_HISAI:
+        return []
+
+    q_pdf_name, a_pdf_name = PAPER_HISAI[paper_key]
+    q_pdf_path = MOCK_DIR / q_pdf_name
+    a_pdf_path = MOCK_DIR / a_pdf_name
+    cache_path = _cache_path_for_pdf(f"{q_pdf_name}_hisai")
+
+    if cache_path.exists():
+        try:
+            data = json.loads(cache_path.read_text(encoding="utf-8"))
+            if isinstance(data, list) and len(data) >= 170:
+                logger.info("Loaded %d questions from cache: %s", len(data), cache_path.name)
+                return data
+        except Exception:
+            pass
+
+    if not q_pdf_path.exists():
+        logger.error("Question PDF not found: %s", q_pdf_name)
+        return []
+
+    try:
+        from pmp_athena.hisai_mock_parser import load_hisai_mock_from_pdfs
+    except ImportError:
+        from hisai_mock_parser import load_hisai_mock_from_pdfs
+
+    try:
+        merged = load_hisai_mock_from_pdfs(
+            q_pdf_path,
+            a_pdf_path if a_pdf_path.exists() else None,
+        )
+    except ValueError as e:
+        logger.error("Failed to parse %s: %s", q_pdf_name, e)
+        return []
+
+    questions = [_daily_question_to_mock(q) for q in merged if q.get("correct_answer")]
+    if len(questions) < 170:
+        logger.warning("Only %d questions with answers from %s", len(questions), q_pdf_name)
+
+    cache_path.write_text(json.dumps(questions, ensure_ascii=False, indent=2), encoding="utf-8")
+    logger.info("Cached %d questions to %s", len(questions), cache_path.name)
+    return questions
+
+
 def _parse_text_pdf(pdf_path: Path) -> list[dict]:
     """解析文字版模考 PDF：题号「N、」+ 选项「A、…」+「试题答案：X」+「试题解析：…」。"""
     import pdfplumber
@@ -674,6 +729,16 @@ class MockExamEngine:
                         break
         elif paper in PAPER_QIJI:
             questions = load_qiji_mock_exam(paper)
+            if len(questions) < 180:
+                return {
+                    "status": "error",
+                    "error": (
+                        f"「{PAPER_MAP.get(paper, paper)}」解析不完整"
+                        f"（仅 {len(questions)}/180 题），请检查 PDF 或联系管理员。"
+                    ),
+                }
+        elif paper in PAPER_HISAI:
+            questions = load_hisai_mock_exam(paper)
             if len(questions) < 180:
                 return {
                     "status": "error",
@@ -1010,7 +1075,7 @@ def main():
         "start", "answer", "pause", "resume", "grade", "status", "show", "abandon", "recover",
     ])
     parser.add_argument("arg", nargs="?", default="", help="答案字母或试卷名")
-    parser.add_argument("--paper", default="random", choices=["one", "two", "three", "five", "six", "seven", "random"])
+    parser.add_argument("--paper", default="random", choices=["one", "two", "three", "five", "six", "seven", "eight", "random"])
     args = parser.parse_args()
 
     engine = MockExamEngine()
