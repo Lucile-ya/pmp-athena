@@ -29,6 +29,7 @@
 | ❌ **错题本 + SM-2** | 三文件同步（`error_log` / `error_review_state` / `question_bank`） | `error_logger.py` / `spaced_repetition.py` |
 | 🎯 **PMP 判题推理框架** | 六步推理链 + P1-P6 优先级 + 12 陷阱模式 | `CLAUDE.md` |
 | 🎯 **学习顾问** | 薄弱点诊断、今日错题复习、备考计划 | `study_advisor.py` |
+| 📋 **薄弱点速记** | 按错题数据推送口诀+闪卡+陷阱（微信一屏背诵） | `weak_area_cheatsheet.py` + `pmp_notes/薄弱点速记/` |
 | 📊 **模考** | PDF 模考 / 状态持久化 / 成绩写入 / 时间·速度·精度三维诊断 | `mock_exam_state.py` / `exam_recorder.py` |
 | 🖼️ **截图 OCR** | 题目截图、模考成绩、章节练习统计图识别入库 | `image_processor.py` |
 | 🗺️ **思维导图结构化** | PNG 思维导图 OCR → PMBOK 标准表格 MD | `mindmap_ocr.py` / `build_mindmap_md.py` |
@@ -44,6 +45,8 @@
 |--------|--------------|
 | `复习错题` | SM-2 排期 + 逐题出题 + 判卷 + 错因诊断 |
 | `薄弱点分析` | 各领域正确率 + 错误类型分布 + 针对性建议 |
+| `薄弱点速记` / `今日速记` | 薄弱领域排行 / 按日轮换推送口诀+闪卡 |
+| `速记 成本管理` | 指定领域可背诵速记（口诀·陷阱·闪卡·做题链） |
 | `挣值知识点` | L1 速查（5 行精华）+ 可追问 L2/L3 |
 | `7月31日每日一练答案：CBCBDCDDC` | 自动判卷 + 错题三文件同步入库 |
 | `做 8月10日 每日一练` | 逐题互动出题，边做边判 |
@@ -362,6 +365,7 @@ A. … B. … C. … D. …
 | 多题 + `我的答案是：XXX` | `daily_practice.py batch --stdin` |
 | 更新41题，正确答案是 B | `daily_practice.py batch-update-text` |
 | 复习错题 / 薄弱点 / 学习计划 | `study_advisor.py` |
+| 薄弱点速记 / 今日速记 / 速记 成本管理 | `weak_area_cheatsheet.py` |
 | 录入错题（截图） | `image_processor.py` + `record_answer.py` |
 | 资源管理知识点 / 挣值 / 敏捷速查 | `dynamic_knowledge.py` (L1/L2/L3) |
 
@@ -415,7 +419,8 @@ schtasks /Create `
   └─ 桥接死了 → 清 bridge.pid → tsc 编译 → 启动 → 写 log
 ```
 
-图片 OCR 集成见 [docs/wechat-bridge-patch.md](docs/wechat-bridge-patch.md)。
+图片 OCR 集成见 [docs/wechat-bridge-patch.md](docs/wechat-bridge-patch.md)。  
+薄弱点速记硬路由见 [docs/wechat-weak-cheatsheet-route.md](docs/wechat-weak-cheatsheet-route.md)（已在 `athena-router.ts` 接入）。
 
 ---
 

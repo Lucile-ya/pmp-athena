@@ -35,6 +35,7 @@ PENDING_QUESTIONS_PATH = NOTES_DIR / "pending_questions.json"
 CONFIG_JSON_PATH = NOTES_DIR / "config.json"
 DAILY_PRACTICE_DIR = NOTES_DIR / "每日一练"
 MOCK_EXAM_DIR = NOTES_DIR / "模考"
+CHEATSHEET_DIR = NOTES_DIR / "薄弱点速记"
 KNOWLEDGE_INDEX_PATH = PROJECT_ROOT / "pmp_knowledge_index.json"
 
 # ── Embedding 模型 ──────────────────────────────────────────
