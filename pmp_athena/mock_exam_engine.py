@@ -56,6 +56,7 @@ PAPER_MAP = {
     "one": "考前冲刺卷1", "two": "考前冲刺卷2",
     "three": "考前冲刺卷3", "four": "模考卷二",
     "five": "模拟一", "six": "模拟二",
+    "seven": "2609期模考一",
     "random": "随机模考",
 }
 
@@ -69,6 +70,14 @@ PAPER_FILES: dict[str, tuple[str, str]] = {
 PAPER_TEXT: dict[str, str] = {
     "five": "模拟一.pdf",
     "six": "模拟二.pdf",
+}
+
+# 骐迹 2609 模考（题目 PDF + 答案解析 PDF，复用 daily_practice 解析器）
+PAPER_QIJI: dict[str, tuple[str, str]] = {
+    "seven": (
+        "2609期PMP模考一（8月22日）-骐迹教育.pdf",
+        "2609期PMP模考一（8月22日）答案和解析-骐迹教育.pdf",
+    ),
 }
 
 # 解析缓存版本（升级 parser 后递增以强制重建）
@@ -339,6 +348,49 @@ def load_text_mock_exam(paper_key: str) -> list[dict]:
     questions = _parse_text_pdf(pdf_path)
     if len(questions) < 50:
         logger.warning("Only %d questions parsed from %s, may be incomplete", len(questions), pdf_name)
+
+    cache_path.write_text(json.dumps(questions, ensure_ascii=False, indent=2), encoding="utf-8")
+    logger.info("Cached %d questions to %s", len(questions), cache_path.name)
+    return questions
+
+
+def load_qiji_mock_exam(paper_key: str) -> list[dict]:
+    """加载骐迹 2609 模考（题目 + 答案解析双 PDF，复用 daily_practice 解析器）。"""
+    if paper_key not in PAPER_QIJI:
+        return []
+
+    q_pdf_name, a_pdf_name = PAPER_QIJI[paper_key]
+    q_pdf_path = MOCK_DIR / q_pdf_name
+    a_pdf_path = MOCK_DIR / a_pdf_name
+    cache_path = _cache_path_for_pdf(f"{q_pdf_name}_qiji")
+
+    if cache_path.exists():
+        try:
+            data = json.loads(cache_path.read_text(encoding="utf-8"))
+            if isinstance(data, list) and len(data) >= 170:
+                logger.info("Loaded %d questions from cache: %s", len(data), cache_path.name)
+                return data
+        except Exception:
+            pass
+
+    if not q_pdf_path.exists():
+        logger.error("Question PDF not found: %s", q_pdf_name)
+        return []
+
+    try:
+        from pmp_athena.daily_practice import load_questions_from_pdf
+    except ImportError:
+        from daily_practice import load_questions_from_pdf
+
+    try:
+        merged = load_questions_from_pdf(q_pdf_path, a_pdf_path if a_pdf_path.exists() else None)
+    except ValueError as e:
+        logger.error("Failed to parse %s: %s", q_pdf_name, e)
+        return []
+
+    questions = [_daily_question_to_mock(q) for q in merged if q.get("correct_answer")]
+    if len(questions) < 170:
+        logger.warning("Only %d questions with answers from %s", len(questions), q_pdf_name)
 
     cache_path.write_text(json.dumps(questions, ensure_ascii=False, indent=2), encoding="utf-8")
     logger.info("Cached %d questions to %s", len(questions), cache_path.name)
@@ -620,6 +672,16 @@ class MockExamEngine:
                         questions.append(pq)
                     if len(questions) >= 180:
                         break
+        elif paper in PAPER_QIJI:
+            questions = load_qiji_mock_exam(paper)
+            if len(questions) < 180:
+                return {
+                    "status": "error",
+                    "error": (
+                        f"「{PAPER_MAP.get(paper, paper)}」解析不完整"
+                        f"（仅 {len(questions)}/180 题），请检查 PDF 或联系管理员。"
+                    ),
+                }
         else:
             questions = load_questions_from_pdfs(180)
         total = len(questions)
@@ -948,7 +1010,7 @@ def main():
         "start", "answer", "pause", "resume", "grade", "status", "show", "abandon", "recover",
     ])
     parser.add_argument("arg", nargs="?", default="", help="答案字母或试卷名")
-    parser.add_argument("--paper", default="random", choices=["one", "two", "three", "five", "six", "random"])
+    parser.add_argument("--paper", default="random", choices=["one", "two", "three", "five", "six", "seven", "random"])
     args = parser.parse_args()
 
     engine = MockExamEngine()

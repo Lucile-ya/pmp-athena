@@ -128,6 +128,20 @@ def test_july20_pdf_if_present() -> None:
     assert not qs[6]["options"]["A"].endswith("育")
 
 
+def test_qiji_2609_mock_if_present() -> None:
+    q_pdf = _ROOT / "pmp_notes" / "模考" / "2609期PMP模考一（8月22日）-骐迹教育.pdf"
+    a_pdf = _ROOT / "pmp_notes" / "模考" / "2609期PMP模考一（8月22日）答案和解析-骐迹教育.pdf"
+    if not q_pdf.exists() or not a_pdf.exists():
+        print("⏭️  SKIP qiji2609 mock: PDF 不存在")
+        return
+    from pmp_athena.daily_practice import load_questions_from_pdf
+
+    qs = load_questions_from_pdf(q_pdf, a_pdf)
+    assert len(qs) == 180, len(qs)
+    assert all(q.get("correct_answer") for q in qs)
+    assert all(len(q.get("options") or {}) >= 4 for q in qs)
+
+
 def test_grade_batch() -> None:
     from pmp_athena.daily_practice import _clear_state, _save_state, grade_answers
 
@@ -218,6 +232,7 @@ def main() -> int:
         test_july16_pdf_if_present,
         test_july17_pdf_if_present,
         test_july20_pdf_if_present,
+        test_qiji_2609_mock_if_present,
     ]
     failed = 0
     for fn in tests:

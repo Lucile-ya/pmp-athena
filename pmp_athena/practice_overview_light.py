@@ -49,6 +49,17 @@ def _format_monthly_rate(correct: int, total: int) -> str:
     return f"{correct / max(1, total) * 100:.1f}%"
 
 
+def _exam_correct_rate_pct(e: dict) -> str:
+    cr = e.get("correct_rate", 0)
+    if isinstance(cr, float):
+        return f"{cr * 100:.0f}%"
+    return f"{cr}%"
+
+
+def _exam_display_name(exam_id: str) -> str:
+    return exam_id.removeprefix("人工录入_")
+
+
 def generate_summary() -> str:
     bank = _load(QUESTION_BANK_PATH)
     if not isinstance(bank, list):
@@ -152,13 +163,22 @@ def generate_summary() -> str:
         lines.append(f"  首次正确率 {_format_monthly_rate(f_c, f_t)}  |  二次正确率 {_format_monthly_rate(s_c, s_t)}")
 
         if n_exams > 0:
-            for e in month_exams.get(m, []):
-                cr = e.get("correct_rate", 0)
-                if isinstance(cr, float):
-                    cr_pct = f"{cr * 100:.0f}%"
-                else:
-                    cr_pct = f"{cr}%"
-                lines.append(f"模考：{n_exams} 次（{cr_pct}）")
+            month_list = month_exams.get(m, [])
+            rates = " / ".join(_exam_correct_rate_pct(e) for e in month_list)
+            lines.append(f"模考：{n_exams} 次（{rates}）")
+            for e in month_list:
+                name = _exam_display_name(e.get("exam_id", "模考"))
+                ed = e.get("exam_date", "")[5:10].replace("-", "/")
+                cc = e.get("correct_count")
+                tq = e.get("total_questions")
+                score = f"{cc}/{tq}" if cc is not None and tq else ""
+                detail = f"  · {name}"
+                if ed:
+                    detail += f" {ed}"
+                detail += f" {_exam_correct_rate_pct(e)}"
+                if score:
+                    detail += f"（{score}）"
+                lines.append(detail)
         else:
             lines.append("模考：0 次")
         lines.append("")
