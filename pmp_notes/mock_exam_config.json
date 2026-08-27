@@ -4,6 +4,7 @@
     {
       "id": "M001",
       "name": "2606PMP模考一",
+      "start_cmd": "开始模考一",
       "pdf_name": "考前冲刺卷1",
       "status": "completed",
       "total_questions": 180,
@@ -15,6 +16,7 @@
     {
       "id": "M002",
       "name": "2606PMP模考二",
+      "start_cmd": "录入成绩",
       "pdf_name": "2606期PMP模考二",
       "status": "completed",
       "total_questions": 180,
@@ -26,6 +28,7 @@
     {
       "id": "M003",
       "name": "2606PMP模考三",
+      "start_cmd": "开始模考二",
       "pdf_name": "考前冲刺卷2",
       "status": "pending",
       "total_questions": 180,
@@ -34,6 +37,7 @@
     {
       "id": "M004",
       "name": "2606PMP模考四",
+      "start_cmd": "开始模考三",
       "pdf_name": "考前冲刺卷3",
       "status": "pending",
       "total_questions": 180,
@@ -42,6 +46,7 @@
     {
       "id": "M005",
       "name": "2606PMP模考五",
+      "start_cmd": "录入成绩",
       "pdf_name": "",
       "status": "pending",
       "total_questions": 180,
@@ -50,6 +55,7 @@
     {
       "id": "M006",
       "name": "2609期模考一",
+      "start_cmd": "开始模考七",
       "pdf_name": "2609期PMP模考一",
       "status": "pending",
       "total_questions": 180,
@@ -58,10 +64,11 @@
     {
       "id": "M007",
       "name": "2609英文模考",
+      "start_cmd": "开始模考八",
       "pdf_name": "PMP模考题-2609",
       "status": "pending",
       "total_questions": 180,
-      "has_pdf": true
+      "has_pdf": false
     }
   ],
   "target_weekly_exams": 2

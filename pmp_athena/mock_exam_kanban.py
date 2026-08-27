@@ -57,14 +57,16 @@ def _detect_available_pdfs() -> set[str]:
     available = set()
     for p in PDF_DIR.glob("*.pdf"):
         stem = p.stem
-        if "答案" in stem or "解析" in stem:
+        if "答案" in stem or "解析" in stem or "参考" in stem:
             continue
-        # Normalize names
-        for prefix in ["2606期PMP模考", "考前冲刺卷"]:
-            if prefix in stem:
-                available.add(stem)
-                break
+        available.add(stem)
     return available
+
+
+def _pdf_available(pdf_name: str, available_pdfs: set[str]) -> bool:
+    if not pdf_name:
+        return False
+    return any(pdf_name in stem for stem in available_pdfs)
 
 
 def build_kanban() -> dict:
@@ -114,10 +116,13 @@ def build_kanban() -> dict:
             if rate_pct < 59:
                 retake.append(entry)
         else:
-            has_pdf = any(pdf_name in p for p in available_pdfs) if pdf_name else False
+            has_pdf = _pdf_available(pdf_name, available_pdfs)
             exam["has_pdf"] = has_pdf
             pending.append({
-                "id": eid, "name": name, "has_pdf": has_pdf,
+                "id": eid,
+                "name": name,
+                "has_pdf": has_pdf,
+                "start_cmd": exam.get("start_cmd", ""),
             })
 
     # Sort completed by date
@@ -176,10 +181,12 @@ def format_kanban() -> str:
     if pend:
         for i, p in enumerate(pend):
             pdf_mark = " 📄" if p.get("has_pdf") else ""
+            cmd = p.get("start_cmd") or ""
+            cmd_hint = f" → 「{cmd}」" if cmd and cmd != "录入成绩" else ""
             hint = ""
             if i == 0:
                 hint = " ← 建议本周完成"
-            lines.append(f"  · {p['name']}{pdf_mark}{hint}")
+            lines.append(f"  · {p['name']}{pdf_mark}{cmd_hint}{hint}")
     else:
         lines.append("  · 暂无")
     lines.append("")
@@ -196,9 +203,9 @@ def format_kanban() -> str:
 
     lines.extend([
         "",
-        "💬 回复「模考<N>」如「模考三」开始做题",
-        "💬 回复「重刷 <模考名>」如「重刷 模考一」开始重刷",
-        "💬 回复「录入成绩 <模考名> <分数>」如「录入成绩 模考二 125」手动录入",
+        "💬 做题：发「开始模考七」或卷名「2609期模考一」（见各行 → 提示）",
+        "💬 录入：「录入成绩 <模考名> <分数>」如「录入成绩 2606PMP模考二 125」",
+        "💬 发「模考」查看完整试卷菜单（模考一~八）",
     ])
     return "\n".join(lines)
 
