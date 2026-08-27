@@ -59,6 +59,7 @@ _MENU_TRIGGERS = frozenset({
     "薄弱点速记", "薄弱速记", "速记菜单", "速记清单", "速记列表",
 })
 _TODAY_TRIGGERS = frozenset({"今日速记", "今天速记", "每日速记"})
+_SYNC_TRIGGERS = frozenset({"刷新速记", "同步速记", "更新速记", "速记同步"})
 
 
 def _load_bank() -> list[dict]:
@@ -120,6 +121,8 @@ def parse_cheatsheet_request(text: str) -> tuple[str, str | None]:
         return ("menu", None)
     if t in _TODAY_TRIGGERS:
         return ("today", None)
+    if t in _SYNC_TRIGGERS:
+        return ("sync", None)
 
     for pat in (
         re.compile(r"^速记\s*(.+)$"),
@@ -345,6 +348,13 @@ def push_list() -> str:
 
 def handle_message(text: str) -> str:
     action, area = parse_cheatsheet_request(text)
+
+    if action == "sync":
+        try:
+            from pmp_athena.cheatsheet_sync import format_wechat_sync_report, sync_all
+        except ModuleNotFoundError:
+            from cheatsheet_sync import format_wechat_sync_report, sync_all
+        return format_wechat_sync_report(sync_all())
 
     if action == "menu" or action == "list":
         return push_menu()

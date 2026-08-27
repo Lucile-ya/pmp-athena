@@ -274,6 +274,19 @@ def analyze_weakness() -> str:
         lines.append(f"3. ⚠️ 有 {overdue} 道错题复习已逾期，今天优先处理！")
     lines.append("4. 练习时注意：选'看起来标准化的流程动作'前，先想'直接、务实、人本'的替代方案")
 
+    try:
+        from pmp_athena.cheatsheet_sync import run_sync_after_weakness
+    except ImportError:
+        try:
+            from cheatsheet_sync import run_sync_after_weakness
+        except ImportError:
+            run_sync_after_weakness = None  # type: ignore
+
+    if run_sync_after_weakness:
+        sync_note = run_sync_after_weakness()
+        lines.append("\n## 📌 速记卡同步\n")
+        lines.append(sync_note)
+
     return "\n".join(lines)
 
 
