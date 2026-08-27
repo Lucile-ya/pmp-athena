@@ -71,6 +71,13 @@ PAPER_TEXT: dict[str, str] = {
     "six": "模拟二.pdf",
 }
 
+# 解析缓存版本（升级 parser 后递增以强制重建）
+PARSER_CACHE_VERSION = 2
+
+
+def _cache_path_for_pdf(pdf_name: str) -> Path:
+    return CACHE_DIR / f"{pdf_name}_cached_v{PARSER_CACHE_VERSION}.json"
+
 # 已预先提取为高清图片的试卷（图片文件夹名 → 答案 PDF 文件名）
 PAPER_IMAGE_DIRS: dict[str, tuple[str, str]] = {
     "one": ("提取图片_考前冲刺卷1-试题", "考前冲刺卷1-答案解析.pdf"),
@@ -114,101 +121,58 @@ def guess_area(text: str) -> str:
 # PDF 题库解析（每日一练 PDF → 题目列表）
 # ═══════════════════════════════════════════════════════════════
 
+def _daily_question_to_mock(q: dict) -> dict:
+    """daily_practice 题目格式 → 模考引擎格式。"""
+    opts_dict = q.get("options") or {}
+    options = [f"{k}. {v}" for k, v in sorted(opts_dict.items())]
+    stem = q.get("stem") or q.get("question") or ""
+    correct = str(q.get("correct_answer") or "").strip().upper()
+    return {
+        "question": stem,
+        "options": options,
+        "correct_answer": correct,
+        "explanation": q.get("explanation", ""),
+        "_area": q.get("knowledge_area") or guess_area(stem),
+        "_is_multi": q.get("question_type") == "multi" or len(correct) > 1,
+    }
+
+
+def _find_answer_pdf_for_question_pdf(qp: Path) -> Path | None:
+    """按文件名匹配每日一练答案 PDF。"""
+    label_m = re.search(r"(\d{1,2})月(\d{1,2})日", qp.name)
+    if label_m:
+        label = f"{label_m.group(1)}月{label_m.group(2)}日"
+        for ap in sorted(DAILY_DIR.glob(f"*{label}*答案*.pdf")):
+            return ap
+    key = qp.stem
+    for ap in sorted(DAILY_DIR.glob("*.pdf")):
+        if "答案" not in ap.name and "解析" not in ap.name:
+            continue
+        normalized = ap.name.replace("答案解析", "").replace("答案", "").replace(".pdf", "")
+        if normalized == key or key in ap.name:
+            return ap
+    return None
+
+
 def _parse_daily_pdf(pdf_path: Path) -> list[dict]:
-    """从一份每日一练习题 PDF 提取题目列表。"""
+    """从每日一练 PDF 提取题目（复用 daily_practice 完整解析器）。"""
     try:
-        import pdfplumber
+        from pmp_athena.daily_practice import load_questions_from_pdf
     except ImportError:
+        from daily_practice import load_questions_from_pdf
+
+    ans_path = _find_answer_pdf_for_question_pdf(pdf_path)
+    try:
+        merged = load_questions_from_pdf(pdf_path, ans_path)
+    except ValueError:
         return []
 
-    questions: list[dict] = []
-    try:
-        with pdfplumber.open(str(pdf_path)) as pdf:
-            all_lines: list[str] = []
-            for page in pdf.pages:
-                text = page.extract_text()
-                if text:
-                    all_lines.extend(text.split("\n"))
-
-        # 去水印碎片（全局替换）
-        full = "\n".join(all_lines)
-        # 去孤立水印行
-        full = re.sub(r"(?:^|\n)\s*[内育教迹骐料资部练日每]{1,3}\s*(?=$|\n)", "\n", full)
-        # 去选项中嵌入的水印（A、... 育 → A、...  /  ...练\n一 → ...）
-        full = re.sub(r"\s+[内育教迹骐料资部练日每]{1,2}(?=\s|$|\n)", "", full)
-        # 去连续水印字符
-        full = re.sub(r"[内育教迹骐料资部练日每]{2,6}", "", full)
-        # 去嵌入英文单词中的孤立水印（如 manage教r → manager）
-        full = re.sub(r"(?<=[a-zA-Z])[内育教迹骐料资部练日每](?=[a-zA-Z])", "", full)
-        full = re.sub(r"(?<=[a-zA-Z])[内育教迹骐料资部练日每](?=\s|$)", "", full)
-        full = re.sub(r"\n{2,}", "\n", full)
-
-        # 找到所有题号位置：\n + 数字 + ．/./
-        q_starts = list(re.finditer(r"\n(\d{1,2})[．.、]\s*", "\n" + full))
-
-        for k, m in enumerate(q_starts):
-            qnum = int(m.group(1))
-            start = m.start()
-            # 下一题的起始位置
-            if k + 1 < len(q_starts):
-                end = q_starts[k + 1].start()
-            else:
-                end = len(full)
-            block = full[start:end].strip()
-
-            if len(block) < 30:
-                continue
-            if "答案" in block[:50] or "解析" in block[:50]:
-                continue
-
-            # 提取选项 A：/A./A．/A、格式
-            opt_re = re.compile(r"([A-D])[：:\.．、\)]\s*")
-            opt_parts = list(opt_re.finditer(block))
-
-            if len(opt_parts) < 2:
-                continue
-
-            opts: list[str] = []
-            for j, om in enumerate(opt_parts):
-                s = om.start()
-                e = opt_parts[j + 1].start() if j + 1 < len(opt_parts) else len(block)
-                opts.append(block[s:e].strip()[:200])
-
-            stem = block[: opt_parts[0].start()].strip()
-            stem = re.sub(r"^\d{1,2}[．.、]\s*", "", stem)
-            stem = re.sub(r"【[^】]+】\s*", "", stem)
-            stem = re.sub(r"\[[^\]]+\]\s*", "", stem)
-            stem = re.sub(r"（分值[：:]\s*\d+\s*分）\s*", "", stem)
-            # 去掉水印残留
-            stem = re.sub(r"\s+[内育教迹骐料资部练日每]{1,2}\s+", " ", stem)
-            stem = re.sub(r"[内育教迹骐料资部练日每]{2,4}", " ", stem)
-            stem = re.sub(r"\s+", " ", stem).strip()
-
-            # 如果题干中英混排，优先中文部分
-            # 找到第一个中文句号/逗号出现的位置，从那里往前找中文起始
-            cn_start = None
-            for m in re.finditer(r"[一-鿿]", stem):
-                cn_start = m.start()
-                break
-            if cn_start is not None and cn_start > 5:
-                # 题干从英文开始，截取中文部分
-                stem = stem[cn_start:]
-            # 去掉末尾残留的英文原文（中文后面跟的长串英文）
-            stem = re.sub(r"\s{2,}[A-Za-z].{20,}$", "", stem)
-
-            if len(stem) < 10:
-                continue
-
-            questions.append({
-                "question": stem[:300],
-                "options": opts[:4],
-                "correct_answer": "",
-                "explanation": "",
-            })
-    except Exception:
-        pass
-
-    return questions
+    out: list[dict] = []
+    for q in merged:
+        m = _daily_question_to_mock(q)
+        m["source_pdf"] = pdf_path.name
+        out.append(m)
+    return out
 
 
 def _parse_answer_pdf(pdf_path: Path) -> dict[int, dict]:
@@ -256,12 +220,6 @@ def load_questions_from_pdfs(target_count: int = 180) -> list[dict]:
     question_pdfs = [f for f in pdf_files if "答案" not in f.name and "解析" not in f.name]
     answer_pdfs = [f for f in pdf_files if "答案" in f.name or "解析" in f.name]
 
-    # 建立题目→答案的对应关系
-    ans_map: dict[str, Path] = {}
-    for ap in answer_pdfs:
-        key = ap.name.replace("答案解析", "").replace("答案", "").replace(".pdf", "")
-        ans_map[key] = ap
-
     all_questions: list[dict] = []
 
     for qp in question_pdfs:
@@ -269,23 +227,7 @@ def load_questions_from_pdfs(target_count: int = 180) -> list[dict]:
         if not qs:
             continue
 
-        # 找到对应的答案 PDF
-        key = qp.name.replace(".pdf", "")
-        ans_path = ans_map.get(key)
-        if ans_path:
-            ans_data = _parse_answer_pdf(ans_path)
-            for i, q in enumerate(qs):
-                qnum = i + 1
-                if qnum in ans_data:
-                    q["correct_answer"] = ans_data[qnum].get("correct_answer", "")
-                    q["explanation"] = ans_data[qnum].get("explanation", "")
-
-        # 标记知识领域
-        for q in qs:
-            q["_area"] = guess_area(q.get("question", ""))
-            q["source_pdf"] = qp.name
-
-        # 只保留有标准答案的
+        # 只保留有标准答案的（答案已在 load_questions_from_pdf 合并）
         valid = [q for q in qs if q.get("correct_answer")]
         all_questions.extend(valid)
 
@@ -325,7 +267,7 @@ def load_scanned_mock_exam(paper_key: str) -> list[dict]:
     q_pdf_name, a_pdf_name = PAPER_FILES[paper_key]
     q_pdf_path = MOCK_DIR / q_pdf_name
     a_pdf_path = MOCK_DIR / a_pdf_name
-    cache_path = CACHE_DIR / f"{q_pdf_name}_cached.json"
+    cache_path = _cache_path_for_pdf(f"{q_pdf_name}_scanned")
 
     # ── 如果有缓存（≥50题足够好），直接加载 ──
     if cache_path.exists():
@@ -383,7 +325,7 @@ def load_text_mock_exam(paper_key: str) -> list[dict]:
 
     pdf_name = PAPER_TEXT[paper_key]
     pdf_path = MOCK_DIR / pdf_name
-    cache_path = CACHE_DIR / f"{pdf_name}_cached.json"
+    cache_path = _cache_path_for_pdf(pdf_name)
 
     if cache_path.exists():
         try:
@@ -424,34 +366,40 @@ def _parse_text_pdf(pdf_path: Path) -> list[dict]:
             continue
         body = block[m.end():]
 
-        # 答案 / 解析（在 body 里直接找）
-        am = re.search(r"试题答案\s*[：:]\s*([A-E])", body)
+        am = re.search(r"试题答案\s*[：:]\s*([A-E]+)", body)
         correct = am.group(1).upper() if am else ""
         em = re.search(r"试题解析\s*[：:]\s*(.+)", body, re.S)
         explanation = em.group(1).strip() if em else ""
 
-        # 题干 + 选项（取「试题答案」之前的部分）
         qpart = body.split("试题答案", 1)[0]
 
-        # 题干 + 选项
         stem_lines: list[str] = []
         opts: list[str] = []
+        current_letter: str | None = None
         for line in qpart.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
             om = opt_re.match(line)
             if om:
-                opts.append(f"{om.group(1)}. {om.group(2).strip()}")
+                current_letter = om.group(1).upper()
+                opts.append(f"{current_letter}. {om.group(2).strip()}")
+            elif current_letter and opts:
+                opts[-1] += " " + line
             elif line.strip():
                 stem_lines.append(line.strip())
+                current_letter = None
         stem = " ".join(stem_lines).strip()
+        stem = re.sub(r"\s+", " ", stem)
 
-        if not (stem and len(opts) >= 2 and correct):
+        if not (stem and len(opts) >= 4 and correct):
             continue
         area = guess_area(stem + " " + " ".join(opts))
         questions.append({
             "question": stem,
-            "options": opts,
+            "options": opts[:5],
             "correct_answer": correct,
-            "explanation": explanation,
+            "explanation": explanation[:500],
             "_area": area,
             "_is_multi": len(correct) > 1,
         })

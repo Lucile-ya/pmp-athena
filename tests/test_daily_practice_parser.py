@@ -59,6 +59,23 @@ def test_watermark_line_skipped() -> None:
     assert "内部资料" not in stem
 
 
+SAMPLE_Q5_ORPHAN_C = """
+5.【单选题】What should the project manager do first?项目经理应该先做什么?
+A. Start developing a business case.开始制定一个商业论证。
+B. Start a strengths, weaknesses, opportunities and threats (SWOT).开始进行 SWOT 分析。
+Engage stakeholders and allocate resources.让干系人参与进来并分配资源
+D. Gather requirements from stakeholders.从干系人那里收集需求
+"""
+
+
+def test_recover_orphan_option_c() -> None:
+    qs = _parse_questions(SAMPLE_Q5_ORPHAN_C)
+    assert len(qs) == 1
+    opts = qs[0]["options"]
+    assert set(opts.keys()) >= {"A", "B", "C", "D"}
+    assert "干系人" in opts["C"]
+
+
 def test_july16_pdf_if_present() -> None:
     pdf = _ROOT / "pmp_notes" / "每日一练" / "2609每日一练7月16日.pdf"
     if not pdf.exists():
@@ -194,6 +211,7 @@ def main() -> int:
         test_strip_header_preserves_stem,
         test_parse_block_not_truncated,
         test_watermark_line_skipped,
+        test_recover_orphan_option_c,
         test_option_not_watermark_tail,
         test_grade_batch,
         test_grade_multichoice,

@@ -261,6 +261,32 @@ def _extract_chinese_segments(text: str) -> list[str]:
     return top or cleaned
 
 
+def _next_missing_option_letter(opts: dict[str, str]) -> str | None:
+    for letter in "ABCDE":
+        if letter not in opts:
+            return letter
+    return None
+
+
+def _looks_like_new_option_line(line: str, prev_option: str) -> bool:
+    """PDF 丢字母前缀时，续行实为下一选项（如 B 后紧跟 C 的内容）。"""
+    s = line.strip()
+    if not s or _is_watermark_line(s):
+        return False
+    if re.match(r"^\d+[\.．]", s):
+        return False
+    if _OPTION_LINE.match(s):
+        return False
+    prev = prev_option.rstrip()
+    if not prev.endswith((".", "。", ")", "）", "!", "！")):
+        return False
+    if re.match(r"^[A-Z][a-z]", s):
+        return True
+    if re.search(r"[\u4e00-\u9fff]{4,}", s) and not re.match(r"^[A-E]\s", s, re.I):
+        return True
+    return False
+
+
 def _clean_option(text: str) -> str:
     text = re.sub(r"\s+", " ", text.strip()).replace("内部资料", "")
     text = re.sub(r"\s+[料资部内育教迹骐练一日每\s]+$", "", text)
@@ -268,7 +294,7 @@ def _clean_option(text: str) -> str:
 
     segments = _extract_chinese_segments(text)
     if segments:
-        return max(segments, key=len)[:120]
+        return max(segments, key=len)[:200]
 
     # 旧版 PDF：中文在前、英文在后
     cn = _split_chinese_before_english(text)
@@ -276,7 +302,7 @@ def _clean_option(text: str) -> str:
     cn = _strip_latin_preserve_acronyms(cn)
     cn = _strip_option_tail_noise(_fix_watermark_typos(cn))
     cn = re.sub(r"\s+", " ", cn).strip()
-    return cn[:120] if cn else ""
+    return cn[:200] if cn else ""
 
 
 def _guess_knowledge_area(stem: str, explanation: str = "") -> str:
@@ -390,6 +416,12 @@ def _parse_questions(text: str) -> list[dict[str, Any]]:
             elif current and current in opts and not re.match(r"^\d+[\.．]", line):
                 if _is_watermark_line(line):
                     continue
+                if _looks_like_new_option_line(line, opts[current]):
+                    nxt = _next_missing_option_letter(opts)
+                    if nxt:
+                        current = nxt
+                        opts[current] = line
+                        continue
                 opts[current] += " " + line
             elif not opts:
                 if re.match(r"^\d+[\.．]", line):
@@ -463,6 +495,41 @@ def _find_pdfs_for_date(d: date) -> tuple[Path | None, Path | None]:
             a_pdf = f
             break
     return q_pdf, a_pdf
+
+
+def load_questions_from_pdf(
+    question_pdf: Path,
+    answer_pdf: Path | None = None,
+) -> list[dict[str, Any]]:
+    """解析单份每日一练格式 PDF（与 load_questions_for_date 相同逻辑）。"""
+    q_text = _extract_pdf_text(question_pdf)
+    questions = _parse_questions(q_text)
+    if not questions:
+        raise ValueError(f"无法解析题目 PDF: {question_pdf.name}")
+
+    answers: dict[int, dict[str, str]] = {}
+    if answer_pdf and answer_pdf.exists():
+        answers = _parse_answers(_extract_pdf_text(answer_pdf))
+
+    merged: list[dict[str, Any]] = []
+    for i, q in enumerate(questions, start=1):
+        ans = answers.get(q["num"], {})
+        stem = normalize_question_text(q["stem"])
+        expl = ans.get("explanation", "")
+        merged.append(
+            {
+                "index": i,
+                "num": q["num"],
+                "stem": stem,
+                "options": q["options"],
+                "correct_answer": ans.get("answer", ""),
+                "explanation": expl,
+                "knowledge_area": _guess_knowledge_area(stem, expl),
+                "question_type": q.get("question_type")
+                or ans.get("question_type", "single"),
+            }
+        )
+    return merged
 
 
 def _load_completed() -> set[str]:
