@@ -1246,7 +1246,7 @@ def _record_answer(q: dict[str, Any], my_answer: str, *, is_correct: bool) -> No
     if is_correct:
         record_correct_answer(**kwargs)
     else:
-        record_wrong_answer(**kwargs)
+        record_wrong_answer(**kwargs, defer_cheatsheet_sync=True)
 
 
 def _session_title(state: dict[str, Any]) -> str:
@@ -1272,6 +1272,14 @@ def _finish_session(state: dict[str, Any], prefix_lines: list[str]) -> dict[str,
 
     wrong_items = state.get("wrong_items", [])
     if wrong_items:
+        try:
+            try:
+                from pmp_athena.cheatsheet_sync import flush_cheatsheet_sync
+            except ModuleNotFoundError:
+                from cheatsheet_sync import flush_cheatsheet_sync
+            flush_cheatsheet_sync(silent=True)
+        except Exception:
+            pass
         lines.append("")
         lines.append("❌ 错题回顾：")
         for w in wrong_items:

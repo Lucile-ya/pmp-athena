@@ -11,7 +11,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from pmp_athena.cheatsheet_sync import (  # noqa: E402
+    auto_sync_on_new_error,
     build_trap_row,
+    flush_cheatsheet_sync,
+    schedule_cheatsheet_sync,
     _existing_trap_keys,
     _insert_auto_trap_rows,
     _row_key,
@@ -50,3 +53,31 @@ def test_insert_auto_trap_rows() -> None:
 
 def test_row_key_dedup() -> None:
     assert _row_key("A", "B") == _row_key("A", "B")
+
+
+def test_auto_sync_defer_and_flush(monkeypatch) -> None:
+    import pmp_athena.cheatsheet_sync as cs
+
+    cs._deferred_cheatsheet_sync = False
+    calls: list[str] = []
+
+    def fake_sync_all() -> cs.SyncResult:
+        calls.append("sync")
+        return cs.SyncResult()
+
+    monkeypatch.setattr(cs, "sync_all", fake_sync_all)
+
+    assert auto_sync_on_new_error(error_is_new=False) is None
+    assert calls == []
+
+    assert auto_sync_on_new_error(error_is_new=True, defer=False) is not None
+    assert calls == ["sync"]
+
+    calls.clear()
+    assert auto_sync_on_new_error(error_is_new=True, defer=True) is None
+    assert calls == []
+    assert flush_cheatsheet_sync() is not None
+    assert calls == ["sync"]
+
+    assert flush_cheatsheet_sync() is None
+    cs._deferred_cheatsheet_sync = False

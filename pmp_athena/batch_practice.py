@@ -1070,6 +1070,7 @@ def _batch_grade_questions(
                     explanation=expl[:200] if expl else "",
                     source="batch_practice",
                     parsed_by="batch_practice.py",
+                    defer_cheatsheet_sync=True,
                 )
                 wrong_nums.append(num)
             bank_id = rec.get("bank_id") or rec.get("id")
@@ -1093,6 +1094,16 @@ def _batch_grade_questions(
     )
     state["by_num"] = by_num
     _save_batch_state(state)
+
+    if wrong_nums:
+        try:
+            try:
+                from pmp_athena.cheatsheet_sync import flush_cheatsheet_sync
+            except ModuleNotFoundError:
+                from cheatsheet_sync import flush_cheatsheet_sync
+            flush_cheatsheet_sync(silent=True)
+        except Exception:
+            pass
 
     lines = [f"📋 批量{'判卷' if key_chunks else '收录'}完成（{len(questions)} 题）"]
     display_answers = "、".join(my_chunks)

@@ -289,12 +289,22 @@ def run_backfill(
             if is_correct:
                 result = record_correct_answer(**kwargs)
             else:
-                result = record_wrong_answer(**kwargs)
+                result = record_wrong_answer(**kwargs, defer_cheatsheet_sync=True)
                 wrong_count += 1
 
             _patch_bank_date(bank, result["bank_id"], iso)
             inserted += 1
             area_added[area] += 1
+
+    if not dry_run and wrong_count > 0:
+        try:
+            from pmp_athena.cheatsheet_sync import flush_cheatsheet_sync
+        except ModuleNotFoundError:
+            from cheatsheet_sync import flush_cheatsheet_sync
+        try:
+            flush_cheatsheet_sync(silent=True)
+        except Exception:
+            pass
 
     after = _bank_stats(bank if not dry_run else QuestionBank())
 

@@ -87,6 +87,7 @@ def record_wrong_answer(
     parsed_by: str = "claude",
     attempt: int = 1,
     error_type: str = "",
+    defer_cheatsheet_sync: bool = False,
 ) -> dict:
     """
     错题三文件同步（error_log + error_review_state + question_bank）。
@@ -155,6 +156,18 @@ def record_wrong_answer(
         )
 
     _ensure_review_queue(error_record["id"])
+
+    try:
+        try:
+            from pmp_athena.cheatsheet_sync import auto_sync_on_new_error
+        except ModuleNotFoundError:
+            from cheatsheet_sync import auto_sync_on_new_error
+        auto_sync_on_new_error(
+            error_is_new=error_is_new,
+            defer=defer_cheatsheet_sync,
+        )
+    except Exception:
+        pass
 
     return {
         "error_log_id": error_record["id"],

@@ -895,12 +895,16 @@ class MockExamEngine:
         # ── 入库 ──
         el = ErrorLogger()
         qb = QuestionBank()
+        new_error_count = 0
         for w in wrongs:
+            existing = el.find_by_question(w["question"])
             err = el.add(
                 question=w["question"], my_answer=w["user_answer"],
                 correct_answer=w["correct_answer"], knowledge_area=w["area"],
                 explanation=w["explanation"],
             )
+            if existing is None:
+                new_error_count += 1
             qb.add(
                 question=w["question"], my_answer=w["user_answer"],
                 correct_answer=w["correct_answer"], is_correct=False,
@@ -916,6 +920,14 @@ class MockExamEngine:
                     is_correct=True, knowledge_area=q.get("_area", "综合"),
                     explanation="",
                 )
+
+        if new_error_count > 0:
+            try:
+                from pmp_athena.cheatsheet_sync import flush_cheatsheet_sync, schedule_cheatsheet_sync
+                schedule_cheatsheet_sync()
+                flush_cheatsheet_sync(silent=True)
+            except Exception:
+                pass
 
         ExamRecorder().add(
             exam_id=state.get("paper", "模考"), total_questions=total,

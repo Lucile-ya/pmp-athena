@@ -52,6 +52,8 @@ MIN_FREQ_FOR_BOOST = 2
 MAX_NEW_TRAPS_PER_DOMAIN = 8
 BOOTSTRAP_FREQ_ONLY = True  # 首次同步只写入错≥2次的模式
 
+_deferred_cheatsheet_sync = False
+
 
 @dataclass
 class SyncResult:
@@ -468,6 +470,46 @@ def sync_all(*, dry_run: bool = False) -> SyncResult:
     trap_result.readme_updated = refresh_readme(dry_run=dry_run)
     trap_result.headers_updated = refresh_domain_headers(dry_run=dry_run)
     return trap_result
+
+
+def _run_auto_sync(*, silent: bool = True) -> SyncResult | None:
+    """执行增量同步；失败时不阻断错题入库主流程。"""
+    try:
+        return sync_all()
+    except Exception:
+        if silent:
+            return None
+        raise
+
+
+def schedule_cheatsheet_sync() -> None:
+    """标记有待同步的新错题（批量判卷时 defer 使用）。"""
+    global _deferred_cheatsheet_sync
+    _deferred_cheatsheet_sync = True
+
+
+def flush_cheatsheet_sync(*, silent: bool = True) -> SyncResult | None:
+    """批量录入结束后一次性同步速记卡。"""
+    global _deferred_cheatsheet_sync
+    if not _deferred_cheatsheet_sync:
+        return None
+    _deferred_cheatsheet_sync = False
+    return _run_auto_sync(silent=silent)
+
+
+def auto_sync_on_new_error(*, error_is_new: bool, defer: bool = False) -> SyncResult | None:
+    """
+    新错题入库后触发速记同步。
+
+    - defer=False：立即 sync（微信单题、截图录入）
+    - defer=True：仅标记，由 flush_cheatsheet_sync() 在批次结束时执行
+    """
+    if not error_is_new:
+        return None
+    if defer:
+        schedule_cheatsheet_sync()
+        return None
+    return _run_auto_sync(silent=True)
 
 
 def run_sync_after_weakness(*, dry_run: bool = False) -> str:

@@ -13,9 +13,25 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from pmp_athena.config import QUESTION_BANK_PATH, ERROR_LOG_PATH, REVIEW_STATE_PATH, EXAM_RECORDS_PATH
+    from pmp_athena.config import (
+        QUESTION_BANK_PATH,
+        ERROR_LOG_PATH,
+        REVIEW_STATE_PATH,
+        EXAM_RECORDS_PATH,
+        CONFIG_JSON_PATH,
+    )
 except ModuleNotFoundError:
-    from config import QUESTION_BANK_PATH, ERROR_LOG_PATH, REVIEW_STATE_PATH, EXAM_RECORDS_PATH
+    from config import (
+        QUESTION_BANK_PATH,
+        ERROR_LOG_PATH,
+        REVIEW_STATE_PATH,
+        EXAM_RECORDS_PATH,
+        CONFIG_JSON_PATH,
+    )
+
+DAILY_PRACTICE_SOURCE = "daily_practice"
+TARGET_RATE = 70.0
+PASS_RATE = 59.0
 
 
 def _load(path: Path) -> Any:
@@ -60,6 +76,143 @@ def _exam_display_name(exam_id: str) -> str:
     return exam_id.removeprefix("人工录入_")
 
 
+def _rate_flag(rate: float) -> str:
+    if rate >= TARGET_RATE:
+        return "✅"
+    if rate >= PASS_RATE:
+        return "🟡"
+    return "🔴"
+
+
+def _format_day_cn(iso_date: str) -> str:
+    """YYYY-MM-DD → 8月31日"""
+    try:
+        y, m, d = iso_date[:10].split("-")
+        return f"{int(m)}月{int(d)}日"
+    except ValueError:
+        return iso_date
+
+
+def _build_daily_practice_section(bank: list[dict], config: dict) -> list[str]:
+    """每日一练按日正确率明细。"""
+    daily_records = [
+        r for r in bank
+        if r.get("source") == DAILY_PRACTICE_SOURCE and r.get("is_correct") is not None
+    ]
+    completed_days: list[str] = config.get("daily_completed", [])
+    if not isinstance(completed_days, list):
+        completed_days = []
+
+    if not daily_records and not completed_days:
+        return []
+
+    by_date: dict[str, dict[str, int]] = defaultdict(lambda: {"total": 0, "correct": 0})
+    for r in daily_records:
+        d = r.get("date", "")[:10]
+        if not d:
+            continue
+        by_date[d]["total"] += 1
+        if r.get("is_correct"):
+            by_date[d]["correct"] += 1
+
+    all_dates = sorted(set(by_date.keys()) | set(completed_days))
+    if not all_dates:
+        return []
+
+    lines = [
+        "📝 每日一练明细",
+        "─" * 30,
+    ]
+
+    # 按月分组输出
+    by_month: dict[str, list[str]] = defaultdict(list)
+    for d in all_dates:
+        by_month[d[:7]].append(d)
+
+    month_subtotals: list[tuple[str, int, int]] = []
+
+    for month_key in sorted(by_month.keys()):
+        ym = int(month_key[5:])
+        month_correct = 0
+        month_total = 0
+        day_lines: list[str] = []
+
+        for d in by_month[month_key]:
+            label = _format_day_cn(d)
+            if d in by_date:
+                t = by_date[d]["total"]
+                c = by_date[d]["correct"]
+                rate = c / max(1, t) * 100
+                month_correct += c
+                month_total += t
+                extra = ""
+                if t > 10:
+                    extra = " ·重刷"
+                elif d in completed_days and t < 10:
+                    extra = " ·未做完"
+                day_lines.append(
+                    f"  {label}: {c}/{t} ({rate:.0f}%) {_rate_flag(rate)}{extra}"
+                )
+
+        no_record_days = [d for d in by_month[month_key] if d in completed_days and d not in by_date]
+
+        if day_lines or no_record_days:
+            lines.append(f"📅 {_MONTH_CN[ym]}")
+            lines.extend(day_lines)
+            if no_record_days:
+                labels = "、".join(_format_day_cn(d) for d in no_record_days)
+                if len(no_record_days) > 5:
+                    labels = "、".join(_format_day_cn(d) for d in no_record_days[:5])
+                    labels += f" 等{len(no_record_days)}天"
+                lines.append(f"  📌 已标记完成（无逐题记录）: {labels}")
+            if month_total > 0:
+                m_rate = month_correct / month_total * 100
+                lines.append(
+                    f"  小计: {month_correct}/{month_total} ({m_rate:.1f}%) {_rate_flag(m_rate)}"
+                )
+                month_subtotals.append((month_key, month_correct, month_total))
+            lines.append("")
+
+    # 汇总行
+    total_c = sum(c for _, c, _t in month_subtotals)
+    total_t = sum(_t for _, _, _t in month_subtotals)
+    if total_t > 0:
+        overall = total_c / total_t * 100
+        hit_target = sum(
+            1 for d in by_date
+            if by_date[d]["total"] > 0
+            and by_date[d]["correct"] / by_date[d]["total"] * 100 >= TARGET_RATE
+        )
+        days_with_data = len(by_date)
+
+        # 近 7 个有做题记录的日期
+        recent_dates = sorted(by_date.keys())[-7:]
+        if recent_dates:
+            rc = sum(by_date[d]["correct"] for d in recent_dates)
+            rt = sum(by_date[d]["total"] for d in recent_dates)
+            recent_avg = rc / max(1, rt) * 100
+        else:
+            recent_avg = 0.0
+
+        no_record = sum(1 for d in completed_days if d not in by_date)
+        lines.append("📊 每日一练汇总")
+        lines.append(f"  累计: {total_c}/{total_t} ({overall:.1f}%) {_rate_flag(overall)}")
+        lines.append(
+            f"  完成标记: {len(completed_days)} 天 | "
+            f"有记录 {days_with_data} 天 | 达标(≥70%) {hit_target} 天"
+        )
+        if no_record > 0:
+            lines.append(f"  ⚠️ {no_record} 天已标记完成但无逐题记录")
+        if recent_dates:
+            lines.append(f"  近{len(recent_dates)}次: {recent_avg:.1f}% {_rate_flag(recent_avg)}")
+        gap = int(total_t * TARGET_RATE / 100) - total_c
+        if gap > 0:
+            lines.append(f"  距 70% 目标: 还差 {gap} 题")
+        lines.append("")
+
+    return lines
+
+
 def generate_summary() -> str:
     bank = _load(QUESTION_BANK_PATH)
     if not isinstance(bank, list):
@@ -72,6 +225,9 @@ def generate_summary() -> str:
     review = _load(REVIEW_STATE_PATH)
     if not isinstance(review, dict):
         review = {}
+    config = _load(CONFIG_JSON_PATH)
+    if not isinstance(config, dict):
+        config = {}
 
     today = date.today()
     total = len(bank)
@@ -214,6 +370,11 @@ def generate_summary() -> str:
             if de != 0:
                 lines.append(f"模考：{prev['exams']} → {curr['exams']}（{'+' if de > 0 else ''}{de} 次）")
             lines.append("")
+
+    # ── 每日一练明细 ──
+    daily_lines = _build_daily_practice_section(bank, config)
+    if daily_lines:
+        lines.extend(daily_lines)
 
     # ── 总览 ──
     judged_all = [r for r in bank if r.get("is_correct") is not None]
