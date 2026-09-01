@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-薄弱点速记同步 — 从 error_log 追加易错陷阱、刷新 README 优先级表。
+薄弱点速记同步 — 从 error_log 追加易错陷阱、刷新 README 优先级表、重生成高频错题摘要卡。
 
 CLI:
   python pmp_athena/cheatsheet_sync.py sync          # 增量同步错题 → MD
   python pmp_athena/cheatsheet_sync.py refresh-readme
+  python pmp_athena/cheatsheet_sync.py refresh-hf-cards
   python pmp_athena/cheatsheet_sync.py all           # 全部
 """
 
@@ -62,6 +63,8 @@ class SyncResult:
     headers_updated: int = 0
     synced_ids: list[int] = field(default_factory=list)
     skipped_duplicate: int = 0
+    hf_cards_count: int = 0
+    hf_cards_updated: bool = False
 
     @property
     def total_traps(self) -> int:
@@ -72,6 +75,13 @@ class SyncResult:
         if self.total_traps:
             parts = [f"{a} +{n}" for a, n in self.traps_added.items() if n]
             lines.append(f"- 新增 **{self.total_traps}** 条易错陷阱（{', '.join(parts)}）")
+        if self.hf_cards_updated:
+            lines.append(
+                f"- 高频错题摘要卡已刷新（**{self.hf_cards_count}** 道，"
+                "`00-高频错题摘要卡.md`）"
+            )
+        elif self.hf_cards_count:
+            lines.append(f"- 高频错题摘要卡待刷新（当前 **{self.hf_cards_count}** 道）")
         if self.readme_updated:
             lines.append("- README 优先级表已刷新")
         if self.headers_updated:
@@ -350,7 +360,7 @@ def _priority_tag(rate: float | None, err_count: int) -> str:
     return "🟢 P2"
 
 
-def refresh_readme(*, dry_run: bool = False) -> bool:
+def refresh_readme(*, dry_run: bool = False, hf_cards_count: int | None = None) -> bool:
     if not README_PATH.is_file():
         return False
 
@@ -425,6 +435,9 @@ def refresh_readme(*, dry_run: bool = False) -> bool:
         flags=re.DOTALL,
     )
 
+    if hf_cards_count is not None:
+        content = _update_readme_hf_line(content, hf_cards_count)
+
     if not dry_run:
         README_PATH.write_text(content, encoding="utf-8")
     return True
@@ -465,9 +478,49 @@ def refresh_domain_headers(*, dry_run: bool = False) -> int:
     return updated
 
 
+def sync_hf_cards(*, dry_run: bool = False, top_n: int = 50, min_mistakes: int = 3) -> tuple[int, bool]:
+    """从 error_log 重生成 00-高频错题摘要卡.md。返回 (题数, 是否写入)。"""
+    try:
+        from pmp_athena.error_insights import rank_high_frequency_errors
+        from pmp_athena.export_hf_cards import export_cards
+    except ModuleNotFoundError:
+        from error_insights import rank_high_frequency_errors
+        from export_hf_cards import export_cards
+
+    count = len(rank_high_frequency_errors(top_n=top_n, min_mistakes=min_mistakes))
+    if dry_run:
+        return count, False
+
+    export_cards(top_n=top_n, min_mistakes=min_mistakes)
+    return count, True
+
+
+def _update_readme_hf_line(content: str, count: int) -> str:
+    pattern = (
+        r"(\*\*考前加练\*\*：\[00-高频错题摘要卡\]\(\./00-高频错题摘要卡\.md\))"
+        r"（错 ≥3 次的 \d+ 道题 · 锚点\+口诀）"
+    )
+    repl = rf"\1（错 ≥3 次的 {count} 道题 · 锚点+口诀）"
+    new_content, n = re.subn(pattern, repl, content, count=1)
+    if n:
+        return new_content
+    # 兼容旧版无该行 README
+    marker = "## 推荐 7 天背诵计划"
+    insert = (
+        f"\n**考前加练**：[00-高频错题摘要卡](./00-高频错题摘要卡.md)"
+        f"（错 ≥3 次的 {count} 道题 · 锚点+口诀）\n"
+    )
+    if marker in content and "00-高频错题摘要卡" not in content:
+        return content.replace(marker, insert + marker, 1)
+    return content
+
+
 def sync_all(*, dry_run: bool = False) -> SyncResult:
     trap_result = sync_traps_from_errors(dry_run=dry_run)
-    trap_result.readme_updated = refresh_readme(dry_run=dry_run)
+    hf_count, hf_written = sync_hf_cards(dry_run=dry_run)
+    trap_result.hf_cards_count = hf_count
+    trap_result.hf_cards_updated = hf_written
+    trap_result.readme_updated = refresh_readme(dry_run=dry_run, hf_cards_count=hf_count)
     trap_result.headers_updated = refresh_domain_headers(dry_run=dry_run)
     return trap_result
 
@@ -523,7 +576,7 @@ def format_wechat_sync_report(result: SyncResult) -> str:
     lines.extend(result.summary_lines())
     lines.extend([
         "",
-        "💬 发「今日速记」背诵 · 「薄弱点速记」看优先级",
+        "💬 发「今日速记」背诵 · 「薄弱点速记」看优先级 · 「高频错题摘要卡」微信速查",
     ])
     return "\n".join(lines)
 
@@ -536,6 +589,7 @@ def main() -> None:
         ("sync", "增量同步错题到易错陷阱"),
         ("refresh-readme", "刷新 README 优先级表"),
         ("refresh-headers", "刷新各领域 MD 数据头"),
+        ("refresh-hf-cards", "重生成高频错题摘要卡 MD"),
         ("all", "全部同步"),
         ("run", "同 all"),
     ):
@@ -553,6 +607,12 @@ def main() -> None:
         result = SyncResult(readme_updated=refresh_readme(dry_run=dry))
     elif cmd == "refresh-headers":
         result = SyncResult(headers_updated=refresh_domain_headers(dry_run=dry))
+    elif cmd == "refresh-hf-cards":
+        count, written = sync_hf_cards(dry_run=dry)
+        result = SyncResult(hf_cards_count=count, hf_cards_updated=written)
+        if written and not dry:
+            refresh_readme(hf_cards_count=count)
+            result.readme_updated = True
     else:
         result = sync_all(dry_run=dry)
 
@@ -561,6 +621,8 @@ def main() -> None:
             "traps_added": result.traps_added,
             "readme_updated": result.readme_updated,
             "headers_updated": result.headers_updated,
+            "hf_cards_count": result.hf_cards_count,
+            "hf_cards_updated": result.hf_cards_updated,
             "total_traps": result.total_traps,
             "summary": result.summary_lines(),
         }, ensure_ascii=False, indent=2))

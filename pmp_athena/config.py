@@ -36,6 +36,8 @@ CONFIG_JSON_PATH = NOTES_DIR / "config.json"
 DAILY_PRACTICE_DIR = NOTES_DIR / "每日一练"
 MOCK_EXAM_DIR = NOTES_DIR / "模考"
 CHEATSHEET_DIR = NOTES_DIR / "薄弱点速记"
+AREA_SEED_DIR = NOTES_DIR / "area_seeds"
+AREA_PRACTICE_LIMIT = 15
 KNOWLEDGE_INDEX_PATH = PROJECT_ROOT / "pmp_knowledge_index.json"
 
 # ── Embedding 模型 ──────────────────────────────────────────

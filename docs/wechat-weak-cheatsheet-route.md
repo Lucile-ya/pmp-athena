@@ -19,7 +19,7 @@
 | `薄弱点` | `study_advisor.py weakness` | 诊断报告（**末尾自动同步速记卡**） |
 | `薄弱点速记` | `weak_area_cheatsheet.py` | 可背诵口诀+闪卡+陷阱 |
 | `今日速记` | `weak_area_cheatsheet.py` | 按轮换推一个领域速记 |
-| `刷新速记` / `同步速记` | `cheatsheet_sync.py` | 错题→易错陷阱 + 刷新 README |
+| `刷新速记` / `同步速记` | `cheatsheet_sync.py` | 错题→易错陷阱 + 刷新 README + **高频错题摘要卡** |
 
 ## 自动同步机制
 

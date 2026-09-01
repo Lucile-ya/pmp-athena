@@ -55,6 +55,30 @@ def test_row_key_dedup() -> None:
     assert _row_key("A", "B") == _row_key("A", "B")
 
 
+def test_sync_hf_cards_in_sync_all(tmp_path, monkeypatch) -> None:
+    import pmp_athena.cheatsheet_sync as cs
+
+    cheatsheet_dir = tmp_path / "薄弱点速记"
+    cheatsheet_dir.mkdir(parents=True)
+    readme = cheatsheet_dir / "README.md"
+    readme.write_text("## 推荐 7 天背诵计划\n", encoding="utf-8")
+
+    monkeypatch.setattr(cs, "CHEATSHEET_DIR", cheatsheet_dir)
+    monkeypatch.setattr(cs, "README_PATH", readme)
+    monkeypatch.setattr(cs, "sync_traps_from_errors", lambda **_: cs.SyncResult())
+    monkeypatch.setattr(cs, "refresh_domain_headers", lambda **_: 0)
+    monkeypatch.setattr(cs, "refresh_readme", lambda **_: True)
+
+    def fake_export(**kwargs):
+        return 2, True
+
+    monkeypatch.setattr(cs, "sync_hf_cards", fake_export)
+
+    result = cs.sync_all()
+    assert result.hf_cards_count == 2
+    assert result.hf_cards_updated is True
+
+
 def test_auto_sync_defer_and_flush(monkeypatch) -> None:
     import pmp_athena.cheatsheet_sync as cs
 
@@ -63,7 +87,7 @@ def test_auto_sync_defer_and_flush(monkeypatch) -> None:
 
     def fake_sync_all() -> cs.SyncResult:
         calls.append("sync")
-        return cs.SyncResult()
+        return cs.SyncResult(hf_cards_count=3, hf_cards_updated=True)
 
     monkeypatch.setattr(cs, "sync_all", fake_sync_all)
 

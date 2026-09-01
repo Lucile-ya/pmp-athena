@@ -268,7 +268,7 @@ def _next_missing_option_letter(opts: dict[str, str]) -> str | None:
     return None
 
 
-def _looks_like_new_option_line(line: str, prev_option: str) -> bool:
+def _looks_like_new_option_line(line: str, prev_option: str, opts: dict[str, str] | None = None) -> bool:
     """PDF 丢字母前缀时，续行实为下一选项（如 B 后紧跟 C 的内容）。"""
     s = line.strip()
     if not s or _is_watermark_line(s):
@@ -278,6 +278,10 @@ def _looks_like_new_option_line(line: str, prev_option: str) -> bool:
     if _OPTION_LINE.match(s):
         return False
     prev = prev_option.rstrip()
+    missing = _next_missing_option_letter(opts) if opts else None
+    # 已有 A/B 缺 C/D 时，英文大写开头的行常为丢前缀的下一选项（如 Q10 的 C 项）
+    if missing and re.match(r"^[A-Z][a-z]", s):
+        return True
     if not prev.endswith((".", "。", ")", "）", "!", "！")):
         return False
     if re.match(r"^[A-Z][a-z]", s):
@@ -434,7 +438,7 @@ def _parse_questions(text: str) -> list[dict[str, Any]]:
             elif current and current in opts and not re.match(r"^\d+[\.．]", line):
                 if _is_watermark_line(line):
                     continue
-                if _looks_like_new_option_line(line, opts[current]):
+                if _looks_like_new_option_line(line, opts[current], opts):
                     nxt = _next_missing_option_letter(opts)
                     if nxt:
                         current = nxt
@@ -674,7 +678,8 @@ def _parse_bank_question(record: dict[str, Any]) -> dict[str, Any] | None:
     if not correct or correct not in "ABCDE":
         return None
 
-    opt_re = re.compile(r"(?:^|\n|\s)([A-E])\s*[\.、．\)]\s*")
+    # 兼容「在哪找？A.xxx B.yyy」行内选项（?/？ 作为选项前缀边界）
+    opt_re = re.compile(r"(?:(?<=^)|(?<=[\n\s])|(?<=[?？]))([A-E])\s*[\.、．\)]\s*")
     matches = list(opt_re.finditer(text))
     letters = [m.group(1) for m in matches]
     if sorted(set(letters)) != ["A", "B", "C", "D"]:
@@ -706,6 +711,61 @@ def _parse_bank_question(record: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def _dict_to_area_question(item: dict[str, Any], *, source: str = "area_seed") -> dict[str, Any] | None:
+    """将 seed JSON 条目转为专项练习题目格式。"""
+    stem = (item.get("stem") or "").strip()
+    options = item.get("options") or {}
+    correct = str(item.get("correct_answer", "") or "").strip().upper()
+    if not stem or not correct or correct not in "ABCDE":
+        return None
+    if sorted(options.keys()) != ["A", "B", "C", "D"]:
+        return None
+    return {
+        "index": 0,
+        "num": item.get("id"),
+        "stem": stem,
+        "options": {k: str(v).strip() for k, v in options.items()},
+        "correct_answer": correct,
+        "explanation": item.get("explanation", ""),
+        "knowledge_area": item.get("knowledge_area", "综合"),
+        "question_type": "single",
+        "source": source,
+    }
+
+
+def _load_area_seed_questions(area: str) -> list[dict[str, Any]]:
+    """从 pmp_notes/area_seeds/<领域>.json 加载补充题。"""
+    try:
+        from pmp_athena.config import AREA_SEED_DIR
+    except ModuleNotFoundError:
+        from config import AREA_SEED_DIR
+
+    path = AREA_SEED_DIR / f"{area}.json"
+    if not path.is_file():
+        return []
+    try:
+        import json
+
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return []
+    items = raw if isinstance(raw, list) else raw.get("questions", [])
+    out: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        q = _dict_to_area_question(item)
+        if q:
+            out.append(q)
+    return out
+
+
+try:
+    from pmp_athena.config import AREA_PRACTICE_LIMIT as _AREA_PRACTICE_LIMIT
+except ModuleNotFoundError:
+    from config import AREA_PRACTICE_LIMIT as _AREA_PRACTICE_LIMIT
+
+
 def load_area_questions(area: str) -> list[dict[str, Any]]:
     """从题库加载指定知识领域的可用题目（含选项 + 正确答案），按题干去重。"""
     try:
@@ -727,6 +787,18 @@ def load_area_questions(area: str) -> list[dict[str, Any]]:
             continue
         seen.add(key)
         questions.append(q)
+
+    for q in _load_area_seed_questions(_resolve_area(area)):
+        key = q["stem"][:50]
+        if key in seen:
+            continue
+        seen.add(key)
+        questions.append(q)
+
+    if len(questions) > _AREA_PRACTICE_LIMIT:
+        random.shuffle(questions)
+        questions = questions[:_AREA_PRACTICE_LIMIT]
+
     return questions
 
 

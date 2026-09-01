@@ -38,6 +38,7 @@ def test_format_push_has_mnemonic() -> None:
     out = format_wechat_push("商业环境")
     assert "商业环境" in out
     assert "总口诀" in out or "论证" in out
+    assert "闪卡" in out or "商业论证四要素" in out
     assert len(out) <= 4000
 
 

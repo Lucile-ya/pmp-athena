@@ -167,10 +167,10 @@ def _extract_blockquote_mnemonic(content: str) -> str:
 
 
 def _extract_section(content: str, *headers: str) -> str:
-    """提取 ## 标题 到下一个 ## 之间的内容。"""
+    """提取 ## 标题 到下一个 ## 之间的内容（标题后可带括号说明）。"""
     for header in headers:
         pattern = re.compile(
-            rf"^##\s*{re.escape(header)}\s*$",
+            rf"^##\s*{re.escape(header)}(?:[（(][^）)]*[）)])?\s*$",
             re.MULTILINE,
         )
         m = pattern.search(content)
@@ -272,7 +272,12 @@ def format_wechat_push(area: str, *, full: bool = False) -> str:
                 lines.append(f"  {s}")
         lines.append("")
 
-    lines.append(f"💬 发「专项 {area}」刷 10 题 | 「速记清单」看全部领域")
+    try:
+        from pmp_athena.config import AREA_PRACTICE_LIMIT
+    except ModuleNotFoundError:
+        from config import AREA_PRACTICE_LIMIT
+
+    lines.append(f"💬 发「专项 {area}」刷题（最多 {AREA_PRACTICE_LIMIT} 题）| 「速记清单」看全部领域")
     return _trim_for_wechat("\n".join(lines))
 
 

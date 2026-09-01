@@ -245,6 +245,29 @@ def test_grade_multichoice() -> None:
     _clear_state()
 
 
+def test_parse_inline_bank_options() -> None:
+    from pmp_athena.daily_practice import _parse_bank_question
+
+    record = {
+        "id": 54,
+        "question": "启动阶段新法规可能使采购计划变更。发起人要PM提供说服高管继续项目的信息。在哪找？A.商业论证 B.章程 C.项目批准要求 D.组织过程资产",
+        "correct_answer": "A",
+        "knowledge_area": "商业环境",
+    }
+    q = _parse_bank_question(record)
+    assert q is not None
+    assert q["stem"].endswith("？")
+    assert sorted(q["options"]) == ["A", "B", "C", "D"]
+
+
+def test_load_area_questions_business_environment() -> None:
+    from pmp_athena.daily_practice import load_area_questions
+
+    qs = load_area_questions("商业环境")
+    assert len(qs) >= 15
+    assert all(q["knowledge_area"] == "商业环境" for q in qs)
+
+
 def main() -> int:
     tests = [
         test_strip_header_preserves_stem,
@@ -260,6 +283,8 @@ def main() -> int:
         test_july17_pdf_if_present,
         test_july20_pdf_if_present,
         test_qiji_2609_mock_if_present,
+        test_parse_inline_bank_options,
+        test_load_area_questions_business_environment,
     ]
     failed = 0
     for fn in tests:
