@@ -489,15 +489,25 @@ def _load_options_supplement() -> dict:
         return {}
 
 
+def _is_options_only_block(text: str) -> bool:
+    """判断 supplement 是否仅为 A-D 选项块（不含情景题干）。"""
+    t = (text or "").strip()
+    if not t:
+        return False
+    first_line = t.splitlines()[0].strip()
+    return bool(re.match(r"^A[\.\、\)]", first_line, re.I))
+
+
 def _merge_options(question: str, error_id: int) -> str:
     """题干缺选项时，从 supplement 或分字段 options 补全"""
+    question = (question or "").strip()
     if _has_options(question):
-        return question.strip()
+        return question
 
     supplement = _load_options_supplement()
     entry = supplement.get(str(error_id)) or supplement.get(error_id)
     if not entry:
-        return question.strip()
+        return question
 
     if isinstance(entry, str):
         opts = entry.strip()
@@ -506,18 +516,20 @@ def _merge_options(question: str, error_id: int) -> str:
         if not opts and all(k in entry for k in "ABCD"):
             opts = "\n".join(f"{k}. {entry[k]}" for k in "ABCD")
     else:
-        return question.strip()
+        return question
 
     if not opts:
-        return question.strip()
+        return question
 
     if _has_options(opts):
+        stem_hint = question[:30] if question else ""
+        # 仅 options 块，或 supplement 未包含题干前缀 → 必须保留原题干
+        if question and ( _is_options_only_block(opts) or (stem_hint and stem_hint not in opts)):
+            return f"{question}\n{opts}"
         # supplement 已是完整题干+选项
-        if len(opts) > len(question):
-            return opts
-        return f"{question.strip()}\n{opts}"
+        return opts
 
-    return f"{question.strip()}\n{opts}"
+    return f"{question}\n{opts}"
 
 
 def _find_full_question(error_id: int, errors: list, bank: list) -> dict:
@@ -1426,6 +1438,12 @@ def review_skip_current(error_id: int) -> dict:
 
 def generate_plan(custom_days: int = 0) -> str:
     """生成智能学习计划"""
+    try:
+        from pmp_athena.cheatsheet_sync import ensure_daily_sync
+    except ModuleNotFoundError:
+        from cheatsheet_sync import ensure_daily_sync
+    ensure_daily_sync(silent=True)
+
     exam_date = get_exam_date()
     today = date.today()
     bank = load_json(QUESTION_BANK)

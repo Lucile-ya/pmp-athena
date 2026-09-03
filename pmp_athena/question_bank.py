@@ -326,7 +326,7 @@ class QuestionBank:
         seen_keys: set[str] = set()
         result: list[dict] = []
         for r in candidates:
-            key = (r.get("question", "")[:80]).strip()
+            key = re.sub(r"\s+", "", (r.get("question", "")[:80]).strip())
             if not key or key in seen_keys:
                 continue
             seen_keys.add(key)

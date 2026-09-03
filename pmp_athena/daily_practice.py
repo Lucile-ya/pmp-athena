@@ -1346,10 +1346,13 @@ def _finish_session(state: dict[str, Any], prefix_lines: list[str]) -> dict[str,
     if wrong_items:
         try:
             try:
-                from pmp_athena.cheatsheet_sync import flush_cheatsheet_sync
+                from pmp_athena.cheatsheet_sync import flush_cheatsheet_sync, format_sync_brief
             except ModuleNotFoundError:
-                from cheatsheet_sync import flush_cheatsheet_sync
-            flush_cheatsheet_sync(silent=True)
+                from cheatsheet_sync import flush_cheatsheet_sync, format_sync_brief
+            sync_brief = format_sync_brief(flush_cheatsheet_sync(silent=True))
+            if sync_brief:
+                lines.append("")
+                lines.append(sync_brief)
         except Exception:
             pass
         lines.append("")

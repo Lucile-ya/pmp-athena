@@ -298,6 +298,96 @@ def _log_broken_question(record: dict, reason: str) -> None:
     except OSError:
         pass
 
+def _normalize_question_stem(text: str) -> str:
+    """题干归一化：去空白/OCR 差异，用于跨记录去重。"""
+    q = str(text or "").strip()
+    m = _OPT_MARKER_RE.search(q)
+    if m:
+        q = q[: m.start()]
+    return re.sub(r"\s+", "", q)[:50]
+
+
+def _get_global_variant_exclusions() -> tuple[set[int], set[str]]:
+    """跨错题全局已推变式：题库 ID + 归一化题干。"""
+    state = _load_review_state()
+    shown_ids: set[int] = set()
+    seen_stems: set[str] = set()
+
+    global_section = state.get("_variant_global", {})
+    if isinstance(global_section, dict):
+        for vid in global_section.get("shown_ids", []):
+            try:
+                shown_ids.add(int(vid))
+            except (TypeError, ValueError):
+                pass
+        for sk in global_section.get("seen_stems", []):
+            if sk:
+                seen_stems.add(str(sk))
+
+    for key, card in state.items():
+        if not str(key).isdigit() or not isinstance(card, dict):
+            continue
+        for vid in card.get("mastered_variant_ids", []):
+            try:
+                shown_ids.add(int(vid))
+            except (TypeError, ValueError):
+                pass
+        for vid in card.get("shown_variant_ids", []):
+            try:
+                shown_ids.add(int(vid))
+            except (TypeError, ValueError):
+                pass
+
+    if shown_ids:
+        try:
+            from pmp_athena.question_bank import QuestionBank
+        except ImportError:
+            from question_bank import QuestionBank
+        qb = QuestionBank()
+        for vid in shown_ids:
+            rec = qb.get_by_id(vid)
+            if rec:
+                sk = _normalize_question_stem(rec.get("question", ""))
+                if sk:
+                    seen_stems.add(sk)
+
+    return shown_ids, seen_stems
+
+
+def _record_variants_shown(error_id: int, variant_ids: list[int]) -> None:
+    """记录本批变式题为全局已推送（同题不再重复推）。"""
+    if not variant_ids:
+        return
+    state = _load_review_state()
+    key = str(error_id)
+    card = state.setdefault(key, {})
+    shown = card.setdefault("shown_variant_ids", [])
+    for vid in variant_ids:
+        if vid not in shown:
+            shown.append(vid)
+
+    global_section = state.setdefault("_variant_global", {"shown_ids": [], "seen_stems": []})
+    g_ids: list[int] = global_section.setdefault("shown_ids", [])
+    g_stems: list[str] = global_section.setdefault("seen_stems", [])
+
+    try:
+        from pmp_athena.question_bank import QuestionBank
+    except ImportError:
+        from question_bank import QuestionBank
+    qb = QuestionBank()
+
+    for vid in variant_ids:
+        if vid not in g_ids:
+            g_ids.append(vid)
+        rec = qb.get_by_id(vid)
+        if rec:
+            sk = _normalize_question_stem(rec.get("question", ""))
+            if sk and sk not in g_stems:
+                g_stems.append(sk)
+
+    _save_review_state(state)
+
+
 def _get_mastered_variants(error_id: int) -> list[int]:
     """获取某错题的已攻克变式题 ID 列表。"""
     state = _load_review_state()
@@ -322,6 +412,7 @@ def mark_variant_mastered(error_id: int, variant_id: int) -> bool:
         mastered.append(variant_id)
     card["mastered_variant_ids"] = mastered
     _save_review_state(state)
+    _record_variants_shown(error_id, [variant_id])
     return True
 
 
@@ -548,8 +639,12 @@ def review_variant_start_v2(error_id: int) -> dict:
     if not area and not root_cause_name:
         return {"status": "insufficient", "text": "⚠️ 该题无知识领域标记。"}
 
-    # 已攻克检测
-    mastered_ids = _get_mastered_variants(error_id)
+    # 已攻克检测（本错题 + 全局跨题去重）
+    mastered_ids = set(_get_mastered_variants(error_id))
+    global_shown_ids, global_seen_stems = _get_global_variant_exclusions()
+    error_stem = _normalize_question_stem(error.get("question", ""))
+    if error_stem:
+        global_seen_stems.add(error_stem)
 
     try:
         from pmp_athena.question_bank import QuestionBank
@@ -572,12 +667,17 @@ def review_variant_start_v2(error_id: int) -> dict:
         scored.sort(key=lambda x: -x[1])
         candidates = [c for c, _ in scored]
 
-    # 过滤：已攻克 + 排除标记 + 格式校验（坏题跳过并记录）
+    # 过滤：已攻克 + 全局已推 + 题干去重 + 格式校验
     fresh: list[dict] = []
+    batch_stems: set[str] = set()
     consecutive_broken = 0
     max_consecutive_broken = 0
     for c in candidates:
-        if c.get("id") in mastered_ids or c.get("excluded"):
+        vid = c.get("id")
+        if vid in mastered_ids or vid in global_shown_ids or c.get("excluded"):
+            continue
+        stem_key = _normalize_question_stem(c.get("question", ""))
+        if not stem_key or stem_key in global_seen_stems or stem_key in batch_stems:
             continue
         ok, reason = _validate_variant_format(c)
         if not ok:
@@ -586,10 +686,11 @@ def review_variant_start_v2(error_id: int) -> dict:
             max_consecutive_broken = max(max_consecutive_broken, consecutive_broken)
             continue
         fresh.append(c)
+        batch_stems.add(stem_key)
         consecutive_broken = 0
 
-    # 凑不够 2 道可用题，且出现过连续 3 道坏题 → 池子大概率全坏，提示稍后再试
-    if len(fresh) < 2 and max_consecutive_broken >= 3:
+    # 连续坏题且无任何可用题 → 池子大概率全坏
+    if len(fresh) == 0 and max_consecutive_broken >= 3:
         return {
             "status": "variant_unavailable",
             "error_id": error_id,
@@ -616,6 +717,7 @@ def review_variant_start_v2(error_id: int) -> dict:
 
     variants = fresh[:3]
     var_ids = [v.get("id") for v in variants]
+    _record_variants_shown(error_id, var_ids)
     first = variants[0]
 
     source_note = f"（根因：「{root_cause_name}」）" if root_cause_name else ""

@@ -71,10 +71,14 @@ def _load_bank() -> list[dict]:
 
 
 def get_weak_areas(min_judged: int = 2) -> list[tuple[str, float, int, int]]:
-    """返回 [(领域, 错误率, 错题数, 总题数), ...] 按错误率降序。"""
+    """返回 [(领域, 错误率, 错题数, 总题数), ...] 按错误率降序。
+
+    知识领域会先规范化（如「敏捷」并入「敏捷/混合方法」），避免速记优先级被拆散。
+    """
     stats: dict[str, dict[str, int]] = {}
     for r in _load_bank():
-        area = r.get("knowledge_area") or "未分类"
+        raw = r.get("knowledge_area") or "未分类"
+        area = normalize_area(raw) or raw
         if area not in stats:
             stats[area] = {"total": 0, "correct": 0, "wrong": 0}
         stats[area]["total"] += 1
@@ -319,6 +323,12 @@ def push_menu() -> str:
 
 def push_today() -> str:
     """按薄弱优先级 + 日期轮换，推送今日速记。"""
+    try:
+        from pmp_athena.cheatsheet_sync import ensure_daily_sync
+    except ModuleNotFoundError:
+        from cheatsheet_sync import ensure_daily_sync
+    ensure_daily_sync(silent=True)
+
     weak = get_weak_areas()
     # 可推送的领域（有 MD 文件）
     candidates: list[str] = []

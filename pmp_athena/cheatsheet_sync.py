@@ -360,6 +360,154 @@ def _priority_tag(rate: float | None, err_count: int) -> str:
     return "🟢 P2"
 
 
+def _priority_emoji(tag: str) -> str:
+    return tag.split()[0] if tag else "🟢"
+
+
+def extract_mnemonic(content: str) -> str:
+    """从领域 MD 顶部引用块读取总口诀。兼容 `**总口诀**：**xxx**`。"""
+    for raw in content.splitlines():
+        line = raw.lstrip("> ").strip()
+        m = re.search(r"总口诀\*+[：:]\s*\*+(.+?)\*+\s*$", line)
+        if not m:
+            m = re.search(r"总口诀[：:]\s*\**(.+?)\**\s*$", line)
+        if m:
+            text = m.group(1).strip().strip("*").strip()
+            if text and text != "总口诀":
+                return text
+    return ""
+
+
+def _sprint_cmd_area(area: str) -> str:
+    return "敏捷" if area.startswith("敏捷") else area
+
+
+def _sprint_short_area(area: str) -> str:
+    return "敏捷" if area.startswith("敏捷") else area
+
+
+SPRINT_WINDOW = 9  # 考前最后 9 个学习日（不含考试当天）
+EXAM_DAY = date(2026, 9, 12)
+
+
+def sprint_day_index(d_day: int, window: int = SPRINT_WINDOW) -> int:
+    """考前日历下标：D=9→0（首个薄弱），D=8→1，D=1→8（考前一天）。"""
+    return max(0, window - max(int(d_day), 1))
+
+
+def sprint_slot(
+    ranked: list[tuple[str, str, str]],
+    d_day: int,
+) -> dict:
+    """按考试锚定日历取当日槽位。kind=area|finale。"""
+    non_p2 = [(num, area) for tag, num, area in ranked if not tag.startswith("🟢")]
+    p0 = [area for tag, _num, area in ranked if tag.startswith("🔴")]
+    idx = sprint_day_index(d_day)
+    if not non_p2 or d_day <= 1 or idx >= len(non_p2):
+        focus = list(p0) if p0 else [a for _n, a in non_p2[:2]]
+        return {"kind": "finale", "area": None, "num": None, "focus": focus}
+    num, area = non_p2[idx]
+    focus = [area]
+    for p0_area in p0:
+        if p0_area not in focus:
+            focus.append(p0_area)
+    return {"kind": "area", "area": area, "num": num, "focus": focus}
+
+
+def build_recitation_plan(
+    ranked: list[tuple[str, str, str]],
+    *,
+    d_day: int,
+    today: date,
+) -> str:
+    """按剩余天数 + 薄弱优先级生成背诵计划。ranked: (tag, 文件编号, 领域)。
+
+    日历锚定考试日，不会每天把 D1 重置回第一个薄弱领域。
+    """
+    from datetime import timedelta
+
+    heading = "## 推荐 7 天背诵计划" if d_day > 11 else f"## 考前 {max(d_day, 1)} 天背诵计划"
+    study_days = 7 if d_day > 11 else max(min(d_day, SPRINT_WINDOW), 1)
+
+    lines = [
+        heading,
+        "",
+        "| 天 | 日期 | 上午（背口诀+陷阱） | 下午（专项刷题） |",
+        "|----|------|---------------------|------------------|",
+    ]
+    for i in range(study_days):
+        day = today + timedelta(days=i)
+        date_s = f"{day.month}/{day.day}"
+        day_d = (EXAM_DAY - day).days
+        slot = sprint_slot(ranked, day_d)
+        if slot["kind"] == "finale":
+            morning = "[00-高频错题摘要卡](./00-高频错题摘要卡.md) + [三领域对比](./00-三领域对比速记卡.md)"
+            afternoon = "复习错题 / 随机模考"
+        else:
+            morning = f"{slot['num']} {_sprint_short_area(slot['area'])}"
+            afternoon = f"`专项 {_sprint_cmd_area(slot['area'])}`"
+        lines.append(f"| D{i + 1} | {date_s} | {morning} | {afternoon} |")
+    return "\n".join(lines)
+
+
+def today_focus_areas(
+    ranked: list[tuple[str, str, str]],
+    d_day: int,
+) -> list[str]:
+    """按考前剩余天数取今日领域，并始终带上 P0。ranked: (tag, num, area)。"""
+    return sprint_slot(ranked, d_day).get("focus") or []
+
+
+def _d_day(today: date | None = None) -> int:
+    today = today or date.today()
+    try:
+        from pmp_athena.exam_timer import days_until_exam
+        return days_until_exam()
+    except Exception:
+        return (date(2026, 9, 12) - today).days
+
+
+def _ranked_area_triples() -> list[tuple[str, str, str]]:
+    """[(tag, 文件编号, 领域), ...] 按 P0/P1/P2 + 错误率。"""
+    weak = get_weak_areas()
+    weak_map = {a: (rate, wrong, total) for a, rate, wrong, total in weak}
+    err_counts = _error_counts_by_area(_load_errors())
+    rows: list[tuple[str, str, str, float | None]] = []
+    for area in DOMAIN_ORDER:
+        fname = DOMAIN_FILES[area]
+        num = fname.split("-")[0]
+        info = weak_map.get(area)
+        rate_val = info[0] if info else None
+        tag = _priority_tag(rate_val, err_counts.get(area, 0))
+        rows.append((tag, num, area, rate_val))
+    rows.sort(key=lambda r: (
+        0 if r[0] == "🔴 P0" else (1 if r[0] == "🟡 P1" else 2),
+        -(r[3] if r[3] is not None else -1.0),
+    ))
+    return [(tag, num, area) for tag, num, area, _ in rows]
+
+
+def _insert_daily_hf_section(content: str, section: str) -> str:
+    """把今日推荐摘要卡插入 README（考前加练段之后）。"""
+    new_content, n = re.subn(
+        r"## 今日推荐摘要卡（10分钟）\n.*?(?=\n---\n\n## 每份文档结构)",
+        section.strip() + "\n",
+        content,
+        count=1,
+        flags=re.DOTALL,
+    )
+    if n:
+        return new_content
+    marker = "\n---\n\n## 每份文档结构"
+    insert = (
+        "\n\n**每日睡前**：过下方「今日推荐摘要卡」（当日领域 + 顽疾，约 10 道）"
+        f"\n\n---\n\n{section.strip()}\n{marker}"
+    )
+    if marker in content:
+        return content.replace(marker, insert, 1)
+    return content.rstrip() + "\n\n" + section.strip() + "\n"
+
+
 def refresh_readme(*, dry_run: bool = False, hf_cards_count: int | None = None) -> bool:
     if not README_PATH.is_file():
         return False
@@ -377,7 +525,7 @@ def refresh_readme(*, dry_run: bool = False, hf_cards_count: int | None = None) 
 
     phase = "🔥 冲刺模考期" if d_day <= 11 else ("⚡ 强化刷题期" if d_day <= 30 else "📖 基础巩固期")
 
-    rows: list[tuple[str, str, str, str, str, str]] = []
+    rows: list[tuple[str, str, str, str, str, str, float | None]] = []
     for area in DOMAIN_ORDER:
         fname = DOMAIN_FILES[area]
         num = fname.split("-")[0]
@@ -391,24 +539,19 @@ def refresh_readme(*, dry_run: bool = False, hf_cards_count: int | None = None) 
 
         tag = _priority_tag(rate_val, err_n)
         md_path = CHEATSHEET_DIR / fname
-        mnemonic = ""
-        if md_path.is_file():
-            for raw in md_path.read_text(encoding="utf-8").splitlines():
-                line = raw.lstrip("> ").strip()
-                m = re.search(r"总口诀[：:]\s*\*\*([^*]+)\*\*", line)
-                if m and m.group(1).strip() != "总口诀":
-                    mnemonic = m.group(1).strip()
-                    break
+        mnemonic = extract_mnemonic(md_path.read_text(encoding="utf-8")) if md_path.is_file() else ""
+        rows.append((tag, num, area, rate_str, str(err_n), mnemonic, rate_val))
 
-        rows.append((tag, num, area, rate_str, str(err_n), mnemonic))
-
-    rows.sort(key=lambda r: (0 if r[0] == "🔴 P0" else (1 if r[0] == "🟡 P1" else 2), r[2]))
+    rows.sort(key=lambda r: (
+        0 if r[0] == "🔴 P0" else (1 if r[0] == "🟡 P1" else 2),
+        -(r[6] if r[6] is not None else -1.0),
+    ))
 
     table_lines = [
         "| 优先级 | 文件 | 错误率 | 错题本 | 总口诀 |",
         "|:------:|------|:------:|:------:|--------|",
     ]
-    for tag, num, area, rate_str, err_n, mnemonic in rows:
+    for tag, num, area, rate_str, err_n, mnemonic, _rate in rows:
         stem = DOMAIN_FILES[area].replace(".md", "")
         link = f"[{stem}](./{DOMAIN_FILES[area]})"
         table_lines.append(f"| {tag} | {link} | {rate_str} | **{err_n}** | {mnemonic or '—'} |")
@@ -428,15 +571,58 @@ def refresh_readme(*, dry_run: bool = False, hf_cards_count: int | None = None) 
 
     new_table = "\n".join(table_lines)
     content = re.sub(
-        r"(## 你的薄弱优先级（按紧急度排序）\n\n)(.*?)(\n\n---\n\n## 推荐 7 天)",
+        r"(## 你的薄弱优先级（按紧急度排序）\n\n)(.*?)(\n\n---\n\n## (?:推荐 7 天|考前 \d+ 天))",
         lambda m: m.group(1) + new_table + m.group(3),
         content,
         count=1,
         flags=re.DOTALL,
     )
 
+    plan = build_recitation_plan(
+        [(r[0], r[1], r[2]) for r in rows],
+        d_day=d_day,
+        today=today,
+    )
+    content = re.sub(
+        r"## (?:推荐 7 天|考前 \d+ 天)背诵计划\n\n.*?(?=\n\n\*\*考前加练\*\*)",
+        plan,
+        content,
+        count=1,
+        flags=re.DOTALL,
+    )
+
+    content = re.sub(
+        r"\*\*P0 完整合订\*\*：.*",
+        "**P0 完整合订**：[00-P0三领域完整知识点](./00-P0三领域完整知识点.md)"
+        "（成本 + 进度 为当前 P0；商业环境已降至 P2，合订本仍可对照）",
+        content,
+        count=1,
+    )
+
     if hf_cards_count is not None:
         content = _update_readme_hf_line(content, hf_cards_count)
+
+    try:
+        from pmp_athena.export_hf_cards import (
+            format_daily_hf_table,
+            pick_daily_hf_cards,
+        )
+        from pmp_athena.error_insights import rank_high_frequency_errors
+    except ModuleNotFoundError:
+        from export_hf_cards import format_daily_hf_table, pick_daily_hf_cards
+        from error_insights import rank_high_frequency_errors
+
+    focus = today_focus_areas([(r[0], r[1], r[2]) for r in rows], d_day)
+    hf_items = rank_high_frequency_errors(top_n=50, min_mistakes=3)
+    err_map = {e["id"]: e for e in _load_errors() if e.get("id")}
+    section = format_daily_hf_table(
+        pick_daily_hf_cards(hf_items, focus),
+        err_map,
+        focus_areas=focus,
+        today=today,
+        link_cards_file=True,
+    )
+    content = _insert_daily_hf_section(content, section)
 
     if not dry_run:
         README_PATH.write_text(content, encoding="utf-8")
@@ -457,12 +643,14 @@ def refresh_domain_headers(*, dry_run: bool = False) -> int:
         content = path.read_text(encoding="utf-8")
         info = weak_map.get(area)
         err_n = err_counts.get(area, 0)
+        rate_val: float | None = None
         if info:
-            rate, wrong, total = info
-            bank_line = f"错误率 **{rate:.0%}**（{wrong}/{total}）"
+            rate_val, wrong, total = info
+            bank_line = f"错误率 **{rate_val:.0%}**（{wrong}/{total}）"
         else:
             bank_line = "错误率 —"
         new_data = f"> **你的数据**：{bank_line} · 错题本 {err_n} 题"
+        emoji = _priority_emoji(_priority_tag(rate_val, err_n))
 
         new_content, n = re.subn(
             r"> \*\*你的数据\*\*：[^\n]+",
@@ -470,7 +658,14 @@ def refresh_domain_headers(*, dry_run: bool = False) -> int:
             content,
             count=1,
         )
-        if n and new_content != content:
+        new_content, n_title = re.subn(
+            r"^# [🔴🟡🟢] ",
+            f"# {emoji} ",
+            new_content,
+            count=1,
+            flags=re.MULTILINE,
+        )
+        if (n or n_title) and new_content != content:
             if not dry_run:
                 path.write_text(new_content, encoding="utf-8")
             updated += 1
@@ -478,7 +673,13 @@ def refresh_domain_headers(*, dry_run: bool = False) -> int:
     return updated
 
 
-def sync_hf_cards(*, dry_run: bool = False, top_n: int = 50, min_mistakes: int = 3) -> tuple[int, bool]:
+def sync_hf_cards(
+    *,
+    dry_run: bool = False,
+    top_n: int = 50,
+    min_mistakes: int = 3,
+    focus_areas: list[str] | None = None,
+) -> tuple[int, bool]:
     """从 error_log 重生成 00-高频错题摘要卡.md。返回 (题数, 是否写入)。"""
     try:
         from pmp_athena.error_insights import rank_high_frequency_errors
@@ -487,11 +688,14 @@ def sync_hf_cards(*, dry_run: bool = False, top_n: int = 50, min_mistakes: int =
         from error_insights import rank_high_frequency_errors
         from export_hf_cards import export_cards
 
+    if focus_areas is None:
+        focus_areas = today_focus_areas(_ranked_area_triples(), _d_day())
+
     count = len(rank_high_frequency_errors(top_n=top_n, min_mistakes=min_mistakes))
     if dry_run:
         return count, False
 
-    export_cards(top_n=top_n, min_mistakes=min_mistakes)
+    export_cards(top_n=top_n, min_mistakes=min_mistakes, focus_areas=focus_areas)
     return count, True
 
 
@@ -515,6 +719,12 @@ def _update_readme_hf_line(content: str, count: int) -> str:
     return content
 
 
+def _touch_daily_refresh() -> None:
+    state = _load_sync_state()
+    state["last_daily_refresh"] = date.today().isoformat()
+    _save_sync_state(state)
+
+
 def sync_all(*, dry_run: bool = False) -> SyncResult:
     trap_result = sync_traps_from_errors(dry_run=dry_run)
     hf_count, hf_written = sync_hf_cards(dry_run=dry_run)
@@ -522,7 +732,22 @@ def sync_all(*, dry_run: bool = False) -> SyncResult:
     trap_result.hf_cards_updated = hf_written
     trap_result.readme_updated = refresh_readme(dry_run=dry_run, hf_cards_count=hf_count)
     trap_result.headers_updated = refresh_domain_headers(dry_run=dry_run)
+    if not dry_run:
+        _touch_daily_refresh()
     return trap_result
+
+
+def ensure_daily_sync(*, silent: bool = True) -> SyncResult | None:
+    """每天首次触达时刷新速记（README 优先级 + 高频摘要卡 + 增量陷阱）。"""
+    state = _load_sync_state()
+    if state.get("last_daily_refresh") == date.today().isoformat():
+        return None
+    try:
+        return sync_all()
+    except Exception:
+        if silent:
+            return None
+        raise
 
 
 def _run_auto_sync(*, silent: bool = True) -> SyncResult | None:
@@ -569,6 +794,17 @@ def run_sync_after_weakness(*, dry_run: bool = False) -> str:
     """薄弱点诊断后调用：同步陷阱 + 刷新 README。"""
     result = sync_all(dry_run=dry_run)
     return "\n".join(result.summary_lines())
+
+
+def format_sync_brief(result: SyncResult | None) -> str:
+    """判卷/做题后一行摘要，无变更时返回空串。"""
+    if result is None:
+        return ""
+    if not (result.total_traps or result.hf_cards_updated or result.readme_updated):
+        return ""
+    return "📌 速记已同步：" + " · ".join(
+        line.lstrip("- ") for line in result.summary_lines()
+    )
 
 
 def format_wechat_sync_report(result: SyncResult) -> str:

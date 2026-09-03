@@ -330,6 +330,12 @@ def generate_daily_plan() -> dict:
 
 def generate_three_step_plan() -> dict:
     """生成今日三步练习计划：① 清账（复习错题）→ ② 定点爆破（薄弱专项）→ ③ 高频错题收尾。"""
+    try:
+        from pmp_athena.cheatsheet_sync import ensure_daily_sync
+    except ModuleNotFoundError:
+        from cheatsheet_sync import ensure_daily_sync
+    ensure_daily_sync(silent=True)
+
     today = date.today()
     today_str = today.isoformat()
 
