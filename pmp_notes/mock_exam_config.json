@@ -69,6 +69,15 @@
       "status": "pending",
       "total_questions": 180,
       "has_pdf": false
+    },
+    {
+      "id": "M008",
+      "name": "2609期模考二",
+      "start_cmd": "开始模考九",
+      "pdf_name": "2609期PMP模考二",
+      "status": "pending",
+      "total_questions": 180,
+      "has_pdf": true
     }
   ],
   "target_weekly_exams": 2

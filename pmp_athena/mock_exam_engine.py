@@ -58,6 +58,7 @@ PAPER_MAP = {
     "five": "模拟一", "six": "模拟二",
     "seven": "2609期模考一",
     "eight": "2609英文模考",
+    "nine": "2609期模考二",
     "random": "随机模考",
 }
 
@@ -78,6 +79,10 @@ PAPER_QIJI: dict[str, tuple[str, str]] = {
     "seven": (
         "2609期PMP模考一（8月22日）-骐迹教育.pdf",
         "2609期PMP模考一（8月22日）答案和解析-骐迹教育.pdf",
+    ),
+    "nine": (
+        "2609期PMP模考二（8月30日）骐迹教育.pdf",
+        "2609期PMP模考二（8月30日）答案和解析-骐迹教育.pdf",
     ),
 }
 
@@ -1087,7 +1092,7 @@ def main():
         "start", "answer", "pause", "resume", "grade", "status", "show", "abandon", "recover",
     ])
     parser.add_argument("arg", nargs="?", default="", help="答案字母或试卷名")
-    parser.add_argument("--paper", default="random", choices=["one", "two", "three", "five", "six", "seven", "eight", "random"])
+    parser.add_argument("--paper", default="random", choices=["one", "two", "three", "five", "six", "seven", "eight", "nine", "random"])
     args = parser.parse_args()
 
     engine = MockExamEngine()

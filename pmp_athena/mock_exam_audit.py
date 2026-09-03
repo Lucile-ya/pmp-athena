@@ -106,6 +106,10 @@ def audit_unwired_pdfs() -> list[dict]:
     wired_names = set(PAPER_TEXT.values())
     wired_names |= {q for q, _ in PAPER_FILES.values()}
     wired_names |= {a for _, a in PAPER_FILES.values()}
+    wired_names |= {q for q, _ in PAPER_QIJI.values()}
+    wired_names |= {a for _, a in PAPER_QIJI.values()}
+    wired_names |= {q for q, _ in PAPER_HISAI.values()}
+    wired_names |= {a for _, a in PAPER_HISAI.values()}
 
     rows: list[dict] = []
     for pdf in sorted(MOCK_DIR.glob("*.pdf")):
