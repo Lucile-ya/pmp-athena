@@ -50,6 +50,13 @@ def test_parse_triggers() -> None:
     assert parse_user_message("全文")["level"] == "L2"
 
 
+def test_quest_commands_not_knowledge() -> None:
+    """今日任务推进词不得被知识速查抢走。"""
+    for cmd in ("今日任务", "今天任务", "今日闯关", "开始任务", "下一步", "继续任务"):
+        assert parse_user_message(cmd) is None, f"{cmd} 应跳过知识查询"
+    assert parse_user_message("开始任务。") is None
+
+
 def test_l1_format_and_error_hint() -> None:
     r = retrieve_knowledge("挣值", "L1")
     assert r["status"] == "ok"
@@ -88,6 +95,7 @@ def main() -> int:
         ("fuzzy_match_挣值", test_fuzzy_match_挣值),
         ("fuzzy_alias_evm", test_fuzzy_alias_evm),
         ("parse_triggers", test_parse_triggers),
+        ("quest_cmds_skip", test_quest_commands_not_knowledge),
         ("l1_format_error", test_l1_format_and_error_hint),
         ("error_detail_mode", test_error_detail_mode),
         ("error_linkage", test_error_linkage_module),

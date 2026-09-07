@@ -181,6 +181,8 @@ class ReviewScheduler:
         count = 0
         today = self.today_str
         for key, card in self.review_state.items():
+            if not str(key).isdigit():
+                continue
             if int(key) in [t.error_id for t in self.classify_all()["T0"]]:
                 continue
             interval = card.get("interval", 0)

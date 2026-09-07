@@ -850,18 +850,22 @@ def parse_user_message(text: str) -> dict[str, Any] | None:
     mode: query | followup | related | error_detail | candidate_pick
     """
     t = text.strip().replace("\u200b", "").replace("\ufeff", "")
+    t = re.sub(r"[。！!？?\s]+$", "", t)
     if not t:
         return None
 
-    # \u2500\u2500 \u786c\u6307\u4ee4\u9ed1\u540d\u5355\uff1a\u5148\u6392\u9664\u5df2\u77e5\u6307\u4ee4\uff0c\u518d\u8d70\u77e5\u8bc6\u67e5\u8be2 \u2500\u2500
+    # 硬指令黑名单：先排除已有指令，再走知识查询
     _CMD_BLACKLIST = {
-        "\u590d\u4e60\u9519\u9898", "\u6bcf\u65e5\u4e00\u7ec3", "\u8584\u5f31\u70b9", "\u6a21\u8003", "\u7761\u524d\u590d\u4e60", "\u9519\u9898",
-        "\u505a\u9898\u6570\u636e", "\u505a\u9898\u6c47\u603b", "\u505a\u9898\u60c5\u51b5", "\u505a\u9898\u603b\u89c8", "\u6211\u7684\u8fdb\u5ea6",
-        "\u4eca\u65e5\u72b6\u6001", "\u4eca\u5929\u8fdb\u5ea6", "\u6574\u4f53\u60c5\u51b5", "\u6c47\u603b", "\u5237\u9898\u603b\u7ed3",
-        "\u6240\u6709\u505a\u9898\u8bb0\u5f55", "\u8fd1\u4e24\u4e2a\u6708", "\u4e03\u6708\u516b\u6708\u505a\u9898",
-        "\u7ee7\u7eed\u52a0\u7ec3", "\u7a81\u7834\u4e0a\u9650", "\u6e05\u96f6\u8ba1\u5212", "\u51b2\u523a\u6e05\u96f6", "\u9519\u9898\u5206\u5c42", "\u9519\u9898\u7edf\u8ba1",
-        "\u6a21\u8003\u6e05\u5355", "\u6a21\u8003\u770b\u677f", "\u8fd8\u6709\u54ea\u51e0\u5957\u6a21\u8003", "\u6a21\u8003\u8fdb\u5ea6",
-        "\u5f55\u5165\u6210\u7ee9", "\u91cd\u5237",
+        "复习错题", "每日一练", "薄弱点", "模考", "睡前复习", "错题",
+        "做题数据", "做题汇总", "做题情况", "做题总览", "我的进度",
+        "今日状态", "今天进度", "整体情况", "汇总", "刷题总结",
+        "所有做题记录", "近两个月", "七月八月做题",
+        "继续加练", "突破上限", "清零计划", "冲刺清零", "错题分层", "错题统计",
+        "模考清单", "模考看板", "还有哪几套模考", "模考进度",
+        "录入成绩", "重刷",
+        "今日任务", "今天任务", "今日闯关", "开始任务", "下一步", "继续任务", "下一步任务",
+        "今日练习", "今日计划", "三步走", "今天练什么", "今日详细计划",
+        "薄弱点速记", "薄弱速记", "今日速记", "今天速记",
     }
     if t in _CMD_BLACKLIST:
         return None
@@ -891,12 +895,7 @@ def parse_user_message(text: str) -> dict[str, Any] | None:
             return {"query": m.group(1).strip(), "level": "L1", "mode": "query"}
 
     # 裸关键词（2-20 字，非指令）— 模糊匹配 ≥50 分即触发
-    if re.match(r"^[\u4e00-\u9fffA-Za-z0-9/]{2,20}$", t) and t not in {
-        "复习错题", "每日一练", "薄弱点", "模考", "睡前复习", "错题",
-        "做题数据", "做题汇总", "做题情况", "做题总览", "我的进度",
-        "今日状态", "今天进度", "整体情况", "汇总", "刷题总结",
-        "所有做题记录", "近两个月", "七月八月做题",
-    }:
+    if re.match(r"^[\u4e00-\u9fffA-Za-z0-9/]{2,20}$", t) and t not in _CMD_BLACKLIST:
         resolved = fuzzy_resolve(t)
         if resolved["score"] >= 50 or search_entries(t, limit=1):
             return {"query": t, "level": "L1", "mode": "query"}

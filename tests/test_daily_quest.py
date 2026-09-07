@@ -52,6 +52,8 @@ class DailyQuestTests(unittest.TestCase):
         self.assertEqual(parse_quest_request("开始任务"), "next")
         self.assertEqual(parse_quest_request("下一步"), "next")
         self.assertEqual(parse_quest_request("继续任务"), "next")
+        self.assertEqual(parse_quest_request("开始任务。"), "next")
+        self.assertEqual(parse_quest_request("今日任务！"), "start")
         self.assertIsNone(parse_quest_request("开始模考"))
         self.assertIsNone(parse_quest_request("继续"))
         self.assertIsNone(parse_quest_request("今日练习"))

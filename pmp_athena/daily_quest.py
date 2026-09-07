@@ -401,6 +401,7 @@ def next_step() -> dict[str, Any]:
 
 def parse_quest_request(text: str) -> str | None:
     t = (text or "").strip().replace("\u200b", "").replace("\ufeff", "")
+    t = re.sub(r"[。！!？?\s]+$", "", t)
     if t in START_TRIGGERS:
         return "start"
     if t in NEXT_TRIGGERS:

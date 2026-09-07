@@ -75,9 +75,12 @@
       "name": "2609期模考二",
       "start_cmd": "开始模考九",
       "pdf_name": "2609期PMP模考二",
-      "status": "pending",
+      "status": "completed",
       "total_questions": 180,
-      "has_pdf": true
+      "has_pdf": true,
+      "score": 118,
+      "correct_rate": 65.6,
+      "date": "2026-09-07"
     }
   ],
   "target_weekly_exams": 2
