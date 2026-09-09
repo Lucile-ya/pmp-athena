@@ -161,12 +161,15 @@ def _read_md(filename: str) -> str:
 def _extract_blockquote_mnemonic(content: str) -> str:
     for raw in content.splitlines():
         line = raw.lstrip("> ").strip()
-        if "总口诀" in line:
-            m = re.search(r"总口诀[：:]\s*\*\*([^*]+)\*\*", line)
-            if m:
-                text = m.group(1).strip()
-                if text != "总口诀":
-                    return text
+        if "总口诀" not in line:
+            continue
+        m = re.search(r"总口诀\*+[：:]\s*\*+([^*]+)", line) or re.search(
+            r"总口诀[：:]\s*\*+([^*]+)\*+", line
+        )
+        if m:
+            text = m.group(1).strip()
+            if text and text != "总口诀":
+                return text
     return ""
 
 
@@ -174,7 +177,7 @@ def _extract_section(content: str, *headers: str) -> str:
     """提取 ## 标题 到下一个 ## 之间的内容（标题后可带括号说明）。"""
     for header in headers:
         pattern = re.compile(
-            rf"^##\s*{re.escape(header)}(?:[（(][^）)]*[）)])?\s*$",
+            rf"^##\s+{re.escape(header)}.*$",
             re.MULTILINE,
         )
         m = pattern.search(content)
@@ -191,11 +194,50 @@ def _extract_section(content: str, *headers: str) -> str:
 def _trim_for_wechat(text: str, limit: int = WECHAT_MAX_CHARS) -> str:
     if len(text) <= limit:
         return text
-    return text[: limit - 20].rstrip() + "\n\n…（内容较长，发「速记 完整 X」在 Cursor 看全文）"
+    return text[: limit - 40].rstrip() + "\n\n…（微信塞不下整份 MD，去 Cursor 打开该领域文件看全文）"
+
+
+def _format_understand_for_wechat(block: str, max_chars: int = 2400) -> str:
+    """把「先搞懂」从 MD 转成微信可读正文（不去表格、不截成口诀）。"""
+    lines: list[str] = []
+    for raw in block.splitlines():
+        s = raw.strip()
+        if not s or s == "---":
+            continue
+        if s.startswith("### "):
+            lines.append("")
+            lines.append(f"**{s[4:].strip()}**")
+            continue
+        if s.startswith("|"):
+            continue
+        lines.append(s)
+    text = "\n".join(lines).strip()
+    if len(text) > max_chars:
+        text = text[: max_chars - 16].rstrip() + "\n…（后半段在 Cursor 看）"
+    return text
+
+
+def _manual_trap_rows(traps: str, limit: int = 8) -> list[tuple[str, str]]:
+    """只取手写易错表，丢掉「来自错题本（自动）」的截断流水。"""
+    cut = re.split(r"来自错题本", traps, maxsplit=1)[0]
+    rows: list[tuple[str, str]] = []
+    for line in cut.splitlines():
+        if "|" not in line or "❌" in line or "---" in line:
+            continue
+        parts = [p.strip() for p in line.split("|") if p.strip()]
+        if len(parts) < 2 or parts[0] in ("❌ 错", "错"):
+            continue
+        wrong, right = parts[0], parts[1]
+        if "（选" in wrong or "本题考查" in right:
+            continue
+        rows.append((wrong, right))
+        if len(rows) >= limit:
+            break
+    return rows
 
 
 def format_wechat_push(area: str, *, full: bool = False) -> str:
-    """将 MD 速记转为微信推送格式。"""
+    """将 MD 速记转为微信推送。微信打不开文件，只能抽章节拼一屏。"""
     filename = DOMAIN_FILES.get(area)
     if not filename:
         return f"⚠️ 暂无「{area}」速记文件。"
@@ -208,6 +250,7 @@ def format_wechat_push(area: str, *, full: bool = False) -> str:
         return _trim_for_wechat(content, 6000)
 
     mnemonic = _extract_blockquote_mnemonic(content)
+    understand = _extract_section(content, "先搞懂")
     traps = _extract_section(content, "八、易错陷阱", "七、易错陷阱", "十、易错陷阱")
     flash = _extract_section(content, "🃏 闪卡")
     chain = _extract_section(
@@ -240,21 +283,26 @@ def format_wechat_push(area: str, *, full: bool = False) -> str:
     if mnemonic:
         lines.append(f"💡 总口诀：**{mnemonic}**")
     lines.append("")
+    lines.append("微信打不开完整 MD，下面是从速记里抽出的讲解。")
+    lines.append("")
 
-    if high_freq:
+    understand_text = _format_understand_for_wechat(understand) if understand else ""
+    if understand_text:
+        lines.append("🧠 **先搞懂**")
+        lines.append(understand_text)
+        lines.append("")
+    elif high_freq:
         lines.append("⭐ **高频考点**")
         for line in high_freq.splitlines()[:6]:
             if line.strip().startswith(("1.", "2.", "3.", "4.", "5.", "-")):
                 lines.append(line.strip())
         lines.append("")
 
-    if traps:
-        lines.append("⚠️ **易错陷阱**")
-        for line in traps.splitlines():
-            if "|" in line and "❌" not in line and "---" not in line:
-                parts = [p.strip() for p in line.split("|") if p.strip()]
-                if len(parts) >= 2 and parts[0] not in ("❌ 错", "错"):
-                    lines.append(f"  · {parts[0]} → {parts[1]}")
+    manual_traps = _manual_trap_rows(traps) if traps else []
+    if manual_traps:
+        lines.append("⚠️ **易错对照**")
+        for wrong, right in manual_traps:
+            lines.append(f"  · {wrong} → {right}")
         lines.append("")
 
     if flash:
@@ -275,6 +323,9 @@ def format_wechat_push(area: str, *, full: bool = False) -> str:
             if s and not s.startswith("---"):
                 lines.append(f"  {s}")
         lines.append("")
+    rel = f"pmp_notes/薄弱点速记/{filename}"
+    lines.append(f"📁 全文在 Cursor 打开 `{rel}`")
+    lines.append("")
 
     try:
         from pmp_athena.config import AREA_PRACTICE_LIMIT

@@ -116,6 +116,30 @@ def get_exam_date() -> date | None:
     return None
 
 
+def last_study_date(exam_date: date) -> date:
+    """最后学习日 = 考试前一天。考试当天不再排任务。"""
+    return exam_date - timedelta(days=1)
+
+
+def clamp_plan_span(
+    today: date,
+    exam_date: date,
+    custom_days: int = 0,
+    default_cap: int = 14,
+) -> tuple[int, date, date]:
+    """学习计划含今天、不含考试日。返回 (天数, 起始, 结束)。天数为 0 表示已无学习日。"""
+    last = last_study_date(exam_date)
+    if today > last:
+        return 0, today, last
+    max_days = (last - today).days + 1
+    if custom_days > 0:
+        plan_days = min(custom_days, max_days)
+    else:
+        plan_days = min(max_days, default_cap)
+    end = today + timedelta(days=plan_days - 1)
+    return plan_days, today, end
+
+
 # ═══════════════════════════════════════════════════════════
 # 1. 总结薄弱点
 # ═══════════════════════════════════════════════════════════
@@ -351,8 +375,12 @@ def review_today() -> str:
         due_ids.add(e["id"])
 
     for _key, card in review.items():
+        if not isinstance(card, dict):
+            continue
         if card.get("next_date", "9999") <= today_str:
-            due_ids.add(card.get("error_id"))
+            eid = card.get("error_id")
+            if isinstance(eid, int):
+                due_ids.add(eid)
 
     today_wrong_in_bank = [
         r for r in bank
@@ -449,25 +477,56 @@ def _collect_due_ids(
     due_ids: set[int] = set()
 
     for e in errors:
-        if e.get("date") == today_str:
+        if e.get("date") == today_str and isinstance(e.get("id"), int):
             due_ids.add(e["id"])
 
     for card in review.values():
+        if not isinstance(card, dict):
+            continue
         if card.get("next_date", "9999") <= today_str:
-            due_ids.add(card.get("error_id"))
+            eid = card.get("error_id")
+            if isinstance(eid, int):
+                due_ids.add(eid)
 
     for r in bank:
         if r.get("date") == today_str and r.get("is_correct") is False:
             eid = r.get("error_log_id")
-            if eid is not None:
+            if isinstance(eid, int):
                 due_ids.add(eid)
 
     return sorted(due_ids)
 
 
+def _count_stubborn(pending: list[int], bank: list, review: dict, threshold: int = 4) -> int:
+    """统计待复习队列里累计错误 ≥ threshold 的题数（只扫一遍题库）。"""
+    from collections import Counter
+
+    bank_wrong: Counter[int] = Counter()
+    for r in bank:
+        eid = r.get("error_log_id")
+        if isinstance(eid, int) and r.get("is_correct") is False:
+            bank_wrong[eid] += 1
+
+    n = 0
+    for eid in pending:
+        card = review.get(str(eid), {}) if isinstance(review, dict) else {}
+        if not isinstance(card, dict):
+            card = {}
+        review_wrong = 0
+        for h in card.get("history", []):
+            try:
+                if int(h.get("quality", 5)) < 3:
+                    review_wrong += 1
+            except (TypeError, ValueError):
+                continue
+        if max(bank_wrong.get(eid, 0), 1) + review_wrong >= threshold:
+            n += 1
+    return n
+
+
 def _is_reviewed_today(card: dict | None, today_str: str) -> bool:
     """今日是否已复习过（history 中有今日 quality>0 记录）"""
-    if not card:
+    if not isinstance(card, dict):
         return False
     for h in card.get("history", []):
         if h.get("date") == today_str and h.get("quality", 0) > 0:
@@ -861,7 +920,7 @@ def review_next(*, include_header: bool = False) -> dict:
         sprint_tag = "🔥 冲刺" if is_sprint else ("⚡ 30天" if is_pre30 else "")
         limit_hint = f"（今日上限 {limit} 题，已完成 {completed_today}/{limit}）{sprint_tag}"
         # 高频顽疾统计（累计错误 ≥4 次的到期错题）
-        stubborn_count = sum(1 for eid in pending if count_mistakes(eid)["total"] >= 4)
+        stubborn_count = _count_stubborn(pending, bank, review)
         stubborn_line = f"\n🔥 高频顽疾：{stubborn_count} 道待攻克" if stubborn_count > 0 else ""
         text = (
             f"📚 今日待复习错题: {len(due_ids)} 道（还剩 {len(pending)} 道）{limit_hint}"
@@ -1458,27 +1517,46 @@ def generate_plan(custom_days: int = 0) -> str:
     lines.append("📋 PMP 智能学习计划")
     lines.append("=" * 30)
 
-    # ── 倒计时 ──
+    # ── 倒计时（计划只排到考试前一天）──
     if exam_date:
         remaining = (exam_date - today).days
     else:
         remaining = 47  # 默认
         exam_date = today + timedelta(days=remaining)
 
-    if custom_days > 0:
-        plan_days = custom_days
-    else:
-        plan_days = min(remaining, 14)  # 默认规划两周
+    plan_days, plan_start, plan_end = clamp_plan_span(today, exam_date, custom_days)
+    last = last_study_date(exam_date)
+
+    if plan_days == 0:
+        if today == exam_date:
+            return (
+                "📋 PMP 智能学习计划\n"
+                "==============================\n\n"
+                f"📅 今天是考试日（{exam_date.isoformat()}）。\n"
+                f"学习计划已于 {last.isoformat()} 结束，当天不再排任务。\n"
+                "祝大王顺利通过。考后本 agent 不再维护。"
+            )
+        return (
+            "📋 PMP 智能学习计划\n"
+            "==============================\n\n"
+            f"📅 考试已结束（{exam_date.isoformat()}）。\n"
+            "学习计划只排到考试前一天，本 agent 停止维护。"
+        )
 
     phase = get_current_phase(today)
     milestone = get_phase_milestone(remaining)
 
-    lines.append(f"\n📅 考试日期: {exam_date.isoformat()}")
-    lines.append(f"⏳ 倒计时: **{remaining} 天**")
-    lines.append(f"📍 当前阶段: {phase['icon']} {phase['name']} · 距下阶段还有 {phase['remaining_days']} 天")
+    lines.append(f"\n📅 考试日期: {exam_date.isoformat()}（当天不排学习任务）")
+    lines.append(f"⏳ 倒计时: **{remaining} 天** · 最后学习日 {last.isoformat()}")
+    if phase["name"] == "冲刺模考期":
+        lines.append(f"📍 当前阶段: {phase['icon']} {phase['name']} · 学习日截至 {last.isoformat()}")
+    else:
+        lines.append(
+            f"📍 当前阶段: {phase['icon']} {phase['name']} · 距下阶段还有 {phase['remaining_days']} 天"
+        )
     if milestone:
         lines.append(f"{milestone}")
-    lines.append(f"📐 计划跨度: {plan_days} 天（{today.isoformat()} ~ {(today + timedelta(days=plan_days)).isoformat()}）")
+    lines.append(f"📐 计划跨度: {plan_days} 天（{plan_start.isoformat()} ~ {plan_end.isoformat()}）")
 
     # ── 当前状态 ──
     total_q = len(bank)
@@ -1524,36 +1602,27 @@ def generate_plan(custom_days: int = 0) -> str:
 
     # ── 每日任务 ──
     lines.append(f"\n## 📅 每日任务清单\n")
-    lines.append("| 时段 | 任务 | 时长 |")
-    lines.append("|------|------|------|")
-    lines.append("| 🌅 早晨 | 温习昨日错题解析 | 15min |")
-    lines.append("| ☀️ 上午 | 每日一练 10 题 + 精读解析 | 30min |")
-    lines.append("| 🌤 下午 | 薄弱领域专项练习 10 题 | 25min |")
-    lines.append("| 🌙 晚间 | SM-2 错题复习 + 评分 | 20min |")
-    lines.append("| 📖 睡前 | 快速回顾今日 3 个关键概念 | 10min |")
-    lines.append(f"\n**日均投入: 约 1.5 小时**")
+    if plan_days <= 3:
+        lines.append("| 时段 | 任务 | 时长 |")
+        lines.append("|------|------|------|")
+        lines.append("| ☀️ 上午 | 口诀 / 摘要卡 / 决策卡（不刷新题） | 40min |")
+        lines.append("| 🌤 下午 | 高频错题限量 ≤20 道，做错再看解析 | 40min |")
+        lines.append("| 🌙 晚间 | 过一遍 First/Next/Best 问法，23:00 停 | 15min |")
+        lines.append("\n**日均投入: 约 1.5 小时。不新开 180 题模考，不清几百道到期错题。**")
+    else:
+        lines.append("| 时段 | 任务 | 时长 |")
+        lines.append("|------|------|------|")
+        lines.append("| 🌅 早晨 | 温习昨日错题解析 | 15min |")
+        lines.append("| ☀️ 上午 | 每日一练 10 题 + 精读解析 | 30min |")
+        lines.append("| 🌤 下午 | 薄弱领域专项练习 10 题 | 25min |")
+        lines.append("| 🌙 晚间 | SM-2 错题复习 + 评分 | 20min |")
+        lines.append("| 📖 睡前 | 快速回顾今日 3 个关键概念 | 10min |")
+        lines.append("\n**日均投入: 约 1.5 小时**")
 
-    # ── 阶段规划 ──
-    lines.append(f"\n## 🗺 阶段规划（{plan_days} 天）\n")
-
-    phase1_days = max(1, plan_days // 3)
-    phase2_days = max(1, plan_days // 3)
-    phase3_days = plan_days - phase1_days - phase2_days
-
-    lines.append(f"### 阶段一：补弱（前 {phase1_days} 天）")
-    lines.append(f"- 集中攻克 TOP 3 薄弱领域")
-    lines.append(f"- 每天保证 SM-2 错题复习清零")
-    lines.append(f"- 目标：薄弱领域错误率降至 40% 以下")
-    lines.append("")
-    lines.append(f"### 阶段二：巩固（中间 {phase2_days} 天）")
-    lines.append(f"- 真题模拟 + 错题归因")
-    lines.append(f"- 敏捷场景专项突破")
-    lines.append(f"- 目标：整体正确率稳定在 75%+")
-    lines.append("")
-    lines.append(f"### 阶段三：冲刺（最后 {phase3_days} 天）")
-    lines.append(f"- 全真模拟考试节奏")
-    lines.append(f"- 核心公式/概念最后过一遍")
-    lines.append(f"- 目标：正确率 80%+，信心满满上考场")
+    # ── 逐日规划（含今天，止于考试前一天）──
+    lines.append(f"\n## 🗺 逐日安排（{plan_days} 天，止于 {plan_end.isoformat()}）\n")
+    weak_names = [a for a, _ in weak_list[:3] if a != "未分类"] or ["成本管理", "质量管理"]
+    lines.extend(_day_by_day_lines(plan_start, plan_days, exam_date, weak_names))
 
     # ── 每日提醒 ──
     lines.append(f"\n## ⚠️ 每日坑位提醒\n")
@@ -1562,8 +1631,52 @@ def generate_plan(custom_days: int = 0) -> str:
     lines.append("3. 沟通题：先直接沟通，别绕弯查计划")
     lines.append("4. 干系人题：新干系人 → 先见面沟通，再更新登记册")
     lines.append("5. 题干问'首先'/'接下来' → 选最直接、最务实的选项")
+    lines.append("")
+    lines.append(
+        f"📌 {exam_date.isoformat()} 考试当天不排任务。"
+        "学习计划到此结束，考后本 agent 不再维护。"
+    )
 
     return "\n".join(lines)
+
+
+def _day_by_day_lines(
+    start: date,
+    plan_days: int,
+    exam_date: date,
+    weak_names: list[str],
+) -> list[str]:
+    """按考试日前一天截断的逐日任务。"""
+    lines: list[str] = []
+    for i in range(plan_days):
+        day = start + timedelta(days=i)
+        d = (exam_date - day).days
+        date_s = f"{day.month}/{day.day}"
+        if d <= 1:
+            lines.append(f"### {date_s} · 考前一天（D-1）")
+            lines.append("- 只做 `pmp_notes/薄弱点速记/00-9月11日考前一天.md`")
+            lines.append("- 不开 180 题模考、不进新领域、不熬夜")
+            lines.append("- 微信「复习错题」最多 20 道，不回「继续加练」")
+            lines.append("- 23:00 前停，睡不够比少背两句更伤正确率")
+        elif d == 2:
+            lines.append(f"### {date_s} · 倒数第二天（D-2）")
+            lines.append("- 上午：高频错题摘要卡 + 三领域对比速记卡")
+            lines.append(f"- 下午：口诀过一遍薄弱项（{' / '.join(weak_names[:2])}），可刷错题 ≤20")
+            lines.append("- 不新开整套模考；把 First/Next/Best 问法再过一遍")
+        elif d == 3:
+            lines.append(f"### {date_s} · 倒数第三天（D-3）")
+            lines.append("- 上午：决策卡 + 高频摘要卡里错 ≥4 次的题")
+            lines.append(f"- 下午：薄弱口诀（{' / '.join(weak_names[:3])}），错题限量")
+            lines.append("- 目标是少踩流程陷阱，不是把 400+ 到期错题清完")
+        else:
+            lines.append(f"### {date_s} · 距考试 {d} 天")
+            lines.append(f"- 上午：薄弱领域口诀（{' / '.join(weak_names[:2])}）")
+            lines.append("- 下午：专项或错题复习，仍以 T1/T2 为主")
+            lines.append("- 晚上：睡前复习清单，不新开大部头")
+        lines.append("")
+    lines.append(f"### {exam_date.month}/{exam_date.day} · 考试日")
+    lines.append("- 无学习任务。证件、作息、心态。计划结束。")
+    return lines
 
 
 # ═══════════════════════════════════════════════════════════

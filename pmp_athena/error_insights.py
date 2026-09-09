@@ -15,6 +15,7 @@ except ModuleNotFoundError:
 import json
 import re
 from collections import Counter
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -116,6 +117,7 @@ def _load_json(path: Path) -> Any:
         return [] if path.name != "error_review_state.json" else {}
 
 
+@lru_cache(maxsize=512)
 def count_mistakes(error_id: int) -> dict[str, int]:
     """统计某道错题的错误次数（题库 + 复习历史）。"""
     bank = _load_json(QUESTION_BANK)

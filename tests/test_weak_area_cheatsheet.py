@@ -42,6 +42,16 @@ def test_format_push_has_mnemonic() -> None:
     assert len(out) <= 4000
 
 
+def test_format_push_uses_understand_not_auto_errors() -> None:
+    out = format_wechat_push("成本管理")
+    assert "先搞懂" in out
+    assert "镀金" in out or "#84" in out
+    assert "本题考查" not in out
+    assert "敏捷发布规划" not in out
+    assert "全文在 Cursor" in out
+    assert len(out) <= 4000
+
+
 def test_all_domain_files_exist() -> None:
     base = ROOT / "pmp_notes" / "薄弱点速记"
     for area, fname in DOMAIN_FILES.items():

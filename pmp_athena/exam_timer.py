@@ -260,6 +260,8 @@ class ExamTimer:
         - 剩余 < 7 天 → 建议剩余天数
         """
         cd = self.countdown()
+        if cd.get("status") in ("past", "not_set"):
+            return 0
         days = cd.get("days_remaining")
         if days is None:
             return 7
@@ -272,7 +274,8 @@ class ExamTimer:
         elif days >= 14:
             return 7
         else:
-            return max(1, days)
+            # 学习计划不含考试当天：剩余 3 天 → 学到考前 1 天
+            return max(0, days)
 
     def generate_phase_advice(self) -> str:
         """根据当前阶段生成备考建议"""

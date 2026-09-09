@@ -83,6 +83,22 @@ def test_build_recitation_plan_sprint() -> None:
     assert "成本管理" not in first_row
 
 
+def test_recitation_plan_stops_before_exam() -> None:
+    from pmp_athena.cheatsheet_sync import build_recitation_plan
+
+    ranked = [
+        ("🔴 P0", "02", "成本管理"),
+        ("🟡 P1", "09", "范围管理"),
+        ("🟢 P2", "01", "商业环境"),
+    ]
+    plan = build_recitation_plan(ranked, d_day=3, today=date(2026, 9, 9))
+    assert "9/9" in plan
+    assert "9/11" in plan
+    assert "9/12" not in plan
+    ended = build_recitation_plan(ranked, d_day=0, today=date(2026, 9, 12))
+    assert "学习计划已结束" in ended
+
+
 def test_sprint_slot_rotates_by_dday() -> None:
     from pmp_athena.cheatsheet_sync import sprint_slot, today_focus_areas
 

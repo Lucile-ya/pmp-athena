@@ -426,8 +426,16 @@ def build_recitation_plan(
     """
     from datetime import timedelta
 
+    last_study = EXAM_DAY - timedelta(days=1)
+    if today > last_study:
+        return (
+            "## 学习计划已结束\n\n"
+            "背诵计划只排到考试前一天（9/11）。考试日及之后不再排任务。"
+        )
+
     heading = "## 推荐 7 天背诵计划" if d_day > 11 else f"## 考前 {max(d_day, 1)} 天背诵计划"
     study_days = 7 if d_day > 11 else max(min(d_day, SPRINT_WINDOW), 1)
+    study_days = min(study_days, (last_study - today).days + 1)
 
     lines = [
         heading,
@@ -490,7 +498,7 @@ def _ranked_area_triples() -> list[tuple[str, str, str]]:
 def _insert_daily_hf_section(content: str, section: str) -> str:
     """把今日推荐摘要卡插入 README（考前加练段之后）。"""
     new_content, n = re.subn(
-        r"## 今日推荐摘要卡（10分钟）\n.*?(?=\n---\n\n## 每份文档结构)",
+        r"## 今日推荐摘要卡（10分钟）\n.*?(?=\n---\n\n## (?:每份文档结构|三、每份文档怎么读))",
         section.strip() + "\n",
         content,
         count=1,
@@ -498,14 +506,52 @@ def _insert_daily_hf_section(content: str, section: str) -> str:
     )
     if n:
         return new_content
-    marker = "\n---\n\n## 每份文档结构"
-    insert = (
-        "\n\n**每日睡前**：过下方「今日推荐摘要卡」（当日领域 + 顽疾，约 10 道）"
-        f"\n\n---\n\n{section.strip()}\n{marker}"
-    )
-    if marker in content:
-        return content.replace(marker, insert, 1)
+    for marker in (
+        "\n---\n\n## 三、每份文档怎么读",
+        "\n---\n\n## 每份文档结构",
+    ):
+        if marker in content:
+            insert = (
+                "\n\n**每日睡前**：过下方「今日推荐摘要卡」（当日领域 + 顽疾，约 10 道）"
+                f"\n\n---\n\n{section.strip()}\n{marker}"
+            )
+            return content.replace(marker, insert, 1)
     return content.rstrip() + "\n\n" + section.strip() + "\n"
+
+
+def _volume_why(rank: int, area: str, err_n: int, rate_val: float | None) -> str:
+    if rank == 1:
+        return "存量最大，People 卷面占比高"
+    if area.startswith("敏捷"):
+        return "题量大且持续弱点"
+    if area == "成本管理":
+        return "错误率高但近期题少，读「先搞懂」即可"
+    if area == "商业环境":
+        return "先放着"
+    if err_n >= 50:
+        return "存量大，反复出现"
+    if rate_val is not None and rate_val >= 0.55 and err_n < 40:
+        return "错误率高但题量不大"
+    return f"错题本 {err_n} 道"
+
+
+def _build_volume_table(
+    rows: list[tuple[str, str, str, str, str, str, float | None]],
+) -> str:
+    """按错题本存量排序的分领域表。"""
+    rows_vol = sorted(rows, key=lambda r: -int(r[4] or 0))
+    lines = [
+        "| 顺序 | 打开 | 错题本 | 错误率 | 为什么现在攻它 |",
+        "|:----:|------|:------:|:------:|----------------|",
+    ]
+    for i, (_tag, _num, area, rate_str, err_n, _mnemonic, rate_val) in enumerate(rows_vol, 1):
+        fname = DOMAIN_FILES[area]
+        stem = fname.replace(".md", "")
+        short = "敏捷/混合方法" if area.startswith("敏捷") else area
+        link = f"[{stem}](./{fname})" if not area.startswith("敏捷") else f"[{short}](./{fname})"
+        why = _volume_why(i, area, int(err_n or 0), rate_val)
+        lines.append(f"| {i} | {link} | **{err_n}** | {rate_str} | {why} |")
+    return "\n".join(lines)
 
 
 def refresh_readme(*, dry_run: bool = False, hf_cards_count: int | None = None) -> bool:
@@ -546,50 +592,70 @@ def refresh_readme(*, dry_run: bool = False, hf_cards_count: int | None = None) 
         0 if r[0] == "🔴 P0" else (1 if r[0] == "🟡 P1" else 2),
         -(r[6] if r[6] is not None else -1.0),
     ))
-
-    table_lines = [
-        "| 优先级 | 文件 | 错误率 | 错题本 | 总口诀 |",
-        "|:------:|------|:------:|:------:|--------|",
-    ]
-    for tag, num, area, rate_str, err_n, mnemonic, _rate in rows:
-        stem = DOMAIN_FILES[area].replace(".md", "")
-        link = f"[{stem}](./{DOMAIN_FILES[area]})"
-        table_lines.append(f"| {tag} | {link} | {rate_str} | **{err_n}** | {mnemonic or '—'} |")
+    rows_vol = sorted(rows, key=lambda r: -int(r[4] or 0))
+    catalog_first = False
 
     content = README_PATH.read_text(encoding="utf-8")
+    catalog_first = "## 一、摘要卡清单" in content
+    ranked_for_focus = (
+        [(r[0], r[1], r[2]) for r in rows_vol]
+        if catalog_first
+        else [(r[0], r[1], r[2]) for r in rows]
+    )
+
     header = (
         f"> 生成日期：{today.isoformat()} · 距考试 {max(d_day, 0)} 天 · 阶段：{phase}  \n"
-        f"> 用法：**每天攻 1 个领域** → 先背口诀 → 看易错陷阱 → 做专项 10 题"
+        f"> 用法：先看下方清单有哪些卡 → 再按做题数据决定今天攻哪张 → 读「先搞懂」再做题"
     )
     content = re.sub(
-        r"> 生成日期：.*?→ 做专项 10 题",
+        r"> 生成日期：.*?(?:→ 做专项 10 题|→ 读「先搞懂」再做题)",
         header,
         content,
         count=1,
         flags=re.DOTALL,
     )
 
-    new_table = "\n".join(table_lines)
-    content = re.sub(
-        r"(## 你的薄弱优先级（按紧急度排序）\n\n)(.*?)(\n\n---\n\n## (?:推荐 7 天|考前 \d+ 天))",
-        lambda m: m.group(1) + new_table + m.group(3),
+    vol_table = _build_volume_table(rows)
+    content, n_vol = re.subn(
+        r"(### 分领域顺序\n\n)(\| 顺序.*?)(\n\n## )",
+        lambda m: m.group(1) + vol_table + m.group(3),
         content,
         count=1,
         flags=re.DOTALL,
     )
+    if not n_vol:
+        table_lines = [
+            "| 优先级 | 文件 | 错误率 | 错题本 | 总口诀 |",
+            "|:------:|------|:------:|:------:|--------|",
+        ]
+        for tag, num, area, rate_str, err_n, mnemonic, _rate in rows:
+            stem = DOMAIN_FILES[area].replace(".md", "")
+            link = f"[{stem}](./{DOMAIN_FILES[area]})"
+            table_lines.append(
+                f"| {tag} | {link} | {rate_str} | **{err_n}** | {mnemonic or '—'} |"
+            )
+        new_table = "\n".join(table_lines)
+        content = re.sub(
+            r"(## 你的薄弱优先级（按紧急度排序）\n\n)(.*?)(\n\n---\n\n## (?:推荐 7 天|考前 \d+ 天))",
+            lambda m: m.group(1) + new_table + m.group(3),
+            content,
+            count=1,
+            flags=re.DOTALL,
+        )
 
-    plan = build_recitation_plan(
-        [(r[0], r[1], r[2]) for r in rows],
-        d_day=d_day,
-        today=today,
-    )
-    content = re.sub(
-        r"## (?:推荐 7 天|考前 \d+ 天)背诵计划\n\n.*?(?=\n\n\*\*考前加练\*\*)",
-        plan,
-        content,
-        count=1,
-        flags=re.DOTALL,
-    )
+    if not catalog_first:
+        plan = build_recitation_plan(
+            [(r[0], r[1], r[2]) for r in rows],
+            d_day=d_day,
+            today=today,
+        )
+        content = re.sub(
+            r"## (?:推荐 7 天|考前 \d+ 天)背诵计划\n\n.*?(?=\n\n\*\*考前加练\*\*)",
+            plan,
+            content,
+            count=1,
+            flags=re.DOTALL,
+        )
 
     content = re.sub(
         r"\*\*P0 完整合订\*\*：.*",
@@ -612,7 +678,10 @@ def refresh_readme(*, dry_run: bool = False, hf_cards_count: int | None = None) 
         from export_hf_cards import format_daily_hf_table, pick_daily_hf_cards
         from error_insights import rank_high_frequency_errors
 
-    focus = today_focus_areas([(r[0], r[1], r[2]) for r in rows], d_day)
+    if catalog_first:
+        focus = [r[2] for r in rows_vol[:2]]
+    else:
+        focus = today_focus_areas(ranked_for_focus, d_day)
     hf_items = rank_high_frequency_errors(top_n=50, min_mistakes=3)
     err_map = {e["id"]: e for e in _load_errors() if e.get("id")}
     section = format_daily_hf_table(

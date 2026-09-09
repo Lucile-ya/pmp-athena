@@ -207,6 +207,32 @@ class SprintPlanner:
             exam_date = None
             days_remaining = None
 
+        # 冲刺计划止于考试前一天，考试当天不排任务
+        baseline_date = date.fromisoformat(start_date)
+        if exam_date:
+            try:
+                exam_d = date.fromisoformat(str(exam_date)[:10])
+            except ValueError:
+                exam_d = None
+            if exam_d:
+                last_study = exam_d - timedelta(days=1)
+                max_days = (last_study - baseline_date).days + 1
+                if max_days <= 0:
+                    return {
+                        "status": "exam_reached",
+                        "message": "学习计划已于考试前一日结束，考试当天不再排冲刺任务。",
+                        "exam_date": exam_d.isoformat(),
+                        "last_study_date": last_study.isoformat(),
+                    }
+                days = min(days, max_days)
+
+        if not days or days <= 0:
+            return {
+                "status": "exam_reached",
+                "message": "学习计划已于考试前一日结束，考试当天不再排冲刺任务。",
+                "exam_date": exam_date,
+            }
+
         # 按 weak_rate 降序排列领域
         ranked = sorted(weaknesses.items(), key=lambda x: x[1]["weak_rate"], reverse=True)
 
@@ -418,6 +444,9 @@ class SprintPlanner:
 
 def format_plan_markdown(plan: dict) -> str:
     """将冲刺计划格式化为 Markdown"""
+    if plan.get("status") == "exam_reached":
+        return plan.get("message") or "学习计划已于考试前一日结束。"
+
     lines = []
 
     # 头

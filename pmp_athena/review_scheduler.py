@@ -81,6 +81,7 @@ class ReviewScheduler:
             self.config = {}
         self.today = date.today()
         self.today_str = self.today.isoformat()
+        self._tiers_cache: dict[str, list[ErrorTier]] | None = None
 
     # ── 错题分层 ──────────────────────────────────────────────
 
@@ -136,7 +137,9 @@ class ReviewScheduler:
         return ErrorTier(error_id, 3, "低频错题", mistake_count, days_since, False, max(priority, 0))
 
     def classify_all(self) -> dict[str, list[ErrorTier]]:
-        """对所有在库错题分层。"""
+        """对所有在库错题分层（同一次进程内只算一遍）。"""
+        if self._tiers_cache is not None:
+            return self._tiers_cache
         tiers: dict[str, list[ErrorTier]] = {"T1": [], "T2": [], "T3": [], "T0": []}
         seen: set[int] = set()
         for r in self.bank:
@@ -147,9 +150,9 @@ class ReviewScheduler:
             tier = self.classify(eid)
             tiers[f"T{tier.tier}"].append(tier)
 
-        # 各层按优先级排序
         for t in ("T1", "T2", "T3"):
             tiers[t].sort(key=lambda x: -x.priority_score)
+        self._tiers_cache = tiers
         return tiers
 
     # ── 每日复习计划 ──────────────────────────────────────────
@@ -163,13 +166,16 @@ class ReviewScheduler:
 
     def get_today_completed_count(self) -> int:
         """今日已完成复习的错题数（有 quality>0 记录）。"""
-        return sum(
-            1 for _key, card in self.review_state.items()
+        count = 0
+        for _key, card in self.review_state.items():
+            if not isinstance(card, dict):
+                continue
             if any(
                 h.get("date") == self.today_str and h.get("quality", 0) > 0
                 for h in card.get("history", [])
-            )
-        )
+            ):
+                count += 1
+        return count
 
     def get_total_errors(self) -> int:
         """错题总数（Tier 1+2+3，不含粗心）。"""
@@ -178,15 +184,15 @@ class ReviewScheduler:
 
     def get_completed_total(self) -> int:
         """已完成总数（interval >= 21 或最近 quality >= 4）。"""
+        t0_ids = {t.error_id for t in self.classify_all()["T0"]}
         count = 0
         today = self.today_str
         for key, card in self.review_state.items():
-            if not str(key).isdigit():
+            if not str(key).isdigit() or not isinstance(card, dict):
                 continue
-            if int(key) in [t.error_id for t in self.classify_all()["T0"]]:
+            if int(key) in t0_ids:
                 continue
             interval = card.get("interval", 0)
-            last_q = card.get("last_quality")
             has_recent_quality = any(
                 h.get("date") == today and h.get("quality", 5) >= 4
                 for h in card.get("history", [])
@@ -244,8 +250,6 @@ class ReviewScheduler:
 
             question_ids = t1_filtered + t2_filtered
             question_ids = question_ids[:limit]
-            # T3 延期至考前7天，不计入今日推送
-            tiers["T3"] = []  # 标记 T3 为 0（延期）
         else:
             # 正常模式：T1 不限量 + T2 限量 + T3 跳过
             t1_ids = [t.error_id for t in tiers["T1"]]
@@ -274,7 +278,7 @@ class ReviewScheduler:
             "tiers": {
                 "T1": len([t for t in tiers["T1"] if not self._already_reviewed_today(t.error_id)]),
                 "T2": len([t for t in tiers["T2"] if not self._already_reviewed_today(t.error_id)]),
-                "T3": len(tiers["T3"]),
+                "T3": 0 if is_pre30 else len(tiers["T3"]),
             },
             "total": len(question_ids),
             "limit": limit,
@@ -292,6 +296,8 @@ class ReviewScheduler:
 
     def _already_reviewed_today(self, error_id: int) -> bool:
         card = self.review_state.get(str(error_id), {})
+        if not isinstance(card, dict):
+            return False
         return any(
             h.get("date") == self.today_str and h.get("quality", 0) > 0
             for h in card.get("history", [])
