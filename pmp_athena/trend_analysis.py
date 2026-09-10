@@ -19,6 +19,9 @@ try:
 except ModuleNotFoundError:
     from config import QUESTION_BANK_PATH, EXAM_RECORDS_PATH
 
+DAILY_PRACTICE_SOURCE = "daily_practice"
+KA_MIN_SAMPLE = 5  # 领域对比至少一侧题量达到此值才展示，避免 0/1 题抖成「恶化」
+
 
 def _load(path: Path) -> Any:
     try:
@@ -50,6 +53,32 @@ def _trend_arrow(seq: list[float]) -> str:
 def _bar(rate: float, width: int = 10) -> str:
     filled = round(rate / 100 * width)
     return "█" * filled + "░" * (width - filled)
+
+
+def _area_rate(v: Any) -> float | None:
+    """从 knowledge_areas 条目取正确率。缺 rate 时用 correct/total。"""
+    if isinstance(v, dict):
+        tot = int(v.get("total") or 0)
+        if tot > 0 and ("correct" in v or "correct_count" in v):
+            cor = int(v.get("correct", v.get("correct_count") or 0))
+            return cor / tot * 100
+        for key in ("rate", "correct_rate"):
+            if v.get(key) is not None:
+                return _pct(float(v[key]))
+        return None
+    if v is None:
+        return None
+    return _pct(float(v))
+
+
+def _area_sample(v: Any) -> int:
+    if isinstance(v, dict):
+        return int(v.get("total") or 0)
+    return 0
+
+
+def _exam_name(exam_id: str) -> str:
+    return str(exam_id or "").removeprefix("人工录入_")
 
 
 def generate_report() -> str:
@@ -91,11 +120,20 @@ def generate_report() -> str:
         lines.append("📊 模考成绩趋势:")
         lines.append(f"  最近 {len(recent3)} 次: {seq_str}（趋势: {arrow}）")
         lines.append(f"  全部均值: {all_avg:.0f}%（共 {len(mocks)} 次模考）")
+        if len(rates) >= 3 and _trend_arrow(recent3) == "↑":
+            delta_q = None
+            last, prev = mocks[-1], mocks[-2]
+            if last.get("correct_count") is not None and prev.get("correct_count") is not None:
+                delta_q = int(last["correct_count"]) - int(prev["correct_count"])
+            extra = f"，最近一次比上一次 {delta_q:+d} 题" if delta_q is not None else ""
+            lines.append(f"  近端走势在涨{extra}；看最近一次比看全部均值更贴近现在。")
         lines.append("")
 
-    # ── 每日一练趋势（最近 7 天）──
+    # ── 每日一练趋势（最近 7 天，仅 daily_practice）──
     daily: dict[str, dict] = defaultdict(lambda: {"c": 0, "t": 0})
     for r in bank:
+        if (r.get("source") or "") != DAILY_PRACTICE_SOURCE:
+            continue
         d = str(r.get("date", ""))[:10]
         if not d or r.get("is_correct") is None:
             continue
@@ -123,26 +161,42 @@ def generate_report() -> str:
         lines.append("📝 每日一练趋势: 无记录")
         lines.append("")
 
-    # ── 知识领域变化 ──
-    area_records = [e for e in mocks if e.get("knowledge_areas")]
-    if area_records:
-        # 有领域细分数据时，与全部均值对比（简化为最近 3 次 vs 全部）
-        all_area: dict[str, list] = defaultdict(list)
-        for e in mocks:
-            for a, v in (e.get("knowledge_areas") or {}).items():
-                if isinstance(v, dict):
-                    rate = v.get("rate", v.get("correct_rate", 0))
-                else:
-                    rate = v
-                all_area[a].append(_pct(float(rate)))
-        lines.append("🔍 知识领域变化:")
-        for a, vals in all_area.items():
-            recent = vals[-3:] if vals else []
-            avg_all = sum(vals) / len(vals)
-            avg_recent = sum(recent) / len(recent) if recent else avg_all
-            diff = avg_recent - avg_all
+    # ── 知识领域变化：有分项的相邻两套正式模考，用 correct/total 计算 ──
+    ka_mocks = [e for e in mocks if e.get("knowledge_areas")]
+    if len(ka_mocks) >= 2:
+        prev_e, last_e = ka_mocks[-2], ka_mocks[-1]
+        prev_ka = prev_e.get("knowledge_areas") or {}
+        last_ka = last_e.get("knowledge_areas") or {}
+        names = (
+            f"{_exam_name(prev_e.get('exam_id', ''))} {prev_e.get('exam_date', '')}"
+            f" → {_exam_name(last_e.get('exam_id', ''))} {last_e.get('exam_date', '')}"
+        )
+        rows: list[tuple[float, str, str, float, float]] = []
+        for area in set(prev_ka) | set(last_ka):
+            pv, lv = prev_ka.get(area), last_ka.get(area)
+            if _area_sample(pv) < KA_MIN_SAMPLE or _area_sample(lv) < KA_MIN_SAMPLE:
+                continue
+            old, new = _area_rate(pv), _area_rate(lv)
+            if old is None or new is None:
+                continue
+            diff = new - old
             tag = "↑ 改善" if diff > 5 else ("↓ 恶化" if diff < -5 else "→ 持平")
-            lines.append(f"  {tag}: {a} 全部 {avg_all:.0f}% → 最近 {avg_recent:.0f}%")
+            rows.append((diff, tag, area, old, new))
+        lines.append("🔍 知识领域变化:")
+        lines.append(f"  对比：{names}")
+        if rows:
+            rows.sort(key=lambda x: x[0])
+            for diff, tag, area, old, new in rows:
+                lines.append(f"  {tag}: {area} {old:.0f}% → {new:.0f}%（{diff:+.0f}%）")
+        else:
+            lines.append("  有分项的领域题量都太少，不展示避免误判")
+        no_ka = [e for e in mocks if not e.get("knowledge_areas")]
+        if no_ka:
+            missing = "、".join(_exam_name(e.get("exam_id", "")) for e in no_ka)
+            lines.append(f"  ⚠️ 无领域细分：{missing}")
+        lines.append("")
+    elif ka_mocks:
+        lines.append("🔍 知识领域变化: 仅 1 套模考有分项，无法对比")
         lines.append("")
     else:
         lines.append("🔍 知识领域变化: 无领域细分数据")
@@ -167,6 +221,13 @@ def generate_report() -> str:
             verdict = "🔴 需要大幅提升"
 
         lines.append(f"🎯 通过概率: {prob:.0f}%（{verdict}）")
+        latest = mocks[-1]
+        latest_pct = _pct(latest.get("correct_rate", 0))
+        cc, tq = latest.get("correct_count"), latest.get("total_questions")
+        score = f"（{cc}/{tq}）" if cc is not None and tq else ""
+        lines.append(f"🎯 当前卷面: 最近一次 {latest_pct:.0f}%{score}，最近3次均分 {recent3_avg:.0f}%")
+        if latest_pct + 0.5 >= 59 and prob < latest_pct - 2:
+            lines.append("   原公式含早期低分卷，会偏低；过线看最近一次更贴近现在。")
     else:
         lines.append("🎯 通过概率: 暂无模考数据")
 
@@ -180,7 +241,10 @@ def generate_report() -> str:
         if recent3_avg >= 70:
             suggestions.append("保持当前节奏，巩固优势领域，冲刺高分段")
         elif recent3_avg >= 59:
-            suggestions.append("集中突破 2-3 个薄弱领域，模考正确率向 70% 靠拢")
+            if _trend_arrow(rates[-3:]) == "↑":
+                suggestions.append("模考近端在涨，考前以高频错题为主，不要再开完整 180 题")
+            else:
+                suggestions.append("集中突破 2-3 个薄弱领域，模考正确率向 70% 靠拢")
         else:
             suggestions.append("回归教材核心章节 + 加大每日一练量，先补基础")
         if _trend_arrow(rates[-3:]) == "↓" and len(rates) >= 2:

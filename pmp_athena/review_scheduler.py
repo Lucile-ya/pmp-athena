@@ -164,6 +164,20 @@ class ReviewScheduler:
         self.config["daily_limit"] = n
         _save(CONFIG_PATH, self.config)
 
+    def get_today_limit_override(self) -> int | None:
+        """「继续加练」当天有效的上限；隔日自动失效。"""
+        if self.config.get("today_limit_date") != self.today_str:
+            return None
+        n = self.config.get("today_limit_override")
+        if isinstance(n, int) and n > 0:
+            return n
+        return None
+
+    def lift_today_limit(self, n: int) -> None:
+        self.config["today_limit_override"] = int(n)
+        self.config["today_limit_date"] = self.today_str
+        _save(CONFIG_PATH, self.config)
+
     def get_today_completed_count(self) -> int:
         """今日已完成复习的错题数（有 quality>0 记录）。"""
         count = 0
@@ -230,13 +244,23 @@ class ReviewScheduler:
             remaining = self.get_total_errors() - self.get_completed_total()
             daily_quota = max(PRE_EXAM_MIN, min(PRE_EXAM_MAX, int(remaining * PRE_EXAM_RATIO)))
 
+        override = self.get_today_limit_override()
+        if override:
+            daily_quota = override
+            limit = max(limit, override)
+
         completed_today = self.get_today_completed_count()
         question_ids: list[int] = []
 
         if is_pre_exam:
-            # 考前模式：全部排队，按优先级
+            # 考前模式：T1→T2→T3 按优先级排队，切到每日配额
             all_candidates = tiers["T1"] + tiers["T2"] + tiers["T3"]
             all_candidates.sort(key=lambda x: -x.priority_score)
+            question_ids = [
+                t.error_id for t in all_candidates
+                if not self._already_reviewed_today(int(t.error_id))
+            ]
+            question_ids = question_ids[:daily_quota]
         elif is_pre30:
             # 30天模式：T1 + T2，完全排除 T3
             t1_ids = [t.error_id for t in tiers["T1"]]
@@ -265,13 +289,13 @@ class ReviewScheduler:
             question_ids = t1_filtered + t2_filtered
             question_ids = question_ids[:limit]
 
-        remaining = self.get_total_errors() - completed_today
+        remaining = self.get_total_errors() - self.get_completed_total()
         if remaining < 0:
             remaining = 0
 
-        # 计算预计完成天数
-        speed = max(1, completed_today)  # 今天的完成速度
-        expected_days = max(1, int(remaining / speed)) if speed > 0 else remaining
+        # 按每日配额估清零天数；今天刷了 0 题时绝不能当成「1 题/天」
+        daily_pace = daily_quota if is_pre_exam else limit
+        eta = self._estimate_clearance(remaining, daily_pace)
 
         return {
             "questions": question_ids,
@@ -287,11 +311,38 @@ class ReviewScheduler:
             "completion_pct": round(
                 self.get_completed_total() / max(1, self.get_total_errors()) * 100, 1
             ),
-            "expected_days": expected_days,
-            "estimated_done_date": (self.today + timedelta(days=expected_days)).isoformat(),
+            "expected_days": eta["expected_days"],
+            "estimated_done_date": eta["estimated_done_date"],
+            "can_finish_before_exam": eta["can_finish_before_exam"],
+            "pre_exam_capacity": eta["pre_exam_capacity"],
+            "daily_pace": daily_pace,
             "is_pre_exam": is_pre_exam,
             "is_pre30": is_pre30,
             "daily_quota": daily_quota,
+        }
+
+    def _estimate_clearance(self, remaining: int, daily_pace: int) -> dict[str, Any]:
+        """按每日配额估算清零天数，禁止用「今日已完成=0」推到考试后很久。"""
+        pace = max(1, int(daily_pace or 1))
+        days_left = max(0, self.days_to_exam())
+        capacity = days_left * pace
+        if remaining <= 0:
+            return {
+                "expected_days": 0,
+                "estimated_done_date": self.today.isoformat(),
+                "can_finish_before_exam": True,
+                "pre_exam_capacity": capacity,
+            }
+        expected_days = (remaining + pace - 1) // pace
+        estimated = self.today + timedelta(days=expected_days)
+        can_finish = days_left > 0 and expected_days <= days_left
+        return {
+            "expected_days": expected_days,
+            "estimated_done_date": (
+                EXAM_DATE.isoformat() if not can_finish else estimated.isoformat()
+            ),
+            "can_finish_before_exam": can_finish,
+            "pre_exam_capacity": capacity,
         }
 
     def _already_reviewed_today(self, error_id: int) -> bool:
@@ -343,9 +394,24 @@ class ReviewScheduler:
         if is_pre_exam:
             lines.append(f"🔥 考前冲刺模式 · 日均配额 {plan['daily_quota']} 题")
         if plan["remaining"] > 0:
-            lines.append(f"📅 预计全部清完：{plan['estimated_done_date']}（{plan['expected_days']} 天）")
-            if plan["expected_days"] > 3:
-                lines.append(f"💡 每天再刷 {plan['limit']} 题，{plan['expected_days']} 天即可清零")
+            if not plan.get("can_finish_before_exam"):
+                cap = int(plan.get("pre_exam_capacity") or 0)
+                pace = int(plan.get("daily_pace") or plan.get("daily_quota") or plan["limit"])
+                lines.append(
+                    f"📅 考前无法全部清零：剩余 {plan['remaining']} 题，"
+                    f"距考 {days_left} 天，按每天 {pace} 题最多再过 {cap} 道"
+                )
+                lines.append(
+                    f"💡 只刷 T1 高频（{plan['tiers']['T1']} 道）+ 今日配额，"
+                    f"不要按「全部清零」排到考试之后"
+                )
+            else:
+                lines.append(
+                    f"📅 预计全部清完：{plan['estimated_done_date']}（{plan['expected_days']} 天）"
+                )
+                if plan["expected_days"] > 3:
+                    pace = int(plan.get("daily_pace") or plan["limit"])
+                    lines.append(f"💡 每天再刷 {pace} 题，{plan['expected_days']} 天即可清零")
         else:
             lines.append("🏆 错题已清零！")
         return "\n".join(lines)
@@ -361,8 +427,12 @@ class ReviewScheduler:
             lines.append(
                 f"✅ 今日错题复习完成！已刷 {p['completed_today']}/{p['total'] + p['completed_today']} 道"
             )
-            if plan["expected_days"] > 0:
+            if plan.get("can_finish_before_exam") and plan["expected_days"] > 0:
                 lines.append(f"📊 预计剩余错题将在 {plan['expected_days']} 天内全部清完")
+            elif not plan.get("can_finish_before_exam"):
+                lines.append(
+                    f"📊 考前无法全部清零，明天继续按配额刷 T1 高频"
+                )
         else:
             lines.append("✅ 今日错题复习完成！")
         lines.append(f"💬 回复「继续加练」可突破每日上限")
@@ -519,20 +589,32 @@ def main():
     p_tiers = sub.add_parser("tiers", help="查看分层统计")
     p_tiers.add_argument("--json", action="store_true")
 
+    p_limit = sub.add_parser("set-limit", help="设置当日复习上限（继续加练）")
+    p_limit.add_argument("n", type=int)
+
     args = parser.parse_args()
     if not args.cmd:
         parser.print_help()
         return
 
     if args.cmd == "plan":
-        plan = s.build_daily_plan(is_pre_exam=args.sprint)
+        is_pre_exam = args.sprint or s.should_activate_sprint()
+        is_pre30 = (not is_pre_exam) and s.should_activate_pre30()
+        plan = s.build_daily_plan(is_pre_exam=is_pre_exam, is_pre30=is_pre30)
         if args.json:
             print(json.dumps(plan, ensure_ascii=False))
         else:
             print(f"今日计划: {plan['total']} 题 (T1={plan['tiers']['T1']} T2={plan['tiers']['T2']} T3={plan['tiers']['T3']})")
             print(f"今日已完成: {plan['completed_today']}")
             print(f"整体进度: {plan['completion_pct']}%")
-            print(f"预计完成: {plan['estimated_done_date']}")
+            if plan.get("can_finish_before_exam"):
+                print(f"预计完成: {plan['estimated_done_date']}")
+            else:
+                print(
+                    f"预计完成: 考前无法全部清零"
+                    f"（按每天 {plan.get('daily_pace') or plan['daily_quota']} 题"
+                    f"需 {plan['expected_days']} 天，距考 {s.days_to_exam()} 天）"
+                )
 
     elif args.cmd == "progress":
         print(s.format_progress_bar())
@@ -562,6 +644,10 @@ def main():
                 print(f"\n{label}（{len(items)} 题）")
                 for item in items[:10]:
                     print(f"  #{item.error_id} 错{item.mistake_count}次 最后{item.days_since_last}天前 P={item.priority_score:.0f}")
+
+    elif args.cmd == "set-limit":
+        s.lift_today_limit(args.n)
+        print(f"✅ 今日上限已设为 {args.n} 题（仅 {s.today_str} 有效）")
 
 
 if __name__ == "__main__":

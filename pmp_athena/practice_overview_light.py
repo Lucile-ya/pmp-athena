@@ -30,8 +30,21 @@ except ModuleNotFoundError:
     )
 
 DAILY_PRACTICE_SOURCE = "daily_practice"
+MOCK_EXAM_SOURCE = "mock_exam"
 TARGET_RATE = 70.0
 PASS_RATE = 59.0
+MOCK_LINE = 65.0  # 117/180
+PASS_LINE = 59.0  # 106/180
+
+
+def _is_mock_bank_dup(record: dict) -> bool:
+    """题库里 source=mock_exam 的记录是模考错题重复记账，成绩已在 exam_records。"""
+    return (record.get("source") or "") == MOCK_EXAM_SOURCE
+
+
+def _is_chapter_practice(exam: dict) -> bool:
+    eid = str(exam.get("exam_id", ""))
+    return "章节" in eid or "练习" in eid
 
 
 def _load(path: Path) -> Any:
@@ -230,20 +243,29 @@ def generate_summary() -> str:
         config = {}
 
     today = date.today()
-    total = len(bank)
-    if total == 0:
+    if not bank:
         return "📊 暂无做题记录。发送「每日一练」开始刷题！"
+
+    # 题库正确率不含 mock_exam：那些是模考错题重复记账，正式成绩看 exam_records
+    bank_for_rate = [r for r in bank if not _is_mock_bank_dup(r)]
+    dup_mock_n = len(bank) - len(bank_for_rate)
 
     # ── 月度分组 ──
     monthly: dict[str, list[dict]] = defaultdict(list)
+    monthly_dups: dict[str, int] = defaultdict(int)
     for r in bank:
         d = r.get("date", "")
-        if d:
-            monthly[d[:7]].append(r)
+        if not d:
+            continue
+        key = d[:7]
+        if _is_mock_bank_dup(r):
+            monthly_dups[key] += 1
+        else:
+            monthly[key].append(r)
 
-    sorted_months = sorted(monthly.keys())
+    sorted_months = sorted(set(monthly.keys()) | set(monthly_dups.keys()))
 
-    # ── 首次/二次正确率 ──
+    # ── 首次/二次正确率（不含模考重复记账）──
     first_seen_questions: set[str] = set()
     month_first_correct: dict[str, int] = defaultdict(int)
     month_first_total: dict[str, int] = defaultdict(int)
@@ -251,9 +273,8 @@ def generate_summary() -> str:
     month_second_total: dict[str, int] = defaultdict(int)
 
     for m in sorted_months:
-        for r in monthly[m]:
+        for r in monthly.get(m, []):
             if r.get("is_correct") is None:
-                # 待判卷题不计入正确率统计
                 continue
             q_sig = r.get("question", "")[:50]
             if q_sig not in first_seen_questions:
@@ -268,13 +289,14 @@ def generate_summary() -> str:
 
     # ── 模考分组（排除章节练习等非标准模考）──
     month_exams: dict[str, list[dict]] = defaultdict(list)
+    month_chapters: dict[str, list[dict]] = defaultdict(list)
     for e in exams:
-        eid = e.get("exam_id", "")
-        # 只统计正式模考，排除章节练习
-        if "章节" in eid or "练习" in eid:
-            continue
         ed = e.get("exam_date", "")[:7]
-        if ed:
+        if not ed:
+            continue
+        if _is_chapter_practice(e):
+            month_chapters[ed].append(e)
+        else:
             month_exams[ed].append(e)
 
     # ── 格式输出 ──
@@ -287,15 +309,16 @@ def generate_summary() -> str:
         "══════════════════════════════",
         "",
     ]
+    if dup_mock_n > 0:
+        lines.append(f"口径：题库正确率已剔除 {dup_mock_n} 条模考错题重复记账，模考看下方正式卷。")
+        lines.append("")
 
     # ── 逐月详情 ──
-    prev_total = 0
-    prev_rate = 0.0
-    prev_exams = 0
     month_details: list[dict] = []
 
     for m in sorted_months:
-        records = monthly[m]
+        records = monthly.get(m, [])
+        dup_n = monthly_dups.get(m, 0)
         t = len(records)
         judged = [r for r in records if r.get("is_correct") is not None]
         c = sum(1 for r in judged if r.get("is_correct"))
@@ -306,8 +329,6 @@ def generate_summary() -> str:
         f_c = month_first_correct.get(m, 0)
         s_t = month_second_total.get(m, 0)
         s_c = month_second_correct.get(m, 0)
-        f_rate = f_c / max(1, f_t) * 100
-        s_rate = s_c / max(1, s_t) * 100
 
         ym = int(m[:4]), int(m[5:])
         date_range = _format_date_range(m, records)
@@ -315,8 +336,15 @@ def generate_summary() -> str:
 
         lines.append(f"📅 {_MONTH_CN[ym[1]]}（{date_range}）")
         pending_note = f"（待判卷 {pending} 题）" if pending > 0 else ""
-        lines.append(f"刷题：{t} 题 | 正确率 {_format_monthly_rate(c, len(judged))}{pending_note}")
-        lines.append(f"  首次正确率 {_format_monthly_rate(f_c, f_t)}  |  二次正确率 {_format_monthly_rate(s_c, s_t)}")
+        dup_note = f"（已剔除 {dup_n} 条模考重复记账）" if dup_n else ""
+        lines.append(
+            f"刷题：{t} 题 | 正确率 {_format_monthly_rate(c, len(judged))}"
+            f"{pending_note}{dup_note}"
+        )
+        lines.append(
+            f"  首次正确率 {_format_monthly_rate(f_c, f_t)}"
+            f"  |  二次正确率 {_format_monthly_rate(s_c, s_t)}"
+        )
 
         if n_exams > 0:
             month_list = month_exams.get(m, [])
@@ -337,15 +365,26 @@ def generate_summary() -> str:
                 lines.append(detail)
         else:
             lines.append("模考：0 次")
+
+        for e in month_chapters.get(m, []):
+            name = _exam_display_name(e.get("exam_id", "章节练习"))
+            ed = e.get("exam_date", "")[5:10].replace("-", "/")
+            cc = e.get("correct_count")
+            tq = e.get("total_questions")
+            score = f"{cc}/{tq}" if cc is not None and tq else ""
+            detail = f"  · {name}"
+            if ed:
+                detail += f" {ed}"
+            detail += f" {_exam_correct_rate_pct(e)}"
+            if score:
+                detail += f"（{score}）"
+            lines.append(detail)
         lines.append("")
 
         month_details.append({
             "month": m, "total": t, "correct": c, "rate": rate,
             "exams": n_exams,
         })
-        prev_total = t
-        prev_rate = rate
-        prev_exams = n_exams
 
     # ── 月度对比 ──
     if len(month_details) >= 2:
@@ -358,9 +397,6 @@ def generate_summary() -> str:
             dt = curr["total"] - prev["total"]
             dr = curr["rate"] - prev["rate"]
             de = curr["exams"] - prev["exams"]
-
-            prev_m = int(prev["month"][5:])
-            curr_m = int(curr["month"][5:])
 
             t_arrow = f"+{dt}" if dt >= 0 else str(dt)
             r_arrow = "↑" if dr > 0 else ("↓" if dr < 0 else "→")
@@ -377,15 +413,15 @@ def generate_summary() -> str:
         lines.extend(daily_lines)
 
     # ── 总览 ──
-    judged_all = [r for r in bank if r.get("is_correct") is not None]
+    judged_all = [r for r in bank_for_rate if r.get("is_correct") is not None]
     correct = sum(1 for r in judged_all if r.get("is_correct"))
     overall_pct = correct / max(1, len(judged_all)) * 100
+    total = len(bank_for_rate)
 
     # 薄弱领域
     area_stats: dict[str, dict] = defaultdict(lambda: {"total": 0, "correct": 0})
-    for r in bank:
+    for r in bank_for_rate:
         if r.get("is_correct") is None:
-            # 待判卷题不计入薄弱领域统计
             continue
         area = r.get("knowledge_area", "未分类")
         if area == "综合":
@@ -405,10 +441,33 @@ def generate_summary() -> str:
     due_today = sum(1 for v in review.values() if v.get("next_date", "9999") <= today_str)
     mastered = sum(1 for v in review.values() if v.get("interval", 0) >= 21)
 
-    # 目标评估
+    # 最近一次正式模考
+    formal_all = [e for m in sorted_months for e in month_exams.get(m, [])]
+    formal_all.sort(key=lambda e: e.get("exam_date", ""))
+    latest_mock = formal_all[-1] if formal_all else None
+
+    # 目标评估：题库累计仍对照 70%；过线看最近模考
     gap = 70 - overall_pct
-    if gap <= 0:
-        target_line = "🟢 已达 70% 目标"
+    if latest_mock:
+        mock_pct = float(latest_mock.get("correct_rate") or 0)
+        mock_pct = mock_pct * 100 if mock_pct <= 1 else mock_pct
+        cc = latest_mock.get("correct_count")
+        tq = latest_mock.get("total_questions")
+        mock_bit = f"最近模考 {mock_pct:.0f}%"
+        if cc is not None and tq:
+            mock_bit += f"（{cc}/{tq}）"
+        if mock_pct >= TARGET_RATE:
+            target_line = f"🟢 最近模考已达 70% 训练目标 · {mock_bit}"
+        elif mock_pct >= MOCK_LINE:
+            miss = (126 - int(cc)) if cc is not None else None
+            extra = f"，距 70% 差 {miss} 题" if miss is not None and miss > 0 else ""
+            target_line = f"🟡 已过模考线 65% · {mock_bit}{extra}"
+        elif mock_pct >= PASS_LINE:
+            target_line = f"🟠 已过通过线 59%，未到模考线 65% · {mock_bit}"
+        else:
+            target_line = f"🔴 最近模考未过 59% 通过线 · {mock_bit}"
+    elif gap <= 0:
+        target_line = "🟢 题库已达 70% 目标"
     elif gap <= 5:
         target_line = f"🟡 距 70% 目标差 {int(gap * total / 100)} 题"
     elif gap <= 15:
@@ -421,6 +480,8 @@ def generate_summary() -> str:
         "─" * 30,
         f"总刷题：{total} 题 | 总正确率：{overall_pct:.1f}%",
     ])
+    if dup_mock_n > 0:
+        lines.append(f"（原始题库 {len(bank)} 条含模考重复记账，已剔除 {dup_mock_n} 条）")
     if total_review > 0:
         lines.append(f"错题复习：{total_review} 排队 | {due_today} 今日到期 | {mastered} 已掌握")
     lines.append(f"🎯 目标：{target_line}")

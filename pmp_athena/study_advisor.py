@@ -708,14 +708,7 @@ def _enhance_high_frequency_question(error_id: int, record: dict) -> str:
 
     lines.extend([
         f"📌 错题等级：🔥 高频错题（已错 {total_wrong} 次）",
-        f"📖 你的错误记录：上次错选 {last_wrong.get('my_answer', '?')}"
-        f"（正确 {last_wrong.get('correct_answer', '?')}）",
     ])
-    if root_cause:
-        lines.append(f"⚠️ 根因诊断：{format_root_cause_card(root_cause)}")
-    lines.append(f"🎯 破解口诀：{mnemonic}")
-    if evolution_text:
-        lines.append(f"🧬 {evolution_text}")
     lines.append("")
     lines.append(f"📝 复习 #{error_id} [{area}]")
     lines.append(question)
@@ -724,11 +717,7 @@ def _enhance_high_frequency_question(error_id: int, record: dict) -> str:
         lines.append("💬 本题缺选项，已降级为回顾。回复「已掌握」继续，「无法补录」移出队列。")
     else:
         lines.append("")
-        if root_cause:
-            rc_name = root_cause.get("name", "")
-            lines.append(f"💡 根因变式（必做）：答对后将推送 ≥3 道「{rc_name}」类变式题，答对 ≥2/3 过关。")
-        else:
-            lines.append("💡 同类变式（必做）：本题为高频错题，答对后将推送 ≥3 道变式题巩固。")
+        lines.append("💡 答对后可能推送同考点变式。")
 
     return "\n".join(lines)
 
@@ -781,16 +770,6 @@ def _enhance_stubborn_question(error_id: int, record: dict) -> str:
         lines.append("")
 
     lines.append(f"📌 错题等级：🔥 高频顽疾（已错 {total_wrong} 次）")
-    lines.append("📖 错误记录：")
-    for i, wr in enumerate(wrong_records, 1):
-        d = str(wr.get("date", ""))[:10]
-        lines.append(
-            f"  第{i}次 · {d}: 错选 {wr.get('my_answer', '?')}"
-            f"（正确 {wr.get('correct_answer', '?')}）"
-        )
-    if root_cause:
-        lines.append(f"⚠️ 根因诊断：{format_root_cause_card(root_cause)}")
-    lines.append(f"🎯 破解口诀：{mnemonic}")
     lines.append("")
     lines.append(f"📝 复习 #{error_id} [{area}]")
     lines.append(question)
@@ -799,7 +778,7 @@ def _enhance_stubborn_question(error_id: int, record: dict) -> str:
         lines.append("💬 本题缺选项，已降级为回顾。回复「已掌握」继续，「无法补录」移出队列。")
     else:
         lines.append("")
-        lines.append("💡 反向训练（必做）：答对后推送同考点变式题，连续答对 2 道才移出高频列表。")
+        lines.append("💡 答对后可能推送同考点变式。")
 
     return "\n".join(lines)
 
@@ -846,6 +825,50 @@ def review_next(*, include_header: bool = False) -> dict:
             "text": f"✅ 今日 {len(due_ids)} 道错题已全部复习完毕！",
         }
 
+    try:
+        from pmp_athena.review_scheduler import ReviewScheduler
+    except ImportError:
+        from review_scheduler import ReviewScheduler
+    sched = ReviewScheduler()
+    override = sched.get_today_limit_override()
+    limit = sched.get_daily_limit()
+    is_sprint = sched.should_activate_sprint()
+    is_pre30 = sched.should_activate_pre30()
+    if override:
+        limit = override
+    elif is_sprint:
+        plan = sched.build_daily_plan(is_pre_exam=True)
+        limit = plan["daily_quota"]
+    elif is_pre30:
+        plan = sched.build_daily_plan(is_pre30=True)
+        limit = plan["daily_quota"]
+    completed_today = sched.get_today_completed_count()
+
+    plan_ids: list[int] = []
+    try:
+        plan_for_order = sched.build_daily_plan(
+            is_pre_exam=is_sprint,
+            is_pre30=is_pre30 and not is_sprint,
+        )
+        plan_ids = [int(x) for x in (plan_for_order.get("questions") or [])]
+    except Exception:
+        plan_ids = []
+    pending_set = set(pending)
+    ordered = [eid for eid in plan_ids if eid in pending_set]
+    rest = [eid for eid in pending if eid not in ordered]
+    pending = ordered + rest
+
+    if completed_today >= limit and include_header:
+        text = sched.format_daily_done_card()
+        text += "\n\n" + sched.format_progress_bar()
+        return {
+            "status": "limit_reached",
+            "error_id": None,
+            "total_due": len(due_ids),
+            "remaining": len(pending),
+            "text": text,
+        }
+
     error_id = pending[0]
     record = _find_full_question(error_id, errors, bank)
     if not record:
@@ -886,35 +909,6 @@ def review_next(*, include_header: bool = False) -> dict:
     # 进度行：已完成 / 总到期数
     done_count = len(due_ids) - len(pending)
     progress = f"[{done_count}/{len(due_ids)}]"
-
-    # ── 每日上限检查 ──
-    try:
-        from pmp_athena.review_scheduler import ReviewScheduler
-    except ImportError:
-        from review_scheduler import ReviewScheduler
-    sched = ReviewScheduler()
-    limit = sched.get_daily_limit()
-    is_sprint = sched.should_activate_sprint()
-    is_pre30 = sched.should_activate_pre30()
-    if is_sprint:
-        plan = sched.build_daily_plan(is_pre_exam=True)
-        limit = plan["daily_quota"]
-    elif is_pre30:
-        plan = sched.build_daily_plan(is_pre30=True)
-        limit = plan["daily_quota"]
-    completed_today = sched.get_today_completed_count()
-
-    if completed_today >= limit and include_header:
-        # 已达上限：显示完成卡片
-        text = sched.format_daily_done_card()
-        text += "\n\n" + sched.format_progress_bar()
-        return {
-            "status": "limit_reached",
-            "error_id": None,
-            "total_due": len(due_ids),
-            "remaining": len(pending),
-            "text": text,
-        }
 
     if include_header:
         sprint_tag = "🔥 冲刺" if is_sprint else ("⚡ 30天" if is_pre30 else "")
