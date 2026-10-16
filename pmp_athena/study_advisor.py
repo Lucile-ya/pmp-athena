@@ -474,6 +474,11 @@ def _collect_due_ids(
     today_str: str,
 ) -> list[int]:
     """收集今日到期需复习的错题 ID（与 review_today 逻辑一致）"""
+    blocked = {
+        e.get("id")
+        for e in errors
+        if isinstance(e, dict) and e.get("can_review") is False and isinstance(e.get("id"), int)
+    }
     due_ids: set[int] = set()
 
     for e in errors:
@@ -494,7 +499,7 @@ def _collect_due_ids(
             if isinstance(eid, int):
                 due_ids.add(eid)
 
-    return sorted(due_ids)
+    return sorted(eid for eid in due_ids if eid not in blocked)
 
 
 def _count_stubborn(pending: list[int], bank: list, review: dict, threshold: int = 4) -> int:
@@ -931,6 +936,7 @@ def review_next(*, include_header: bool = False) -> dict:
         "remaining": len(pending),
         "text": text,
         "is_high_frequency": is_hf,
+        "is_knowledge_review": not _has_options(record.get("question", "")),
     }
 
 
@@ -1022,6 +1028,8 @@ def grade_review(error_id: int, user_answer: str) -> dict:
             "next_error_id": nxt.get("error_id"),
             "done": nxt["status"] in ("done", "empty"),
             "text": "\n".join(lines),
+            "is_high_frequency": nxt.get("is_high_frequency", False),
+            "is_knowledge_review": nxt.get("is_knowledge_review", False),
         }
 
     # ── 特殊模式：知识回顾（选项缺失时用户回复「已掌握」/「未掌握」）──
@@ -1044,6 +1052,8 @@ def grade_review(error_id: int, user_answer: str) -> dict:
             "next_error_id": nxt.get("error_id"),
             "done": nxt["status"] in ("done", "empty"),
             "text": "\n".join(lines),
+            "is_high_frequency": nxt.get("is_high_frequency", False),
+            "is_knowledge_review": nxt.get("is_knowledge_review", False),
         }
 
     sr = SpacedRepetition()

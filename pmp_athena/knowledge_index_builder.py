@@ -23,6 +23,7 @@ PATTERN_PDF_NAME = "PMP考试情景分析题的三十六种套路.pdf"
 
 # 深度检索优先 PDF（文件名子串）
 PRIORITY_PDF_NAMES = [
+    "PMBOK指南第8版中文版.pdf",
     "PMBOK指南第7版-中文版.pdf",
     PATTERN_PDF_NAME,
     "敏捷实践指南中文版.pdf",
@@ -311,8 +312,13 @@ def build_index(notes_dir: Path | None = None) -> dict[str, Any]:
     entries: list[dict] = []
     files_scanned: list[str] = []
 
+    def _is_archived(path: Path) -> bool:
+        return any(part.startswith("_归档") for part in path.parts)
+
     for md in sorted(root.rglob("*.md")):
         if md.name.startswith("_") or "wechat-system" in md.name:
+            continue
+        if _is_archived(md):
             continue
         try:
             scan_markdown(md, entries)
@@ -323,6 +329,8 @@ def build_index(notes_dir: Path | None = None) -> dict[str, Any]:
     priority_counters = [0]
 
     for pdf in sorted(root.rglob("*.pdf")):
+        if _is_archived(pdf):
+            continue
         try:
             if PATTERN_PDF_NAME in pdf.name:
                 scan_pattern_pdf(pdf, entries)

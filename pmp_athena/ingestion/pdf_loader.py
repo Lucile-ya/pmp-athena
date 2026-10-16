@@ -56,9 +56,12 @@ class PDFLoader:
             return {"files": 0, "chunks": 0, "total_pages": 0,
                     "error": "No PDF library available. Install pdfplumber or PyPDF2."}
 
-        pdf_files = list(self.notes_dir.rglob("*.pdf")) + list(
-            self.notes_dir.rglob("*.PDF")
-        )
+        pdf_files = [
+            p
+            for p in list(self.notes_dir.rglob("*.pdf"))
+            + list(self.notes_dir.rglob("*.PDF"))
+            if not any(part.startswith("_归档") for part in p.parts)
+        ]
 
         if not pdf_files:
             logger.info("No PDF files found in %s", self.notes_dir)

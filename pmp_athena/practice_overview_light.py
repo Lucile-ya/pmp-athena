@@ -106,7 +106,11 @@ def _format_day_cn(iso_date: str) -> str:
         return iso_date
 
 
-def _build_daily_practice_section(bank: list[dict], config: dict) -> list[str]:
+def _build_daily_practice_section(
+    bank: list[dict],
+    config: dict,
+    from_date: str | None = None,
+) -> list[str]:
     """每日一练按日正确率明细。"""
     daily_records = [
         r for r in bank
@@ -115,6 +119,9 @@ def _build_daily_practice_section(bank: list[dict], config: dict) -> list[str]:
     completed_days: list[str] = config.get("daily_completed", [])
     if not isinstance(completed_days, list):
         completed_days = []
+    if from_date:
+        daily_records = [r for r in daily_records if (r.get("date") or "")[:10] >= from_date]
+        completed_days = [d for d in completed_days if str(d)[:10] >= from_date]
 
     if not daily_records and not completed_days:
         return []
@@ -226,7 +233,7 @@ def _build_daily_practice_section(bank: list[dict], config: dict) -> list[str]:
     return lines
 
 
-def generate_summary() -> str:
+def generate_summary(from_date: str | None = None) -> str:
     bank = _load(QUESTION_BANK_PATH)
     if not isinstance(bank, list):
         bank = []
@@ -242,9 +249,24 @@ def generate_summary() -> str:
     if not isinstance(config, dict):
         config = {}
 
+    # 默认读 config.overview_from_date（如补考周期从 10 月起算）
+    if from_date is None:
+        cfg_from = config.get("overview_from_date")
+        if isinstance(cfg_from, str) and cfg_from.strip():
+            from_date = cfg_from.strip()[:10]
+
     today = date.today()
-    if not bank:
+    if not bank and not from_date:
         return "📊 暂无做题记录。发送「每日一练」开始刷题！"
+
+    if from_date:
+        bank = [r for r in bank if (r.get("date") or "")[:10] >= from_date]
+        exams = [e for e in exams if (e.get("exam_date") or "")[:10] >= from_date]
+        if not bank and not exams:
+            return (
+                f"📊 暂无 {from_date} 起的做题记录。\n"
+                "发送截图入库 /「每日一练」开始本轮刷题！"
+            )
 
     # 题库正确率不含 mock_exam：那些是模考错题重复记账，正式成绩看 exam_records
     bank_for_rate = [r for r in bank if not _is_mock_bank_dup(r)]
@@ -304,11 +326,17 @@ def generate_summary() -> str:
     end_month = sorted_months[-1] if sorted_months else start_month
     y1, m1 = int(start_month[:4]), int(start_month[5:])
     y2, m2 = int(end_month[:4]), int(end_month[5:])
+    title = f"📊 {y1}年{m1}-{m2}月 做题汇总"
+    if from_date:
+        title = f"📊 {from_date} 起做题汇总（至考前）"
     lines = [
-        f"📊 {y1}年{m1}-{m2}月 做题汇总",
+        title,
         "══════════════════════════════",
         "",
     ]
+    if from_date:
+        lines.append(f"口径：仅统计 {from_date} 及之后（7–9 月旧数据不计入本轮）。")
+        lines.append("")
     if dup_mock_n > 0:
         lines.append(f"口径：题库正确率已剔除 {dup_mock_n} 条模考错题重复记账，模考看下方正式卷。")
         lines.append("")
@@ -408,7 +436,7 @@ def generate_summary() -> str:
             lines.append("")
 
     # ── 每日一练明细 ──
-    daily_lines = _build_daily_practice_section(bank, config)
+    daily_lines = _build_daily_practice_section(bank, config, from_date=from_date)
     if daily_lines:
         lines.extend(daily_lines)
 
@@ -501,12 +529,31 @@ def generate_summary() -> str:
 
 
 def main():
+    import argparse
     import sys
+
     try:
         sys.stdout.reconfigure(encoding="utf-8")
     except AttributeError:
         pass
-    print(generate_summary())
+
+    parser = argparse.ArgumentParser(description="做题汇总 / 刷题总览")
+    parser.add_argument(
+        "--from",
+        dest="from_date",
+        default=None,
+        help="起始日期 YYYY-MM-DD（覆盖 config.overview_from_date）",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="忽略 overview_from_date，统计全部历史",
+    )
+    args = parser.parse_args()
+    if args.all:
+        print(generate_summary(from_date=""))
+    else:
+        print(generate_summary(from_date=args.from_date))
 
 
 if __name__ == "__main__":

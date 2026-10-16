@@ -762,8 +762,10 @@ def _load_area_seed_questions(area: str) -> list[dict[str, Any]]:
 
 try:
     from pmp_athena.config import AREA_PRACTICE_LIMIT as _AREA_PRACTICE_LIMIT
+    from pmp_athena.config import AREA_PRACTICE_BATCH as _AREA_PRACTICE_BATCH
 except ModuleNotFoundError:
     from config import AREA_PRACTICE_LIMIT as _AREA_PRACTICE_LIMIT
+    from config import AREA_PRACTICE_BATCH as _AREA_PRACTICE_BATCH
 
 
 def load_area_questions(area: str) -> list[dict[str, Any]]:
@@ -802,6 +804,40 @@ def load_area_questions(area: str) -> list[dict[str, Any]]:
     return questions
 
 
+def _format_area_batch(
+    questions: list[dict[str, Any]],
+    start: int,
+    *,
+    header: str = "",
+    batch_size: int | None = None,
+) -> str:
+    """专项练习：从 start 起格式化一批题（默认 5 题）。"""
+    n = batch_size if batch_size is not None else _AREA_PRACTICE_BATCH
+    batch = questions[start : start + n]
+    if not batch:
+        return ""
+    total = len(questions)
+    end = start + len(batch)
+    batch_no = start // n + 1
+    batch_total = (total + n - 1) // n
+    lines: list[str] = []
+    if header:
+        lines.append(header)
+        lines.append("")
+    lines.append(f"📦 第 {batch_no}/{batch_total} 批（Q{batch[0]['index']}–Q{batch[-1]['index']}）")
+    lines.append("")
+    for q in batch:
+        lines.append(_format_question(q))
+        lines.append("")
+    hint_n = len(batch)
+    if hint_n == 1:
+        lines.append("💬 回复字母，如 `B`")
+    else:
+        sample = "BACDC"[:hint_n]
+        lines.append(f"💬 回复 {hint_n} 个字母，如 `{sample}`")
+    return "\n".join(lines).rstrip()
+
+
 def start_area_session(area: str) -> dict[str, Any]:
     """启动「专项 <领域>」练习会话，复用每日一练的判卷状态机。"""
     _clear_state()
@@ -827,14 +863,13 @@ def start_area_session(area: str) -> dict[str, Any]:
     }
     _save_state(state)
 
-    header = f"🎯 专项练习 [{resolved}]（共 {len(questions)} 题）"
-    q0 = questions[0]
+    header = f"🎯 专项练习 [{resolved}]（共 {len(questions)} 题 · 每批 {_AREA_PRACTICE_BATCH} 题）"
     return {
         "status": "question",
         "question_index": 1,
         "total": len(questions),
         "mode": state["mode"],
-        "text": _format_question(q0, header=header),
+        "text": _format_area_batch(questions, 0, header=header),
     }
 
 
@@ -1224,6 +1259,17 @@ def grade_batch(user_answer: str) -> dict[str, Any]:
                     break
         return {**last_result, "text": "\n".join(lines)}
 
+    # 专项练习：下一批 5 题；其他模式仍推下一题
+    state_after = _load_state() or state
+    if state_after.get("mode") == "area":
+        idx = int(state_after.get("current_index", 0))
+        qs = state_after.get("questions") or []
+        nxt = _format_area_batch(qs, idx)
+        if nxt:
+            lines.append("")
+            lines.append(nxt)
+        return {**last_result, "text": "\n".join(lines)}
+
     q_part = last_result.get("text", "")
     if "📝" in q_part:
         q_part = q_part[q_part.find("📝") :]
@@ -1286,6 +1332,23 @@ def grade_current(user_answer: str) -> dict[str, Any]:
 
     if state["current_index"] >= len(questions):
         return _finish_session(state, lines)
+
+    # 专项：一批做完推下一批；逐题答则只推本批剩余题
+    if state.get("mode") == "area":
+        idx = state["current_index"]
+        mod = idx % _AREA_PRACTICE_BATCH
+        size = _AREA_PRACTICE_BATCH if mod == 0 else (_AREA_PRACTICE_BATCH - mod)
+        nxt = _format_area_batch(questions, idx, batch_size=size)
+        lines.append("")
+        lines.append(nxt)
+        return {
+            "status": "question",
+            "correct": is_correct,
+            "question_index": state["current_index"] + 1,
+            "total": len(questions),
+            "done": False,
+            "text": "\n".join(lines),
+        }
 
     next_q = questions[state["current_index"]]
     lines.append("")

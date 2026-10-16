@@ -39,6 +39,7 @@ CHEATSHEET_DIR = NOTES_DIR / "薄弱点速记"
 TODAY_QUEST_PATH = NOTES_DIR / "today_quest.json"
 AREA_SEED_DIR = NOTES_DIR / "area_seeds"
 AREA_PRACTICE_LIMIT = 15
+AREA_PRACTICE_BATCH = 5  # 专项练习每批推送题数（微信/终端一致）
 KNOWLEDGE_INDEX_PATH = PROJECT_ROOT / "pmp_knowledge_index.json"
 
 # ── Embedding 模型 ──────────────────────────────────────────

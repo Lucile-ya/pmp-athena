@@ -16,6 +16,7 @@ except ModuleNotFoundError:
 
 # 深度检索优先 PDF（文件名子串匹配）
 PRIORITY_PDF_NAMES: list[str] = [
+    "PMBOK指南第8版中文版.pdf",
     "PMBOK指南第7版-中文版.pdf",
     "PMP考试情景分析题的三十六种套路.pdf",
     "敏捷实践指南中文版.pdf",
@@ -156,32 +157,13 @@ def scan_priority_pdf(path: Path, entries: list[dict], rel: str, counters: list[
             })
         return True
 
-    # 无目录：尝试 pdfplumber 按页首标题，或文件名索引
+    # 无书签目录：交回通用正文扫描（按页标题切章节），避免只留一条占位
     try:
         import pdfplumber
         with pdfplumber.open(path) as pdf:
             if not pdf.pages:
                 raise ValueError("empty pdf")
-            # 至少建一条文件名级索引
-            counters[0] += 1
-            entries.append({
-                "id": _make_id("pdf", path.stem, counters[0]),
-                "name": path.stem,
-                "heading_level": 1,
-                "parent_name": None,
-                "file": rel,
-                "file_type": "pdf",
-                "line_start": None,
-                "line_end": None,
-                "page_start": 1,
-                "page_end": len(pdf.pages),
-                "keywords": _extract_keywords(path.stem, path.stem),
-                "domain": _guess_domain(path.stem, path.stem, []),
-                "is_pattern": False,
-                "is_priority_pdf": True,
-                "file_references": [file_ref],
-            })
-        return True
+        return False
     except Exception:
         counters[0] += 1
         entries.append({
