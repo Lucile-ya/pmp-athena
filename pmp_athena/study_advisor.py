@@ -900,7 +900,7 @@ def _variant_pending_return(
 
 
 def _after_stubborn_fail(error_id: int, error: dict, lines: list[str]) -> dict | None:
-    """原题再错 ≥3 次：钉根因，优先同坑变式，不再甩下一道无关题。"""
+    """原题再错 ≥3 次：钉根因，优先同坑变式/根因总结，不再甩下一道无关题。"""
     try:
         from pmp_athena.error_insights import is_high_frequency_marked, count_mistakes
         from pmp_athena.root_cause_variants import review_variant_start_v2
@@ -917,8 +917,23 @@ def _after_stubborn_fail(error_id: int, error: dict, lines: list[str]) -> dict |
         lines.append(nail)
 
     variant_result = review_variant_start_v2(error_id)
-    if variant_result.get("status") == "variant_question":
+    status = variant_result.get("status")
+    if status in ("variant_question", "root_cause_summary"):
         return _variant_pending_return(lines, error_id, variant_result, is_correct=False)
+    if status in ("insufficient", "variant_unavailable") and nail:
+        lines.append("")
+        lines.append("────────")
+        lines.append("同坑变式不足。先把上面「钉死」念三遍，再发「下一步」继续。")
+        return {
+            "status": "graded_variant_pending",
+            "correct": False,
+            "error_id": error_id,
+            "variant_sub_mode": "summary",
+            "root_cause": variant_result.get("root_cause", ""),
+            "text": "\n".join(lines),
+            "next_error_id": error_id,
+            "done": False,
+        }
     return None
 
 

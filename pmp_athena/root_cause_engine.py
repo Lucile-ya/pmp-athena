@@ -54,6 +54,22 @@ def _register(keywords: list[str], wrong_answer_hints: list[str],
     return rule
 
 
+# ── 规则 0: 关闭标准 / 镀金（必须排在质量/变更规则前）──
+_register(
+    name="满足关闭标准仍镀金",
+    keywords=[
+        "关闭标准", "即将结束", "剩余时间", "超额预算", "添加功能",
+        "产品拥护者", "镀金", "释放剩余", "满足商定", "产品要求",
+    ],
+    wrong_answer_hints=["添加", "增加范围", "额外功能", "额外质量", "质量检查", "继续"],
+    diagnosis=(
+        "项目已满足关闭标准时，剩余时间/预算要释放，不能拿来加功能或做额外检查。"
+        "那叫镀金。正确动作：确认关闭标准 → 释放资源；若相关方还要加功能，走变更审批，"
+        "但本题常见正解是释放资源，而不是你先同意加功能。"
+    ),
+    mnemonic="满足关闭就收摊，剩余预算不镀金。",
+)
+
 # ── 规则 1: 风险/问题混淆 ──
 _register(
     name="混淆风险与问题",
@@ -249,13 +265,23 @@ def diagnose(error: dict, wrong_records: list[dict] | None = None) -> dict | Non
         if wa:
             all_wrong_answers.add(wa)
 
+    def _hint_matches_answer(hint: str, ans: str) -> bool:
+        """禁止用单字母答案去匹配「QC」这类提示词（C∈QC 会误诊）。"""
+        h = (hint or "").strip().upper()
+        a = (ans or "").strip().upper()
+        if not h or not a:
+            return False
+        if len(a) <= 2 and a.isalpha():
+            return False
+        return h in a or a in h
+
     for rule in DIAGNOSIS_RULES:
         # Check keyword match
         kw_match = any(kw in combined for kw in rule.get("keywords", []))
 
         # Check wrong answer pattern match
         wa_match = any(
-            hint in ans or ans in hint
+            _hint_matches_answer(hint, ans)
             for hint in rule.get("wrong_answer_hints", [])
             for ans in all_wrong_answers
         )

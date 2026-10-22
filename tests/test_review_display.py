@@ -134,6 +134,58 @@ class ReviewDisplayTests(unittest.TestCase):
         self.assertIn("换一道同坑", out["text"])
         self.assertNotIn("💡 根因变式巩固", out["text"])
 
+    def test_stubborn_fail_falls_back_to_summary(self) -> None:
+        from unittest.mock import patch
+
+        err = {
+            "id": 84,
+            "question": "项目已满足商定的产品要求，即将结束。剩余预算想加功能。",
+            "explanation": "关闭标准已满足应释放资源，不要镀金。",
+            "my_answer": "C",
+            "knowledge_area": "成本管理",
+        }
+        lines: list[str] = []
+        fake = {
+            "status": "root_cause_summary",
+            "root_cause": "满足关闭标准仍镀金",
+            "text": "📖 根因专项总结：满足关闭标准仍镀金",
+        }
+        with patch(
+            "pmp_athena.error_insights.is_high_frequency_marked", return_value=True
+        ), patch(
+            "pmp_athena.error_insights.count_mistakes", return_value={"total": 4}
+        ), patch(
+            "pmp_athena.root_cause_variants.review_variant_start_v2", return_value=fake
+        ):
+            out = _after_stubborn_fail(84, err, lines)
+        self.assertIsNotNone(out)
+        assert out is not None
+        self.assertEqual(out["status"], "graded_variant_pending")
+        self.assertEqual(out["variant_sub_mode"], "summary")
+        self.assertIn("钉死", out["text"])
+        self.assertIn("根因专项总结", out["text"])
+
+
+class RootCauseDiagnoseTests(unittest.TestCase):
+    def test_letter_c_does_not_match_qc_hint(self) -> None:
+        from pmp_athena.root_cause_engine import diagnose
+
+        err = {
+            "id": 84,
+            "question": "项目已满足商定的产品要求，即将结束。日程表还有剩余时间和超额预算。"
+            "一些产品拥护者希望继续为产品添加功能。项目经理应该做什么？"
+            "\nA. 加范围\nB. 额外质量检查\nC. 确认关闭并释放\nD. 获发起人批准加功能",
+            "explanation": "干系人提变更，需发起人/CCB 批准后再实施。",
+            "my_answer": "C",
+            "correct_answer": "D",
+            "knowledge_area": "成本管理",
+        }
+        diag = diagnose(err)
+        self.assertIsNotNone(diag)
+        assert diag is not None
+        self.assertEqual(diag["name"], "满足关闭标准仍镀金")
+        self.assertNotEqual(diag["name"], "混淆质量审计与控制质量")
+
 
 if __name__ == "__main__":
     unittest.main()
