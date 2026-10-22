@@ -26,6 +26,7 @@ try:
         AREA_PRACTICE_LIMIT,
         ERROR_LOG_PATH,
         QUESTION_BANK_PATH,
+        RETAKE_REVIEW_QUOTA,
         TARGET_EXAM_DATE,
         TODAY_QUEST_PATH,
     )
@@ -48,6 +49,7 @@ except ModuleNotFoundError:
         AREA_PRACTICE_LIMIT,
         ERROR_LOG_PATH,
         QUESTION_BANK_PATH,
+        RETAKE_REVIEW_QUOTA,
         TARGET_EXAM_DATE,
         TODAY_QUEST_PATH,
     )
@@ -110,10 +112,39 @@ def _sprint_area(area: str) -> str:
 
 
 def _live_slot() -> dict:
+    try:
+        from pmp_athena.retake_calendar import day_plan
+    except ModuleNotFoundError:
+        from retake_calendar import day_plan  # type: ignore
+    p = day_plan(date.today())
+    if p:
+        slot = p.as_slot()
+        if slot.get("kind") == "area" and not slot.get("area"):
+            fb = sprint_slot(_ranked_area_triples(), _d_day())
+            if fb.get("area"):
+                slot["area"] = fb.get("area")
+                slot["focus"] = slot.get("focus") or fb.get("focus") or [fb["area"]]
+        return slot
     return sprint_slot(_ranked_area_triples(), _d_day())
 
 
-def _area_why(area: str | None) -> str:
+def _tomorrow_slot() -> dict:
+    try:
+        from pmp_athena.retake_calendar import next_plan
+    except ModuleNotFoundError:
+        from retake_calendar import next_plan  # type: ignore
+    nxt = next_plan(date.today())
+    if nxt:
+        return nxt.as_slot()
+    d = _d_day()
+    if d > 1:
+        return sprint_slot(_ranked_area_triples(), d - 1)
+    return {"kind": "exam", "area": None}
+
+
+def _area_why(area: str | None, locked: dict | None = None) -> str:
+    if locked and locked.get("why"):
+        return str(locked["why"])
     if not area:
         return "考前一天：清错题 + 摘要卡，不再新开专项"
     try:
@@ -135,11 +166,15 @@ def _area_why(area: str | None) -> str:
     return f"按考前日历攻坚 {short}"
 
 
-def _tomorrow_line(kind: str, area: str | None) -> str:
+def _tomorrow_line(kind: str, area: str | None, focus: list | None = None) -> str:
     if kind == "exam":
         return "明天：考试日，只过口诀"
+    if kind == "mock":
+        return "明天：全真模考，当正式考试"
     if kind == "finale" or not area:
         return "明天：摘要卡 + 错题清零 / 随机模考"
+    if focus and len(focus) >= 2:
+        return "明天：专项 " + "+".join(_sprint_area(a) for a in focus[:2])
     return f"明天：专项 {_sprint_area(area)}"
 
 
@@ -150,7 +185,7 @@ def _focus_areas(locked: dict | None = None) -> list[str]:
 
 
 def _primary_area(locked: dict | None = None) -> str | None:
-    if locked and locked.get("kind") == "finale":
+    if locked and locked.get("kind") in ("finale", "exam", "mock"):
         return None
     if locked and locked.get("area"):
         return locked["area"]
@@ -160,19 +195,30 @@ def _primary_area(locked: dict | None = None) -> str | None:
 
 def _fresh_plan(history: list) -> dict:
     slot = _live_slot()
-    d = _d_day()
-    tomorrow = sprint_slot(_ranked_area_triples(), d - 1) if d > 1 else {
-        "kind": "exam",
-        "area": None,
-    }
+    tomorrow = _tomorrow_slot()
+    focus = list(slot.get("focus") or [])
+    if not focus and slot.get("area"):
+        focus = [slot["area"]]
     return {
         "date": date.today().isoformat(),
         "exam_date": _exam_date().isoformat(),
         "kind": slot.get("kind") or "area",
         "area": slot.get("area"),
-        "focus": slot.get("focus") or [],
+        "focus": focus,
+        "question_n": int(slot.get("question_n") or AREA_PRACTICE_LIMIT),
+        "review_n": int(
+            slot["review_n"]
+            if slot.get("review_n") is not None
+            else RETAKE_REVIEW_QUOTA
+        ),
+        "why": slot.get("why") or "",
+        "plan_key": slot.get("plan_key") or "",
+        "skip_live": bool(slot.get("skip_live")),
+        "live": slot.get("live") or "",
+        "athena": slot.get("athena") or "",
         "tomorrow_area": tomorrow.get("area"),
         "tomorrow_kind": tomorrow.get("kind"),
+        "tomorrow_focus": tomorrow.get("focus") or [],
         "cards_shown": False,
         "done": False,
         "history": history[-10:],
@@ -188,13 +234,28 @@ def _state() -> dict:
         and data.get("date") == today
         and data.get("exam_date") == exam_s
     ):
+        slot = _live_slot()
+        pk = slot.get("plan_key") or ""
+        if pk and data.get("plan_key") == pk:
+            tm = _tomorrow_slot()
+            data["why"] = slot.get("why") or data.get("why")
+            data["skip_live"] = bool(slot.get("skip_live"))
+            data["tomorrow_area"] = tm.get("area")
+            data["tomorrow_kind"] = tm.get("kind")
+            data["tomorrow_focus"] = tm.get("focus") or []
+        if pk and data.get("plan_key") != pk:
+            history = list(data.get("history") or [])
+            if data.get("date"):
+                history.append({
+                    "date": data.get("date"),
+                    "area": data.get("area"),
+                    "done": bool(data.get("done")),
+                })
+            fresh = _fresh_plan(history)
+            _save_state(fresh)
+            return fresh
         if "kind" not in data:
-            slot = _live_slot()
-            d = _d_day()
-            tomorrow = sprint_slot(_ranked_area_triples(), d - 1) if d > 1 else {
-                "kind": "exam",
-                "area": None,
-            }
+            tomorrow = _tomorrow_slot()
             data["kind"] = slot.get("kind") or "area"
             data.setdefault("area", slot.get("area"))
             data.setdefault("focus", slot.get("focus") or [])
@@ -217,7 +278,7 @@ def _state() -> dict:
 
 
 def _review_progress() -> tuple[int, int]:
-    """(已完成, 今日应推总数含已完成)."""
+    """(已完成, 今日应推总数含已完成). 补考周历日按定额封顶。"""
     sch = ReviewScheduler()
     days = (_exam_date() - date.today()).days
     plan = sch.build_daily_plan(
@@ -226,15 +287,28 @@ def _review_progress() -> tuple[int, int]:
     )
     done = int(plan.get("completed_today") or 0)
     remaining = len(plan.get("questions") or [])
-    return done, done + remaining
+    raw_total = done + remaining
+    st = _load_json(TODAY_QUEST_PATH, {})
+    kind = st.get("kind") if isinstance(st, dict) else "area"
+    quota = RETAKE_REVIEW_QUOTA
+    if isinstance(st, dict) and st.get("review_n") is not None:
+        quota = int(st["review_n"])
+    if kind in ("finale", "mock") or quota >= 25:
+        return done, max(raw_total, quota)
+    if quota <= 0:
+        return done, raw_total
+    return min(done, quota), quota
 
 
-def _area_done_count(area: str) -> int:
+def _area_done_count(areas: str | list[str]) -> int:
     bank = _load_json(QUESTION_BANK_PATH, [])
     if not isinstance(bank, list):
         return 0
+    names = areas if isinstance(areas, list) else [areas]
+    wants = {(normalize_area(a) or a) for a in names if a}
+    if not wants:
+        return 0
     today = date.today().isoformat()
-    want = normalize_area(area) or area
     n = 0
     for r in bank:
         if not isinstance(r, dict):
@@ -244,7 +318,23 @@ def _area_done_count(area: str) -> int:
         if r.get("source") != "area_practice":
             continue
         got = normalize_area(r.get("knowledge_area") or "") or r.get("knowledge_area")
-        if got == want:
+        if got in wants:
+            n += 1
+    return n
+
+
+def _daily_practice_count() -> int:
+    bank = _load_json(QUESTION_BANK_PATH, [])
+    if not isinstance(bank, list):
+        return 0
+    today = date.today().isoformat()
+    n = 0
+    for r in bank:
+        if not isinstance(r, dict):
+            continue
+        if r.get("date") != today:
+            continue
+        if r.get("source") == "daily_practice":
             n += 1
     return n
 
@@ -256,11 +346,13 @@ def _box(done: bool) -> str:
 def _status() -> dict[str, Any]:
     st = _state()
     area = _primary_area(st)
-    skip_area = st.get("kind") == "finale" or not area
+    kind = st.get("kind") or "area"
+    skip_area = kind in ("finale", "exam", "mock") or not area
     rev_done, rev_total = _review_progress()
     step1_done = rev_total == 0 or rev_done >= rev_total
-    area_n = 0 if skip_area else _area_done_count(area or "")
-    step2_target = AREA_PRACTICE_LIMIT
+    focus = _focus_areas(st)
+    area_n = 0 if skip_area else _area_done_count(focus if focus else (area or ""))
+    step2_target = int(st.get("question_n") or AREA_PRACTICE_LIMIT)
     step2_done = True if skip_area else area_n >= step2_target
     step3_done = bool(st.get("cards_shown"))
     all_done = step1_done and step2_done and step3_done
@@ -272,10 +364,10 @@ def _status() -> dict[str, Any]:
     tomorrow_kind = st.get("tomorrow_kind") or ("exam" if d <= 1 else "area")
     return {
         "area": area,
-        "kind": st.get("kind") or "area",
+        "kind": kind,
         "skip_area": skip_area,
-        "why": _area_why(area),
-        "tomorrow": _tomorrow_line(tomorrow_kind, tomorrow_area),
+        "why": _area_why(area, st),
+        "tomorrow": _tomorrow_line(tomorrow_kind, tomorrow_area, st.get("tomorrow_focus")),
         "clear_mode": d <= 7,
         "rev_done": rev_done,
         "rev_total": rev_total,
@@ -285,7 +377,10 @@ def _status() -> dict[str, Any]:
         "step2_done": step2_done,
         "step3_done": step3_done,
         "all_done": all_done,
-        "focus": _focus_areas(st),
+        "focus": focus,
+        "skip_live": bool(st.get("skip_live")),
+        "daily_n": _daily_practice_count(),
+        "plan_key": st.get("plan_key") or "",
     }
 
 
@@ -324,42 +419,76 @@ def _cards_text() -> str:
     return "\n".join(lines).rstrip()
 
 
+def _area_label(s: dict[str, Any]) -> str:
+    focus = s.get("focus") or []
+    if len(focus) >= 2:
+        return "+".join(_sprint_area(a) for a in focus[:2])
+    return _sprint_area(s.get("area") or "")
+
+
 def format_overview() -> str:
     s = _status()
     today = date.today()
     days = (_exam_date() - today).days
-    area = _sprint_area(s["area"] or "")
+    area = _area_label(s)
     rev_shown = s["rev_total"] if s["rev_total"] else s["rev_done"]
+    budget = 70 if s.get("plan_key") else 80
+    review_min = 15 if (s.get("rev_total") or 0) <= 5 else STEP1_MINUTES
+    area_min = 45 if (s.get("step2_target") or 0) >= 20 else STEP2_MINUTES
+    daily_n = int(s.get("daily_n") or 0)
+    pass_line = max(1, round(int(s.get("step2_target") or 20) * 0.7))
     lines = [
-        f"📋 今日任务 · {today.month}月{today.day}日 · 约80分钟",
+        f"📋 今日任务 · {today.month}月{today.day}日 · 约{budget}分钟",
         _phase_line(today, days),
-        f"🎯 {s.get('why') or '按考前日历推进'}",
+        f"🎯 {s.get('why') or '按补考周历推进'}",
         f"📆 {s.get('tomorrow') or '明天任务会自动更新'}",
         "",
-        f"{_box(s['step1_done'])} ① 清错题  {s['rev_done']}/{rev_shown}  · {STEP1_MINUTES}分钟",
+        f"{_box(s['step1_done'])} ① 清错题  {s['rev_done']}/{rev_shown}  · {review_min}分钟（定额，刷量不算加分）",
     ]
     if s.get("skip_area"):
-        lines.append(f"{_box(True)} ② 不新开专项（考前复盘日）")
+        kind = s.get("kind")
+        if kind == "mock":
+            lines.append(f"{_box(True)} ② 今日专项停：全真模考，当正式考试")
+        elif kind == "exam":
+            lines.append(f"{_box(True)} ② 今日专项停：考试日只过口诀")
+        else:
+            lines.append(f"{_box(True)} ② 不新开专项（复盘日）")
     else:
         lines.append(
-            f"{_box(s['step2_done'])} ② 专项 {area}  {s['area_n']}/{s['step2_target']}题 · {STEP2_MINUTES}分钟"
+            f"{_box(s['step2_done'])} ② 专项 {area}  {s['area_n']}/{s['step2_target']}题 · {area_min}分钟"
         )
     lines.extend([
         f"{_box(s['step3_done'])} ③ 摘要卡  {DAILY_HF_LIMIT}张 · {STEP3_MINUTES}分钟",
+        f"{_box(daily_n >= 10)} 每日一练  {daily_n}/10 · 13分钟（必须掐表）",
         "□ 睡前 今天新错的 3 条口诀",
         "",
     ])
+    if s.get("skip_live"):
+        lines.append("🟡 今晚机构课可跳过/倍速，70 分钟必须给专项，不准拿课当借口")
+        lines.append("")
     if s.get("clear_mode"):
         lines.append("⚠️ 考前清零已开，错题量会加大，优先清完①")
         lines.append("")
-    if s["all_done"]:
-        lines.append("🎉 三步已完成。睡前回想今天新错的 3 条口诀。")
+    if not s.get("skip_area") and not s["step2_done"]:
+        gap = int(s["step2_target"]) - int(s["area_n"])
+        lines.append(
+            f"⚠️ 专项还差 {gap} 题。过关线 {s['step2_target']} 题、正确率 ≥70%（至少对 {pass_line} 题），少一题都不算完"
+        )
+        lines.append("")
+    if daily_n < 10:
+        lines.append(f"⚠️ 每日一练 {daily_n}/10，未掐完 13 分钟套卷不算今天过关")
+        lines.append("")
+    if s["all_done"] and daily_n >= 10:
+        lines.append("🎉 周历任务已完成。睡前回想今天新错的 3 条口诀。")
         lines.append("💬 或发「睡前复习」")
+    elif s["all_done"]:
+        lines.append("三步骨架已走完，但每日一练没掐完，今天还不能收工。")
+        lines.append("💬 发「每日一练」补上")
     elif not s["step1_done"]:
-        lines.append("回复「开始任务」进入①清错题（逐题作答）")
+        lines.append("回复「开始任务」进入①清错题（逐题作答，定额做透）")
         lines.append("做题中途直接答 A/B/C/D，做完再发「下一步」")
     elif not s["step2_done"]:
-        lines.append(f"①已清完。回复「开始任务」进入②专项 {area}")
+        lines.append(f"①定额已满。回复「开始任务」进入②专项 {area}")
     else:
         lines.append("②已完成。回复「开始任务」过③摘要卡")
     return "\n".join(lines)
@@ -383,20 +512,23 @@ def next_step() -> dict[str, Any]:
             "status": "ok",
             "action": "review",
             "text": (
-                f"① 清错题开始（剩 {left} 道 · 约{STEP1_MINUTES}分钟）\n"
-                "逐题回复 A/B/C/D。全部清完后发「下一步」。"
+                f"① 清错题开始（定额剩 {left} 道，多刷错不算加分）\n"
+                "逐题回复 A/B/C/D。做透这几道再发「下一步」。"
             ),
         }
 
     if not s["step2_done"]:
-        cmd_area = _sprint_area(area or "")
+        cmd_area = _area_label(s)
+        pass_line = max(1, round(int(s["step2_target"]) * 0.7))
         return {
             "status": "ok",
             "action": "area",
             "area": area,
+            "limit": s["step2_target"],
             "text": (
-                f"② 专项 {cmd_area} 开始（目标 {s['step2_target']} 题 · 约{STEP2_MINUTES}分钟）\n"
-                f"已做 {s['area_n']} 题。先自己选，再看解析。做完发「下一步」。"
+                f"② 专项 {cmd_area} 开始（目标 {s['step2_target']} 题）\n"
+                f"已做 {s['area_n']} 题。过关：做满且至少对 {pass_line} 题（70%）。\n"
+                "先自己选，再看解析。做完发「下一步」。"
             ),
         }
 

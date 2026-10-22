@@ -87,6 +87,33 @@ class DailyQuestTests(unittest.TestCase):
         self.assertIn("进度管理", result["text"])
         self.assertIn("明天", result["text"])
 
+    def test_overview_uses_calendar_quota_and_strict_gap(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            quest_path = Path(td) / "today_quest.json"
+            status = _base_status(
+                area="商业环境",
+                focus=["商业环境", "敏捷/混合方法"],
+                why="周历：商业环境+敏捷 20 题",
+                tomorrow="明天：专项 商业环境",
+                step2_target=20,
+                rev_total=5,
+                plan_key="2026-10-22|area|商业环境,敏捷/混合方法|20|5",
+                skip_live=True,
+                daily_n=8,
+            )
+            with patch.object(dq, "TODAY_QUEST_PATH", quest_path), patch.object(
+                dq, "_status", lambda: status
+            ):
+                text = handle_message("今日任务")["text"]
+        self.assertIn("约70分钟", text)
+        self.assertIn("商业环境+敏捷", text)
+        self.assertIn("0/20题", text)
+        self.assertIn("定额", text)
+        self.assertIn("可跳过", text)
+        self.assertIn("每日一练  8/10", text)
+        self.assertIn("少一题都不算完", text)
+        self.assertNotIn("质量管理", text)
+
     def test_next_step_review_then_area_then_cards(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             quest_path = Path(td) / "today_quest.json"
