@@ -83,6 +83,21 @@ d:\miniconda\python.exe pmp_athena/weak_area_cheatsheet.py message --text "今�
 d:\miniconda\python.exe pmp_athena/weak_area_cheatsheet.py message --text "速记 成本管理"
 ```
 
+## 睡前复习（已接入）
+
+> **状态：已接入**（`athena-router.ts` → `bedtime_review.py`）
+
+| 用户发送 | 行为 |
+|----------|------|
+| `睡前复习` / `睡前回顾` / `睡前清单` | 今日错题定额未完成 → 催清账；否则按 D-Day 四档推知识点 |
+
+定额与「今日任务」一致（补考期默认 5 道），不扫全部历史到期。
+
+```powershell
+$env:PYTHONIOENCODING='utf-8'
+d:\miniconda\python.exe pmp_athena/bedtime_review.py message --text "睡前复习"
+```
+
 ## 部署
 
 修改 `athena-router.ts` 或 Python 后：

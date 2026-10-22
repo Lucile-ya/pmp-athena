@@ -1,11 +1,11 @@
-# 🦉 PMP Athena — 本地 PMP 备考复盘 Agent
+﻿# 🦉 PMP Athena — 本地 PMP 备考复盘 Agent
 
 ![PMP备考](https://img.shields.io/badge/领域-PMP备考-blue)
 ![开源免费](https://img.shields.io/badge/开源-MIT-brightgreen)
 ![Python](https://img.shields.io/badge/Python-3.10+-yellow)
 ![AI助手](https://img.shields.io/badge/支持-Claude_Code_|_Cursor_|_WorkBuddy-purple)
 ![微信桥接](https://img.shields.io/badge/扩展-微信远程刷题-orange)
-![版本](https://img.shields.io/badge/版本-v1.1.0-red)
+![版本](https://img.shields.io/badge/版本-v1.4.1-red)
 
 > **不同于传统题库只提供「答案 + 解析」，PMP Athena 更关注：为什么错？考什么？下次怎么避免？**
 >
@@ -13,7 +13,7 @@
 >
 > 完全本地运行，**不需要 API Key**，做题数据只存你的电脑。基于 ChromaDB + sentence-transformers + SM-2 间隔复习算法。
 
-**考试目标**：2026-09-12 PMP | 训练目标正确率 70%（126/180）
+**考试目标**：2026-12-05 PMP 补考 | 日常训练 70% | 模考评估线 65%
 
 ---
 
@@ -56,7 +56,8 @@
 | `开始模考八` | PMP®模考题-2609 英文卷（180 题 + 参考答案网格） |
 | `开始模考九` | 2609期模考二（骐迹 8/30，180 题 + 答案解析） |
 | `随机每日一练` | 从 34 套 PDF 随机抽 10 题 |
-| `睡前复习` | D-Day 自适应知识点推送 + 错题回顾 + 明日预告 |
+| `今日任务` | 跟 `2026-12-补考学习计划.md` 当天栏目（20 题 + 5 错题） |
+| `睡前复习` | 硬路由 `bedtime_review.py`：错题定额优先 + D-Day 四档知识点 |
 | `分析趋势` | 模考趋势 + 通过概率预测 |
 | `帮我生成 14 天冲刺计划` | 按薄弱领域定制每日任务 |
 
