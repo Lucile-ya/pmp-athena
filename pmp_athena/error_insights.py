@@ -42,6 +42,51 @@ SCENARIO_RULES: list[tuple[tuple[str, ...], str, str]] = [
         "供应商延期先审合同，别先换商改待办。",
     ),
     (
+        ("回顾会议", "retrospective", "用户体验的错误", "影响用户体验"),
+        "敏捷质量问题先开回顾，让团队自组织找根因，别靠外部激励。",
+        "质量问题开回顾，自组织找根因。",
+    ),
+    (
+        ("战略一致性", "目标效益", "测量指标", "选择项目", "选择标准"),
+        "选项目看战略一致+效益+可测指标，别靠 CEO 拍板。",
+        "选项目看战略效益指标，CEO拍板不算数。",
+    ),
+    (
+        ("多个不同层面", "不同技术知识", "组织类型最有效", "共享专业"),
+        "多项目多技术用强矩阵共享专业人才，别上纯项目型独占资源。",
+        "多项目多技术用强矩阵，别独占资源。",
+    ),
+    (
+        ("职权比职能经理", "授予项目经理的职权", "职权比职能"),
+        "PM 权>职能经理=强矩阵；职能<弱<平衡<强<项目型。",
+        "PM权大于职能是强矩阵。",
+    ),
+    (
+        ("自管预算", "信息辐射源", "费用报告", "冲刺评审评估费用"),
+        "预算透明：站会费用报告+信息辐射源；冲刺评审看增量不是审预算。",
+        "预算透明靠站会和信息辐射，评审不审账。",
+    ),
+    (
+        ("监督外部环境", "监测外部环境", "法规变更、技术创新", "持续变更"),
+        "敏捷持续变更靠 PO 监测外部环境并调 backlog，不是停变更。",
+        "持续变更找PO盯环境，别叫停范围。",
+    ),
+    (
+        ("backlog优先级", "通知PO", "全员远程", "重新排优先级"),
+        "Backlog 优先级是 PO 的事，PM 尽快通知 PO，自己不越权重排。",
+        "优先级变动先告PO，PM自己重排越权。",
+    ),
+    (
+        ("预期完工", "速率", "故事点", "周期时间", "不会在项目前期"),
+        "敏捷用稳定速率/周期时间预测完工，不设传统基准。",
+        "敏捷靠速率预测工期，不设传统基准。",
+    ),
+    (
+        ("用户操作指南", "合同规定", "用户手册", "详尽的文档"),
+        "合同要求的文档必须交付，敏捷也不豁免合同。",
+        "合同要文档就得交，敏捷不豁免合同。",
+    ),
+    (
         ("丢失了", "根本原因", "经验教训会议", "遗漏的过程"),
         "问题已发生先找根因，经验教训放后面。",
         "已发生先找根因，教训会放到收尾。",
@@ -227,12 +272,77 @@ def build_mnemonic(error: dict) -> str:
     if matched:
         return matched[1]
 
+    # 禁止甩领域万能句：从解析压一句可背的
+    tip = _mnemonic_from_explanation(expl)
+    if tip:
+        return tip
+
     area = error.get("knowledge_area", "")
     if area in AREA_MNEMONICS:
         return AREA_MNEMONICS[area]
 
     correct = error.get("correct_answer", "")
-    return f"记牢正确选项 {correct} 对应的 PMBOK 场景，同类题先想 '{area}' 核心原则。"
+    return f"先锁场景再选 {correct}，别靠语感蒙。"
+
+
+def _mnemonic_from_explanation(expl: str) -> str:
+    text = clean_explanation_text(str(expl or "")).strip()
+    if not text:
+        return ""
+    # 取首句，压到口诀长度
+    first = re.split(r"[。！？\n]", text)[0].strip()
+    first = re.sub(r"\s+", "", first)
+    if len(first) < 8:
+        return ""
+    if len(first) > 28:
+        first = first[:27] + "…"
+    return first
+
+
+def build_trap_line(error: dict) -> str:
+    """别踩：一句话点出干扰项。"""
+    my = str(error.get("my_answer") or "").strip().upper()
+    correct = str(error.get("correct_answer") or "").strip().upper()
+    expl = clean_explanation_text(str(error.get("explanation") or ""))
+    summary = build_summary(error)
+    # 从解析里抓「别/不要/而非/不是」类
+    m = re.search(r"[^。]{0,20}(?:不要|别|而非|不是|勿)[^。]{2,30}", expl)
+    if m:
+        tip = re.sub(r"\s+", "", m.group(0))
+        if len(tip) > 28:
+            tip = tip[:27] + "…"
+        return tip
+    if my and correct and my != correct:
+        return f"别再选 {my}，锁 {correct}：{summary[:22]}"
+    return summary[:28] if summary else ""
+
+
+def format_quest_summary_card(error: dict, *, mistake_count: int = 0) -> str:
+    """今日任务③摘要卡：能背，不甩半截题干。"""
+    eid = error.get("id", "?")
+    area = error.get("knowledge_area") or "综合"
+    if str(area).startswith("敏捷"):
+        area = "敏捷"
+    q = re.sub(r"\s+", " ", str(error.get("question") or ""))
+    # 去掉选项，只留题眼
+    stem = re.split(r"\s*[A-E][\.、．\)]\s*", q)[0].strip()
+    if len(stem) > 42:
+        stem = stem[:41] + "…"
+    mnemonic = build_mnemonic(error)
+    trap = build_trap_line(error)
+    my = str(error.get("my_answer") or "?").upper()
+    correct = str(error.get("correct_answer") or "?").upper()
+    fire = f"🔥{mistake_count}次" if mistake_count >= 3 else f"错{mistake_count}次"
+    lines = [
+        f"#{eid} [{area}] {fire}",
+        f"题眼：{stem}",
+        f"背：{mnemonic}",
+    ]
+    if trap:
+        lines.append(f"别踩：{trap}")
+    if my and correct:
+        lines.append(f"你曾 {my} → 应 {correct}")
+    return "\n".join(lines)
 
 
 def build_answer_text(error: dict) -> str:

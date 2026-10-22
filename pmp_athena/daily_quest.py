@@ -36,7 +36,10 @@ try:
         sprint_slot,
         today_focus_areas,
     )
-    from pmp_athena.error_insights import build_mnemonic, rank_high_frequency_errors
+    from pmp_athena.error_insights import (
+        format_quest_summary_card,
+        rank_high_frequency_errors,
+    )
     from pmp_athena.export_hf_cards import DAILY_HF_LIMIT, pick_daily_hf_cards
     from pmp_athena.knowledge_retriever import normalize_area
     from pmp_athena.review_scheduler import (
@@ -59,7 +62,10 @@ except ModuleNotFoundError:
         sprint_slot,
         today_focus_areas,
     )
-    from error_insights import build_mnemonic, rank_high_frequency_errors  # type: ignore
+    from error_insights import (  # type: ignore
+        format_quest_summary_card,
+        rank_high_frequency_errors,
+    )
     from export_hf_cards import DAILY_HF_LIMIT, pick_daily_hf_cards  # type: ignore
     from knowledge_retriever import normalize_area  # type: ignore
     from review_scheduler import PRE_EXAM_30_DAYS, PRE_EXAM_DAYS, ReviewScheduler  # type: ignore
@@ -420,22 +426,26 @@ def _cards_text() -> str:
         if isinstance(e, dict) and e.get("id")
     } if isinstance(errors, list) else {}
     picked = pick_daily_hf_cards(items, focus)
+    focus_s = "+".join(_sprint_area(a) for a in focus[:2]) if focus else "顽疾"
     lines = [
-        f"③ 摘要卡（{STEP3_MINUTES}分钟 · {len(picked)} 张）",
-        "口诀出声念，不必重做选项",
+        f"③ 摘要卡（{STEP3_MINUTES}分钟 · {len(picked)} 张 · 今日域 {focus_s}）",
+        "出声念「背」，扫一眼「别踩」。不必重做选项。",
         "",
     ]
-    for it in picked:
+    for i, it in enumerate(picked, 1):
         eid = it["error_id"]
-        err = err_map.get(eid, {})
-        mnemonic = build_mnemonic(err) if err else ""
-        gist = re.sub(r"\s+", " ", it.get("question_preview") or "")[:28]
-        area = _sprint_area(it.get("knowledge_area") or "")
-        lines.append(f"#{eid} [{area}] 错{it.get('mistake_count')}次")
-        if mnemonic:
-            lines.append(f"  🎯 {mnemonic}")
-        if gist:
-            lines.append(f"  {gist}…")
+        err = err_map.get(eid)
+        if not err:
+            lines.append(f"{i}. #{eid} 题库缺失，跳过")
+            lines.append("")
+            continue
+        card = format_quest_summary_card(
+            err, mistake_count=int(it.get("mistake_count") or 0)
+        )
+        # 编号前缀，微信更好扫
+        first, *rest = card.splitlines()
+        lines.append(f"{i}. {first}")
+        lines.extend(rest)
         lines.append("")
     if not picked:
         lines.append("暂无高频卡，先完成①清错题。")
