@@ -45,12 +45,17 @@ except ModuleNotFoundError:
 
 SYNC_STATE_PATH = CHEATSHEET_DIR / ".sync_state.json"
 README_PATH = CHEATSHEET_DIR / "README.md"
-AUTO_TRAP_HEADING = "### 来自错题本（自动"
+AUTO_TRAP_HEADING = "### 来自你的错题（自动"
+# 兼容旧标题，同步时整段替换
+AUTO_TRAP_HEADING_ALIASES = (
+    AUTO_TRAP_HEADING,
+    "### 来自错题本（自动",
+)
 TRAP_SECTION_HEADERS = ("七、易错陷阱", "八、易错陷阱", "十、易错陷阱")
-MAX_WRONG_COL = 48
-MAX_RIGHT_COL = 56
+MAX_REMEMBER_COL = 32
+MAX_PITFALL_COL = 40
 MIN_FREQ_FOR_BOOST = 2
-MAX_NEW_TRAPS_PER_DOMAIN = 8
+MAX_NEW_TRAPS_PER_DOMAIN = 10
 BOOTSTRAP_FREQ_ONLY = True  # 首次同步只写入错≥2次的模式
 
 _deferred_cheatsheet_sync = False
@@ -73,8 +78,8 @@ class SyncResult:
     def summary_lines(self) -> list[str]:
         lines: list[str] = []
         if self.total_traps:
-            parts = [f"{a} +{n}" for a, n in self.traps_added.items() if n]
-            lines.append(f"- 新增 **{self.total_traps}** 条易错陷阱（{', '.join(parts)}）")
+            parts = [f"{a} {n}条" for a, n in self.traps_added.items() if n]
+            lines.append(f"- 可背口诀已刷新 **{self.total_traps}** 条（{', '.join(parts)}）")
         if self.hf_cards_updated:
             lines.append(
                 f"- 高频错题摘要卡已刷新（**{self.hf_cards_count}** 道，"
@@ -132,22 +137,74 @@ def _truncate(text: str, limit: int) -> str:
     return t[: limit - 1] + "…"
 
 
-def build_trap_row(error: dict, *, freq: int = 1) -> tuple[str, str]:
-    """生成易错陷阱表格行 (❌, ✅)。"""
-    my_a = (error.get("my_answer") or "?").strip()
-    ok_a = (error.get("correct_answer") or "?").strip()
-    gist = _question_gist(error.get("question", ""))
-    wrong = f"{gist}（选{my_a}）"
+def _strip_mnemonic_noise(text: str) -> str:
+    t = re.sub(r"\s+", " ", (text or "").strip())
+    t = re.sub(r"^钉死[：:]\s*", "", t)
+    t = t.strip("*，,。；; ")
+    return t
+
+
+def build_memory_trap(error: dict, *, freq: int = 1) -> tuple[str, str]:
+    """可背诵行：(背这句, 别踩)。禁止塞题干/OCR 解析。"""
+    try:
+        from pmp_athena.error_insights import build_mnemonic, build_summary
+        from pmp_athena.root_cause_engine import diagnose
+        from pmp_athena.root_cause_variants import get_root_cause_summary
+    except ImportError:
+        from error_insights import build_mnemonic, build_summary
+        from root_cause_engine import diagnose
+        from root_cause_variants import get_root_cause_summary
+
+    remember = ""
+    diag = diagnose(error)
+    if diag:
+        summary = get_root_cause_summary(diag.get("name", ""))
+        if summary and summary.get("core_distinction"):
+            remember = summary["core_distinction"]
+        else:
+            remember = diag.get("mnemonic") or ""
+
+    if not remember:
+        remember = build_mnemonic(error)
+    if not remember or remember.startswith("记牢正确选项"):
+        remember = build_summary(error)
+
+    remember = _strip_mnemonic_noise(remember)
+    my_a = str(error.get("my_answer") or "?").strip().upper()
+    ok_a = str(error.get("correct_answer") or "?").strip().upper()
+
+    pitfall = ""
+    if diag:
+        summary = get_root_cause_summary(diag.get("name", ""))
+        traps = (summary or {}).get("common_traps") or []
+        if traps:
+            pitfall = traps[0]
+    if not pitfall:
+        summary = build_summary(error)
+        if summary and "易混淆选项" not in summary and summary != remember:
+            pitfall = summary
+    if not pitfall:
+        pitfall = f"别选 {my_a}，应选 {ok_a}"
+    elif not pitfall.startswith("别"):
+        pitfall = f"别选 {my_a} · {pitfall}"
+
+    left = _truncate(remember, MAX_REMEMBER_COL)
+    right = _truncate(pitfall, MAX_PITFALL_COL)
     if freq >= MIN_FREQ_FOR_BOOST:
-        wrong += f" ×{freq}"
-    expl = _truncate(error.get("explanation") or f"应选 {ok_a}", MAX_RIGHT_COL)
-    if ok_a not in expl and ok_a != "?":
-        expl = f"应选 {ok_a} — {expl}"
-    return (_truncate(wrong, MAX_WRONG_COL), _truncate(expl, MAX_RIGHT_COL))
+        right = _truncate(f"{right}（×{freq}）", MAX_PITFALL_COL)
+    return left, right
+
+
+def build_trap_row(error: dict, *, freq: int = 1) -> tuple[str, str]:
+    """兼容旧名：现为可背诵口诀行。"""
+    return build_memory_trap(error, freq=freq)
 
 
 def _row_key(wrong: str, right: str) -> str:
-    return re.sub(r"\s+", " ", f"{wrong}|{right}").lower()
+    # 按口诀去重（左列），同类根因只留一条
+    left = re.sub(r"\s+", " ", (wrong or "")).strip().lower()
+    left = re.sub(r"（×\d+）$", "", left)
+    return left or re.sub(r"\s+", " ", f"{wrong}|{right}").lower()
 
 
 def _existing_trap_keys(content: str) -> set[str]:
@@ -156,7 +213,7 @@ def _existing_trap_keys(content: str) -> set[str]:
         if "|" not in line or line.strip().startswith("|---"):
             continue
         parts = [p.strip() for p in line.split("|") if p.strip()]
-        if len(parts) >= 2 and parts[0] not in ("❌ 错", "错", "问"):
+        if len(parts) >= 2 and parts[0] not in ("❌ 错", "错", "问", "背这句", "别踩"):
             keys.add(_row_key(parts[0], parts[1]))
     return keys
 
@@ -173,47 +230,50 @@ def _find_trap_section_span(content: str) -> tuple[int, int] | None:
     return None
 
 
-def _insert_auto_trap_rows(content: str, new_rows: list[tuple[str, str]], today: str) -> str:
-    if not new_rows:
-        return content
+def _strip_auto_trap_block(section: str) -> str:
+    """删掉旧自动区（含题干流水账），保留手写易错表。"""
+    pattern = re.compile(
+        r"\n*###\s*来自(?:你的错题|错题本)[^\n]*\n(?:.*?)(?=\n### |\n## |\Z)",
+        re.DOTALL,
+    )
+    cleaned = pattern.sub("\n", section)
+    # 再扫一遍：防止标题缺右括号或夹在表格中间
+    pattern2 = re.compile(
+        r"\n*###\s*来自错题本[^\n]*\n(?:\|[^\n]*\n)+",
+        re.MULTILINE,
+    )
+    cleaned = pattern2.sub("\n", cleaned)
+    return cleaned.rstrip() + "\n"
 
+
+def _rewrite_auto_memory_section(
+    content: str,
+    rows: list[tuple[str, str]],
+    today: str,
+) -> str:
+    """整段重写自动区为可背口诀表。rows 为空则只清理旧垃圾。"""
     span = _find_trap_section_span(content)
     if not span:
         return content
 
     start, end = span
-    section = content[start:end]
-    heading_re = re.compile(
-        rf"^{re.escape(AUTO_TRAP_HEADING)}[^\n]*\n\n\| ❌ 错 \| ✅ 对 \|\n\|[-| ]+\|\n",
-        re.MULTILINE,
-    )
-    table_rows = "".join(f"| {w} | {r} |\n" for w, r in new_rows)
-
-    if heading_re.search(section):
-
-        def _repl(m: re.Match[str]) -> str:
-            head = m.group(0)
-            if "更新于" in head:
-                head = re.sub(r"更新于 \d{4}-\d{2}-\d{2}", f"更新于 {today}", head)
-            else:
-                head = head.replace(
-                    AUTO_TRAP_HEADING,
-                    f"{AUTO_TRAP_HEADING} · 更新于 {today}",
-                    1,
-                )
-            return head + table_rows
-
-        section = heading_re.sub(_repl, section, count=1)
-    else:
+    section = _strip_auto_trap_block(content[start:end])
+    if rows:
+        table_rows = "".join(f"| {w} | {r} |\n" for w, r in rows)
         block = (
             f"\n{AUTO_TRAP_HEADING} · 更新于 {today}\n\n"
-            "| ❌ 错 | ✅ 对 |\n"
-            "|------|------|\n"
+            "> 只背左列；右列是你常踩的坑。错题一更新这里就刷新。\n\n"
+            "| 背这句 | 别踩 |\n"
+            "|--------|------|\n"
             f"{table_rows}"
         )
         section = section.rstrip() + block + "\n"
-
     return content[:start] + section + content[end:]
+
+
+def _insert_auto_trap_rows(content: str, new_rows: list[tuple[str, str]], today: str) -> str:
+    """兼容旧测试名：整段重写自动区。"""
+    return _rewrite_auto_memory_section(content, new_rows, today)
 
 
 def _map_error_area(error: dict) -> str | None:
@@ -227,54 +287,56 @@ def _map_error_area(error: dict) -> str | None:
     return None
 
 
-def collect_trap_candidates(
+def collect_memory_traps_by_area(
     errors: list[dict],
-    synced_ids: set[int],
-) -> dict[str, list[tuple[str, str, int]]]:
-    """返回 {领域: [(wrong, right, error_id), ...]}，优先高频与未同步。"""
+) -> dict[str, list[tuple[str, str, int, int]]]:
+    """返回 {领域: [(背这句, 别踩, error_id, freq), ...]}，按频次去重。"""
     by_area: dict[str, list[tuple[str, str, int, int, str]]] = defaultdict(list)
-    freq_groups: dict[tuple[str, str, str, str], list[dict]] = defaultdict(list)
+    # 按题干 gist 聚合频次（同一题多次错）
+    freq_groups: dict[tuple[str, str], list[dict]] = defaultdict(list)
 
     for err in errors:
         area = _map_error_area(err)
         eid = err.get("id")
         if not area or not isinstance(eid, int):
             continue
-        gist = _question_gist(err.get("question", ""), 30)
-        key = (area, gist, str(err.get("my_answer", "")), str(err.get("correct_answer", "")))
-        freq_groups[key].append(err)
+        gist = _question_gist(err.get("question", ""), 40)
+        freq_groups[(area, gist)].append(err)
 
-    first_bootstrap = len(synced_ids) == 0
-
-    for (_area, _gist, _my, _ok), group in freq_groups.items():
-        area = _area
+    for (area, _gist), group in freq_groups.items():
         rep = max(group, key=lambda e: e.get("timestamp") or e.get("date") or "")
         eid = rep.get("id")
         if not isinstance(eid, int):
             continue
         freq = len(group)
-        unsynced = [e for e in group if e.get("id") not in synced_ids]
-
-        if first_bootstrap and BOOTSTRAP_FREQ_ONLY and freq < MIN_FREQ_FOR_BOOST:
-            continue
-        if not unsynced and eid in synced_ids:
-            continue
-
-        wrong, right = build_trap_row(rep, freq=freq if freq >= MIN_FREQ_FOR_BOOST else 1)
+        if freq < MIN_FREQ_FOR_BOOST and len(group) == 1:
+            # 单次错也收录，但排序靠后；首批仍优先高频
+            pass
+        remember, pitfall = build_memory_trap(rep, freq=freq)
         ts = str(rep.get("timestamp") or rep.get("date") or "")
-        by_area[area].append((wrong, right, eid, freq, ts))
+        by_area[area].append((remember, pitfall, eid, freq, ts))
 
-    out: dict[str, list[tuple[str, str, int]]] = {}
+    out: dict[str, list[tuple[str, str, int, int]]] = {}
     for area, items in by_area.items():
         items.sort(key=lambda x: (-x[3], x[4]))
-        trimmed: list[tuple[str, str, int]] = []
+        trimmed: list[tuple[str, str, int, int]] = []
         seen: set[str] = set()
-        for wrong, right, eid, _freq, _ts in items:
-            rk = _row_key(wrong, right)
-            if rk in seen:
-                continue
-            seen.add(rk)
-            trimmed.append((wrong, right, eid))
+        # 先收高频，不够再补低频
+        for prefer_freq in (True, False):
+            for remember, pitfall, eid, freq, _ts in items:
+                if prefer_freq and freq < MIN_FREQ_FOR_BOOST:
+                    continue
+                if not prefer_freq and freq >= MIN_FREQ_FOR_BOOST:
+                    continue
+                rk = _row_key(remember, pitfall)
+                if not rk or rk in seen:
+                    continue
+                if remember.startswith("记牢正确选项"):
+                    continue
+                seen.add(rk)
+                trimmed.append((remember, pitfall, eid, freq))
+                if len(trimmed) >= MAX_NEW_TRAPS_PER_DOMAIN:
+                    break
             if len(trimmed) >= MAX_NEW_TRAPS_PER_DOMAIN:
                 break
         if trimmed:
@@ -282,63 +344,63 @@ def collect_trap_candidates(
     return out
 
 
+def collect_trap_candidates(
+    errors: list[dict],
+    synced_ids: set[int],
+) -> dict[str, list[tuple[str, str, int]]]:
+    """兼容旧接口：转成 [(背这句, 别踩, id), ...]。"""
+    _ = synced_ids
+    raw = collect_memory_traps_by_area(errors)
+    return {
+        area: [(a, b, eid) for a, b, eid, _f in rows]
+        for area, rows in raw.items()
+    }
+
+
 def sync_traps_from_errors(*, dry_run: bool = False) -> SyncResult:
+    """按当前错题本整段重写各领域「来自你的错题」可背区。"""
     result = SyncResult()
     errors = _load_errors()
     state = _load_sync_state()
     synced_ids: set[int] = set(state.get("synced_error_ids") or [])
-    first_bootstrap = len(synced_ids) == 0
     today = date.today().isoformat()
 
-    candidates = collect_trap_candidates(errors, synced_ids)
+    by_area = collect_memory_traps_by_area(errors)
 
-    for area, rows_with_ids in candidates.items():
-        filename = DOMAIN_FILES.get(area)
-        if not filename:
-            continue
-        path = CHEATSHEET_DIR / filename
+    for area, fname in DOMAIN_FILES.items():
+        path = CHEATSHEET_DIR / fname
         if not path.is_file():
             continue
-
         content = path.read_text(encoding="utf-8")
-        existing = _existing_trap_keys(content)
-        to_add: list[tuple[str, str]] = []
-        new_ids: list[int] = []
-
-        for wrong, right, eid in rows_with_ids:
-            if _row_key(wrong, right) in existing:
-                result.skipped_duplicate += 1
-                synced_ids.add(eid)
-                continue
-            if eid in synced_ids:
-                continue
-            to_add.append((wrong, right))
-            new_ids.append(eid)
-            existing.add(_row_key(wrong, right))
-
-        if not to_add:
-            continue
+        rows_meta = by_area.get(area, [])
+        rows = [(r, p) for r, p, _eid, _f in rows_meta]
+        new_ids = [eid for _r, _p, eid, _f in rows_meta if eid not in synced_ids]
 
         if not dry_run:
-            updated = _insert_auto_trap_rows(content, to_add, today)
-            path.write_text(updated, encoding="utf-8")
-
-        result.traps_added[area] = len(to_add)
-        result.synced_ids.extend(new_ids)
-        synced_ids.update(new_ids)
+            updated = _rewrite_auto_memory_section(content, rows, today)
+            if updated != content:
+                path.write_text(updated, encoding="utf-8")
+                if rows:
+                    result.traps_added[area] = len(rows)
+                result.synced_ids.extend(new_ids)
+                synced_ids.update(eid for _r, _p, eid, _f in rows_meta)
+            elif new_ids:
+                synced_ids.update(new_ids)
+        else:
+            if rows:
+                result.traps_added[area] = len(rows)
+            result.synced_ids.extend(new_ids)
 
     if not dry_run:
-        if first_bootstrap:
-            for e in errors:
-                eid = e.get("id")
-                if isinstance(eid, int) and _map_error_area(e):
-                    synced_ids.add(eid)
-        if result.synced_ids or result.skipped_duplicate or first_bootstrap:
-            state["synced_error_ids"] = sorted(synced_ids)
-            state["last_trap_sync"] = today
-            if first_bootstrap:
-                state["bootstrapped"] = True
-            _save_sync_state(state)
+        for e in errors:
+            eid = e.get("id")
+            if isinstance(eid, int) and _map_error_area(e):
+                synced_ids.add(eid)
+        state["synced_error_ids"] = sorted(synced_ids)
+        state["last_trap_sync"] = today
+        state["bootstrapped"] = True
+        state["memory_format"] = "背这句/别踩"
+        _save_sync_state(state)
 
     return result
 
@@ -424,15 +486,45 @@ def sprint_slot(
     return {"kind": "area", "area": area, "num": num, "focus": focus}
 
 
+def _plan_slot_for_day(
+    day: date,
+    ranked: list[tuple[str, str, str]],
+) -> dict:
+    """优先补考周历；考前 9 天再回落到薄弱轮换。"""
+    day_d = (EXAM_DAY - day).days
+    if day_d > SPRINT_WINDOW:
+        try:
+            from pmp_athena.retake_calendar import day_plan
+        except ModuleNotFoundError:
+            from retake_calendar import day_plan  # type: ignore
+        p = day_plan(day)
+        if p:
+            slot = p.as_slot()
+            area = slot.get("area")
+            num = None
+            if area:
+                for _tag, n, a in ranked:
+                    if a == area or (area.startswith("敏捷") and a.startswith("敏捷")):
+                        num = n
+                        break
+            return {
+                "kind": slot.get("kind") or "area",
+                "area": area,
+                "num": num,
+                "focus": slot.get("focus") or ([] if not area else [area]),
+            }
+    return sprint_slot(ranked, day_d)
+
+
 def build_recitation_plan(
     ranked: list[tuple[str, str, str]],
     *,
     d_day: int,
     today: date,
 ) -> str:
-    """按剩余天数 + 薄弱优先级生成背诵计划。ranked: (tag, 文件编号, 领域)。
+    """按剩余天数 + 周历/薄弱优先级生成背诵计划。ranked: (tag, 文件编号, 领域)。
 
-    日历锚定考试日，不会每天把 D1 重置回第一个薄弱领域。
+    D>9：跟 `2026-12-补考学习计划.md`；考前 9 天：薄弱轮换。
     """
     from datetime import timedelta
 
@@ -457,13 +549,17 @@ def build_recitation_plan(
     for i in range(study_days):
         day = today + timedelta(days=i)
         date_s = f"{day.month}/{day.day}"
-        day_d = (EXAM_DAY - day).days
-        slot = sprint_slot(ranked, day_d)
-        if slot["kind"] == "finale":
-            morning = "[00-高频错题摘要卡](./00-高频错题摘要卡.md) + [三领域对比](./00-三领域对比速记卡.md)"
-            afternoon = "复习错题 / 随机模考"
+        slot = _plan_slot_for_day(day, ranked)
+        if slot["kind"] in ("finale", "exam", "mock") or not slot.get("area"):
+            if slot["kind"] == "mock":
+                morning = "模考日：轻量口诀"
+                afternoon = "全真模考"
+            else:
+                morning = "[00-高频错题摘要卡](./00-高频错题摘要卡.md) + [三领域对比](./00-三领域对比速记卡.md)"
+                afternoon = "复习错题 / 随机模考"
         else:
-            morning = f"{slot['num']} {_sprint_short_area(slot['area'])}"
+            num = slot.get("num") or ""
+            morning = f"{num} {_sprint_short_area(slot['area'])}".strip()
             afternoon = f"`专项 {_sprint_cmd_area(slot['area'])}`"
         lines.append(f"| D{i + 1} | {date_s} | {morning} | {afternoon} |")
     return "\n".join(lines)
@@ -527,6 +623,14 @@ def _insert_daily_hf_section(content: str, section: str) -> str:
 
 
 def _volume_why(rank: int, area: str, err_n: int, rate_val: float | None) -> str:
+    # 本周若在补考周历里，优先提示「本周专项」
+    try:
+        from pmp_athena.retake_calendar import day_plan
+    except ModuleNotFoundError:
+        from retake_calendar import day_plan  # type: ignore
+    today_plan = day_plan(date.today())
+    if today_plan and area in (today_plan.areas or []):
+        return "本周周历专项，优先背+刷"
     if rank == 1:
         return "存量最大，People 卷面占比高"
     if area.startswith("敏捷"):
@@ -534,7 +638,7 @@ def _volume_why(rank: int, area: str, err_n: int, rate_val: float | None) -> str
     if area == "成本管理":
         return "错误率高但近期题少，读「先搞懂」即可"
     if area == "商业环境":
-        return "先放着"
+        return "本轮补考重点域，跟周历刷"
     if err_n >= 50:
         return "存量大，反复出现"
     if rate_val is not None and rate_val >= 0.55 and err_n < 40:
@@ -646,19 +750,26 @@ def refresh_readme(*, dry_run: bool = False, hf_cards_count: int | None = None) 
             flags=re.DOTALL,
         )
 
-    if not catalog_first:
-        plan = build_recitation_plan(
-            [(r[0], r[1], r[2]) for r in rows],
-            d_day=d_day,
-            today=today,
-        )
-        content = re.sub(
-            r"## (?:推荐 7 天|考前 \d+ 天)背诵计划\n\n.*?(?=\n\n\*\*考前加练\*\*)",
-            plan,
-            content,
-            count=1,
-            flags=re.DOTALL,
-        )
+    plan = build_recitation_plan(
+        [(r[0], r[1], r[2]) for r in rows_vol] if catalog_first else [(r[0], r[1], r[2]) for r in rows],
+        d_day=d_day,
+        today=today,
+    )
+    content = re.sub(
+        r"## (?:推荐 7 天|考前 \d+ 天|学习计划已结束)背诵计划\n\n.*?(?=\n\n\*\*考前加练\*\*)",
+        plan,
+        content,
+        count=1,
+        flags=re.DOTALL,
+    )
+    # 兼容旧「考前 5 天背诵计划」硬编码（9/7–9/11）
+    content = re.sub(
+        r"## 考前 5 天背诵计划\n\n.*?(?=\n\n\*\*考前加练\*\*)",
+        plan,
+        content,
+        count=1,
+        flags=re.DOTALL,
+    )
 
     content = re.sub(
         r"\*\*P0 完整合订\*\*：.*",
@@ -681,7 +792,15 @@ def refresh_readme(*, dry_run: bool = False, hf_cards_count: int | None = None) 
         from export_hf_cards import format_daily_hf_table, pick_daily_hf_cards
         from error_insights import rank_high_frequency_errors
 
-    if catalog_first:
+    # 今日摘要卡领域：优先补考周历，再回落薄弱
+    try:
+        from pmp_athena.retake_calendar import day_plan as _retake_day
+    except ModuleNotFoundError:
+        from retake_calendar import day_plan as _retake_day  # type: ignore
+    retake = _retake_day(today)
+    if retake and retake.areas:
+        focus = list(retake.areas)
+    elif catalog_first:
         focus = [r[2] for r in rows_vol[:2]]
     else:
         focus = today_focus_areas(ranked_for_focus, d_day)

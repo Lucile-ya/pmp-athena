@@ -25,14 +25,16 @@ from pmp_athena.cheatsheet_sync import (  # noqa: E402
 
 def test_build_trap_row() -> None:
     err = {
-        "question": "1. CPI 小于 1 表示什么？",
+        "question": "风险已经发生，项目经理应更新问题日志还是风险登记册？",
         "my_answer": "A",
         "correct_answer": "C",
-        "explanation": "CPI=EV/AC，小于1表示成本超支",
+        "explanation": "已发生的是问题，记问题日志，不要上报修订报告",
+        "knowledge_area": "风险管理",
     }
-    w, r = build_trap_row(err)
-    assert "选A" in w
-    assert "超支" in r or "C" in r
+    remember, pitfall = build_trap_row(err)
+    assert "（选" not in remember
+    assert len(remember) <= 40
+    assert "别选" in pitfall or "A" in pitfall
 
 
 def test_insert_auto_trap_rows() -> None:
@@ -42,14 +44,23 @@ def test_insert_auto_trap_rows() -> None:
 |------|------|
 | 旧陷阱 | 旧纠正 |
 
+### 来自错题本（自动 · 更新于 2026-01-01
+
+| ❌ 错 | ✅ 对 |
+|------|------|
+| 某题干很长（选B） | 应选 D — 本题考查一堆 OCR 噪音 |
+
 ---
 
 ## 八、做题决策链
 """
-    w, r = "新陷阱（选B）", "应选 D — 先沟通"
+    w, r = "先评估影响再变更", "别选立刻改计划"
     out = _insert_auto_trap_rows(content, [(w, r)], "2026-08-27")
-    assert "来自错题本（自动" in out
-    assert "新陷阱" in out
+    assert "来自你的错题（自动" in out
+    assert "背这句" in out
+    assert "先评估影响再变更" in out
+    assert "本题考查" not in out
+    assert "某题干很长" not in out
     assert _row_key(w, r) in _existing_trap_keys(out)
 
 
@@ -61,9 +72,7 @@ def test_extract_mnemonic_bold_label() -> None:
 
 
 def test_build_recitation_plan_sprint() -> None:
-    from datetime import date
-
-    from pmp_athena.cheatsheet_sync import build_recitation_plan
+    from pmp_athena.cheatsheet_sync import EXAM_DAY, build_recitation_plan
 
     ranked = [
         ("🔴 P0", "02", "成本管理"),
@@ -71,13 +80,15 @@ def test_build_recitation_plan_sprint() -> None:
         ("🟡 P1", "09", "范围管理"),
         ("🟢 P2", "01", "商业环境"),
     ]
-    plan = build_recitation_plan(ranked, d_day=9, today=date(2026, 9, 3))
+    d9 = EXAM_DAY - timedelta(days=9)
+    plan = build_recitation_plan(ranked, d_day=9, today=d9)
     assert plan.startswith("## 考前 9 天背诵计划")
     assert "02 成本管理" in plan
     assert "商业环境" not in plan.split("**考前加练**")[0]
     assert "`专项 成本管理`" in plan
 
-    sep4 = build_recitation_plan(ranked, d_day=8, today=date(2026, 9, 4))
+    d8 = EXAM_DAY - timedelta(days=8)
+    sep4 = build_recitation_plan(ranked, d_day=8, today=d8)
     first_row = [ln for ln in sep4.splitlines() if ln.startswith("| D1 |")][0]
     assert "进度管理" in first_row
     assert "成本管理" not in first_row

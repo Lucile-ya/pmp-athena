@@ -217,23 +217,38 @@ def _format_understand_for_wechat(block: str, max_chars: int = 2400) -> str:
     return text
 
 
-def _manual_trap_rows(traps: str, limit: int = 8) -> list[tuple[str, str]]:
-    """只取手写易错表，丢掉「来自错题本（自动）」的截断流水。"""
-    cut = re.split(r"来自错题本", traps, maxsplit=1)[0]
+def _parse_trap_table_rows(block: str, *, limit: int = 8) -> list[tuple[str, str]]:
     rows: list[tuple[str, str]] = []
-    for line in cut.splitlines():
-        if "|" not in line or "❌" in line or "---" in line:
+    for line in block.splitlines():
+        if "|" not in line or "---" in line:
             continue
         parts = [p.strip() for p in line.split("|") if p.strip()]
-        if len(parts) < 2 or parts[0] in ("❌ 错", "错"):
+        if len(parts) < 2:
             continue
-        wrong, right = parts[0], parts[1]
-        if "（选" in wrong or "本题考查" in right:
+        left, right = parts[0], parts[1]
+        if left in ("❌ 错", "错", "问", "背这句", "别踩"):
             continue
-        rows.append((wrong, right))
+        # 丢掉旧版题干流水账
+        if "（选" in left or "本题考查" in right or "选项A" in left:
+            continue
+        rows.append((left, right))
         if len(rows) >= limit:
             break
     return rows
+
+
+def _manual_trap_rows(traps: str, limit: int = 6) -> list[tuple[str, str]]:
+    """手写易错表（不含自动区）。"""
+    cut = re.split(r"来自(?:你的错题|错题本)", traps, maxsplit=1)[0]
+    return _parse_trap_table_rows(cut, limit=limit)
+
+
+def _auto_memory_rows(traps: str, limit: int = 6) -> list[tuple[str, str]]:
+    """自动可背区：背这句 / 别踩。"""
+    parts = re.split(r"来自(?:你的错题|错题本)", traps, maxsplit=1)
+    if len(parts) < 2:
+        return []
+    return _parse_trap_table_rows(parts[1], limit=limit)
 
 
 def format_wechat_push(area: str, *, full: bool = False) -> str:
@@ -298,10 +313,18 @@ def format_wechat_push(area: str, *, full: bool = False) -> str:
                 lines.append(line.strip())
         lines.append("")
 
+    auto_rows = _auto_memory_rows(traps) if traps else []
+    if auto_rows:
+        lines.append("🔥 **你的错题口诀（背左列）**")
+        for remember, pitfall in auto_rows:
+            lines.append(f"  · {remember}")
+            lines.append(f"    ↳ {pitfall}")
+        lines.append("")
+
     manual_traps = _manual_trap_rows(traps) if traps else []
     if manual_traps:
         lines.append("⚠️ **易错对照**")
-        for wrong, right in manual_traps:
+        for wrong, right in manual_traps[:4]:
             lines.append(f"  · {wrong} → {right}")
         lines.append("")
 
