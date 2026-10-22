@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from datetime import date
+from datetime import date, timedelta
 
 from pmp_athena.cheatsheet_sync import (  # noqa: E402
     auto_sync_on_new_error,
@@ -84,18 +84,20 @@ def test_build_recitation_plan_sprint() -> None:
 
 
 def test_recitation_plan_stops_before_exam() -> None:
-    from pmp_athena.cheatsheet_sync import build_recitation_plan
+    from pmp_athena.cheatsheet_sync import EXAM_DAY, build_recitation_plan
 
     ranked = [
         ("🔴 P0", "02", "成本管理"),
         ("🟡 P1", "09", "范围管理"),
         ("🟢 P2", "01", "商业环境"),
     ]
-    plan = build_recitation_plan(ranked, d_day=3, today=date(2026, 9, 9))
-    assert "9/9" in plan
-    assert "9/11" in plan
-    assert "9/12" not in plan
-    ended = build_recitation_plan(ranked, d_day=0, today=date(2026, 9, 12))
+    last = EXAM_DAY - timedelta(days=1)
+    d3 = EXAM_DAY - timedelta(days=3)
+    plan = build_recitation_plan(ranked, d_day=3, today=d3)
+    assert f"{d3.month}/{d3.day}" in plan
+    assert f"{last.month}/{last.day}" in plan
+    assert f"{EXAM_DAY.month}/{EXAM_DAY.day}" not in plan
+    ended = build_recitation_plan(ranked, d_day=0, today=EXAM_DAY)
     assert "学习计划已结束" in ended
 
 

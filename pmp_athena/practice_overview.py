@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from pmp_athena.config import NOTES_DIR
+    from pmp_athena.config import NOTES_DIR, get_target_exam_date
     from pmp_athena.practice_summary import (
         EXAM_YEAR,
         PASS_CORRECT,
@@ -35,7 +35,7 @@ try:
     )
     from pmp_athena.question_bank import QuestionBank
 except ModuleNotFoundError:
-    from config import NOTES_DIR
+    from config import NOTES_DIR, get_target_exam_date  # type: ignore
     from practice_summary import (
         EXAM_YEAR,
         PASS_CORRECT,
@@ -55,7 +55,7 @@ REVIEW_STATE_PATH = NOTES_DIR / "error_review_state.json"
 CONFIG_PATH = NOTES_DIR / "config.json"
 SPRINT_PLANS_PATH = NOTES_DIR / "sprint_plans.json"
 
-EXAM_DATE = date(2026, 9, 12)
+EXAM_DATE = get_target_exam_date()
 PREP_START = date(2026, 7, 1)  # 备考起始月
 TARGET_RATE = 70.0
 PASS_RATE = 59.0

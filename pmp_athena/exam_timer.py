@@ -11,7 +11,7 @@
 
 用法:
     python pmp_athena/exam_timer.py countdown        # 查看倒计时
-    python pmp_athena/exam_timer.py set 2026-09-12   # 设置考试日期
+    python pmp_athena/exam_timer.py set 2026-12-05   # 设置考试日期
     python pmp_athena/exam_timer.py stage             # 当前备考阶段
     python pmp_athena/exam_timer.py milestones        # 关键节点
     python pmp_athena/exam_timer.py recommend-sprint   # 推荐冲刺天数
@@ -136,7 +136,7 @@ class ExamTimer:
 
         Returns:
             {
-                "exam_date": "2026-09-12",
+                "exam_date": "2026-12-05",
                 "days_remaining": int,
                 "weeks_remaining": float,
                 "phase": str,
@@ -155,7 +155,7 @@ class ExamTimer:
                 "days_remaining": None,
                 "weeks_remaining": None,
                 "phase": None,
-                "phase_description": "请先设置考试日期：考试日期 2026-09-12",
+                "phase_description": "请先设置考试日期：考试日期 2026-12-05",
                 "milestone_hit": [],
                 "today": today.isoformat(),
                 "status": "not_set",
@@ -352,6 +352,19 @@ class ExamTimer:
         return "\n".join(lines)
 
 
+def days_until_exam(today: date | None = None) -> int:
+    """距考试天数（考试当天为 0，已过为负数）。"""
+    today = today or date.today()
+    exam = ExamTimer().get_date()
+    if exam is None:
+        try:
+            from pmp_athena.config import get_target_exam_date
+            exam = get_target_exam_date()
+        except Exception:
+            exam = date(2026, 12, 5)
+    return (exam - today).days
+
+
 # ═══════════════════════════════════════════════════════════
 # Markdown 输出
 # ═══════════════════════════════════════════════════════════
@@ -363,7 +376,7 @@ def format_countdown(cd: dict) -> str:
     if cd["status"] == "not_set":
         lines.append("📅 尚未设置考试日期。")
         lines.append("")
-        lines.append("在微信里发送 `考试日期 2026-09-12` 来设置。")
+        lines.append("在微信里发送 `考试日期 2026-12-05` 来设置。")
         return "\n".join(lines)
 
     if cd["status"] == "past":

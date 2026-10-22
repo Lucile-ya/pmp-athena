@@ -387,7 +387,17 @@ def _sprint_short_area(area: str) -> str:
 
 
 SPRINT_WINDOW = 9  # 考前最后 9 个学习日（不含考试当天）
-EXAM_DAY = date(2026, 9, 12)
+
+
+def _exam_day() -> date:
+    try:
+        from pmp_athena.config import get_target_exam_date
+        return get_target_exam_date()
+    except Exception:
+        return date(2026, 12, 5)
+
+
+EXAM_DAY = _exam_day()
 
 
 def sprint_day_index(d_day: int, window: int = SPRINT_WINDOW) -> int:
@@ -428,9 +438,10 @@ def build_recitation_plan(
 
     last_study = EXAM_DAY - timedelta(days=1)
     if today > last_study:
+        last_s = f"{last_study.month}/{last_study.day}"
         return (
             "## 学习计划已结束\n\n"
-            "背诵计划只排到考试前一天（9/11）。考试日及之后不再排任务。"
+            f"背诵计划只排到考试前一天（{last_s}）。考试日及之后不再排任务。"
         )
 
     heading = "## 推荐 7 天背诵计划" if d_day > 11 else f"## 考前 {max(d_day, 1)} 天背诵计划"
@@ -468,11 +479,7 @@ def today_focus_areas(
 
 def _d_day(today: date | None = None) -> int:
     today = today or date.today()
-    try:
-        from pmp_athena.exam_timer import days_until_exam
-        return days_until_exam()
-    except Exception:
-        return (date(2026, 9, 12) - today).days
+    return (_exam_day() - today).days
 
 
 def _ranked_area_triples() -> list[tuple[str, str, str]]:
@@ -563,11 +570,7 @@ def refresh_readme(*, dry_run: bool = False, hf_cards_count: int | None = None) 
     err_counts = _error_counts_by_area(_load_errors())
     today = date.today()
 
-    try:
-        from pmp_athena.exam_timer import days_until_exam
-        d_day = days_until_exam()
-    except Exception:
-        d_day = (date(2026, 9, 12) - today).days
+    d_day = _d_day(today)
 
     phase = "🔥 冲刺模考期" if d_day <= 11 else ("⚡ 强化刷题期" if d_day <= 30 else "📖 基础巩固期")
 

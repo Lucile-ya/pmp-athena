@@ -2,7 +2,9 @@
 全局配置
 """
 
+import json
 import os
+from datetime import date as date_type
 from pathlib import Path
 
 # ── 项目根目录 ──────────────────────────────────────────────
@@ -143,7 +145,18 @@ EMOTION_TRIGGERS = {
 }
 
 # ── 考试日期 ──────────────────────────────────────────────
-TARGET_EXAM_DATE = "2026-09-12"
+TARGET_EXAM_DATE = "2026-12-05"  # 补考日；运行时优先读 exam_config.json
+
+
+def get_target_exam_date() -> date_type:
+    """考试日：exam_config.json > TARGET_EXAM_DATE。"""
+    try:
+        raw = json.loads(EXAM_CONFIG_PATH.read_text(encoding="utf-8")).get("exam_date")
+        if raw:
+            return date_type.fromisoformat(str(raw)[:10])
+    except Exception:
+        pass
+    return date_type.fromisoformat(TARGET_EXAM_DATE)
 
 # ── 每日推送配置 ────────────────────────────────────────────
 DAILY_PLAN_NOTES_COUNT = 5  # 每天推荐的笔记数量

@@ -22,11 +22,23 @@ if str(ROOT) not in sys.path:
 TZ_CST = timezone(timedelta(hours=8))
 
 try:
-    from pmp_athena.config import ERROR_LOG_PATH, EXAM_RECORDS_PATH, QUESTION_BANK_PATH, REVIEW_STATE_PATH
+    from pmp_athena.config import (
+        ERROR_LOG_PATH,
+        EXAM_RECORDS_PATH,
+        QUESTION_BANK_PATH,
+        REVIEW_STATE_PATH,
+        get_target_exam_date,
+    )
 except (ImportError, ModuleNotFoundError):
-    from config import ERROR_LOG_PATH, EXAM_RECORDS_PATH, QUESTION_BANK_PATH, REVIEW_STATE_PATH
+    from config import (  # type: ignore
+        ERROR_LOG_PATH,
+        EXAM_RECORDS_PATH,
+        QUESTION_BANK_PATH,
+        REVIEW_STATE_PATH,
+        get_target_exam_date,
+    )
 
-EXAM_DATE = date(2026, 9, 12)
+EXAM_DATE = get_target_exam_date()
 PASS_LINE = 0.59          # PMP 通过线
 TARGET_LINE = 0.70         # 训练目标
 MIN_TOTAL_QUESTIONS = 1000  # 建议最低刷题量

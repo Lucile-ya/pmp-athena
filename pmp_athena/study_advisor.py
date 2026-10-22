@@ -38,38 +38,38 @@ ERROR_TYPE_LABELS = {
 
 _OPTION_RE = re.compile(r"(?:^|\s)[A-D][\.、．\)]")
 
-# ── 阶段日历（与 CLAUDE.md 同步）──────────────────────────
-PHASE_CALENDAR = [
-    # (开始, 结束, 名称, 图标)
-    (date(2026, 8, 16), date(2026, 9, 1),  "强化刷题期", "⚡"),
-    (date(2026, 9, 2),  date(2026, 9, 11), "冲刺模考期", "🔥"),
-]
 PHASE_FALLBACK = ("基础巩固期", "📖")
 
 
 def get_current_phase(today: date | None = None) -> dict:
-    """返回当前阶段的名称/图标/剩余天数"""
+    """按距考试天数划分阶段：D>30 基础 / D≤30 强化 / D≤11 冲刺。"""
     if today is None:
         today = date.today()
-    for start, end, name, icon in PHASE_CALENDAR:
-        if start <= today <= end:
-            remaining = (end - today).days
-            return {
-                "name": name,
-                "icon": icon,
-                "remaining_days": remaining,
-                "end_date": end.isoformat(),
-                "is_active": True,
-            }
-    # 默认：基础巩固期（考试前最后阶段之前的时间）
-    first_phase_start = PHASE_CALENDAR[0][0]
-    remaining = (first_phase_start - today).days
-    remaining = max(0, remaining)
+    exam = get_exam_date()
+    if exam is None:
+        try:
+            from pmp_athena.config import get_target_exam_date
+            exam = get_target_exam_date()
+        except Exception:
+            exam = date(2026, 12, 5)
+    days = (exam - today).days
+    if days <= 11:
+        name, icon = "冲刺模考期", "🔥"
+        end = exam
+        remaining = max(days, 0)
+    elif days <= 30:
+        name, icon = "强化刷题期", "⚡"
+        end = exam - timedelta(days=11)
+        remaining = max(days - 11, 0)
+    else:
+        name, icon = PHASE_FALLBACK
+        end = exam - timedelta(days=30)
+        remaining = max(days - 30, 0)
     return {
-        "name": PHASE_FALLBACK[0],
-        "icon": PHASE_FALLBACK[1],
+        "name": name,
+        "icon": icon,
         "remaining_days": remaining,
-        "end_date": first_phase_start.isoformat(),
+        "end_date": end.isoformat(),
         "is_active": True,
     }
 

@@ -72,15 +72,20 @@ STEP3_MINUTES = 10
 
 def _exam_date() -> date:
     try:
-        return date.fromisoformat(str(TARGET_EXAM_DATE)[:10])
+        from pmp_athena.config import get_target_exam_date
+        return get_target_exam_date()
     except Exception:
-        return date(2026, 9, 12)
+        try:
+            return date.fromisoformat(str(TARGET_EXAM_DATE)[:10])
+        except Exception:
+            return date(2026, 12, 5)
 
 
 def _phase_line(today: date, days: int) -> str:
-    if today >= date(2026, 9, 2):
+    _ = today
+    if days <= 11:
         return f"🔥 冲刺模考期 · 距考试 {max(days, 0)} 天"
-    if today >= date(2026, 8, 16):
+    if days <= 30:
         return f"⚡ 强化刷题期 · 距考试 {max(days, 0)} 天"
     return f"📖 基础巩固期 · 距考试 {max(days, 0)} 天"
 
@@ -162,6 +167,7 @@ def _fresh_plan(history: list) -> dict:
     }
     return {
         "date": date.today().isoformat(),
+        "exam_date": _exam_date().isoformat(),
         "kind": slot.get("kind") or "area",
         "area": slot.get("area"),
         "focus": slot.get("focus") or [],
@@ -175,8 +181,13 @@ def _fresh_plan(history: list) -> dict:
 
 def _state() -> dict:
     today = date.today().isoformat()
+    exam_s = _exam_date().isoformat()
     data = _load_json(TODAY_QUEST_PATH, {})
-    if isinstance(data, dict) and data.get("date") == today:
+    if (
+        isinstance(data, dict)
+        and data.get("date") == today
+        and data.get("exam_date") == exam_s
+    ):
         if "kind" not in data:
             slot = _live_slot()
             d = _d_day()

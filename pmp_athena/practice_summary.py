@@ -21,8 +21,10 @@ from pathlib import Path
 from typing import Any
 
 try:
+    from pmp_athena.config import get_target_exam_date
     from pmp_athena.question_bank import QuestionBank, DEFAULT_BANK_PATH
 except ModuleNotFoundError:
+    from config import get_target_exam_date  # type: ignore
     from question_bank import QuestionBank, DEFAULT_BANK_PATH
 
 EXAM_YEAR = 2026
@@ -539,14 +541,15 @@ def prep_summary(*, year: int | None = None) -> dict[str, Any]:
     strong = [a for a, s in area_rows if s["total"] >= 5 and _accuracy(s["correct"], s["total"]) >= 70]
 
     today = date.today()
-    days_left = (date(EXAM_YEAR, 9, 12) - today).days
+    exam = get_target_exam_date()
+    days_left = (exam - today).days
 
     lines = [
         "══════════════════════════════",
         f"📊 PMP 备考刷题总览（{y}）",
         "══════════════════════════════",
         "",
-        f"📅 考试倒计时：{days_left} 天（2026-09-12）",
+        f"📅 考试倒计时：{days_left} 天（{exam.isoformat()}）",
     ]
     if first_date:
         lines.append(f"📆 备考起始：{first_date} · 累计活跃 {active_days} 天")

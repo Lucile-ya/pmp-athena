@@ -62,6 +62,13 @@ class DailyQuestTests(unittest.TestCase):
         self.assertEqual(_sprint_area("敏捷/混合方法"), "敏捷")
         self.assertEqual(_sprint_area("成本管理"), "成本管理")
 
+    def test_phase_line_follows_days_left(self) -> None:
+        today = dq.date.today()
+        self.assertIn("基础巩固期", dq._phase_line(today, 44))
+        self.assertIn("强化刷题期", dq._phase_line(today, 30))
+        self.assertIn("冲刺模考期", dq._phase_line(today, 11))
+        self.assertIn("距考试 0 天", dq._phase_line(today, 0))
+
     def test_handle_message_skip(self) -> None:
         self.assertEqual(handle_message("复习错题")["status"], "skip")
 

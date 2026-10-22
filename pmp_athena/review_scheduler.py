@@ -14,9 +14,21 @@
 
 from __future__ import annotations
 try:
-    from pmp_athena.config import ERROR_LOG_PATH, QUESTION_BANK_PATH, REVIEW_CONFIG_PATH, REVIEW_STATE_PATH
+    from pmp_athena.config import (
+        ERROR_LOG_PATH,
+        QUESTION_BANK_PATH,
+        REVIEW_CONFIG_PATH,
+        REVIEW_STATE_PATH,
+        get_target_exam_date,
+    )
 except ModuleNotFoundError:
-    from config import ERROR_LOG_PATH, QUESTION_BANK_PATH, REVIEW_CONFIG_PATH, REVIEW_STATE_PATH
+    from config import (  # type: ignore
+        ERROR_LOG_PATH,
+        QUESTION_BANK_PATH,
+        REVIEW_CONFIG_PATH,
+        REVIEW_STATE_PATH,
+        get_target_exam_date,
+    )
 
 
 import json
@@ -29,7 +41,10 @@ from typing import Any
 
 CONFIG_PATH = REVIEW_CONFIG_PATH
 
-EXAM_DATE = date(2026, 9, 12)
+try:
+    EXAM_DATE = get_target_exam_date()
+except Exception:
+    EXAM_DATE = date(2026, 12, 5)
 DEFAULT_DAILY_LIMIT = 25
 TIER2_DAILY_LIMIT = 10
 PRE_EXAM_DAYS = 7

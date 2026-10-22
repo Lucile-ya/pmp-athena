@@ -22,12 +22,12 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from pmp_athena.config import NOTES_DIR, PROJECT_ROOT
+    from pmp_athena.config import NOTES_DIR, PROJECT_ROOT, get_target_exam_date
     from pmp_athena.prep_analytics import find_knowledge_resources
     from pmp_athena.practice_summary import _accuracy, _area_stats, _bar, _load_exam_records
     from pmp_athena.question_bank import QuestionBank
 except ModuleNotFoundError:
-    from config import NOTES_DIR, PROJECT_ROOT
+    from config import NOTES_DIR, PROJECT_ROOT, get_target_exam_date  # type: ignore
     from prep_analytics import find_knowledge_resources
     from practice_summary import _accuracy, _area_stats, _bar, _load_exam_records
     from question_bank import QuestionBank
@@ -36,7 +36,7 @@ ERROR_LOG_PATH = NOTES_DIR / "error_log.json"
 REVIEW_STATE_PATH = NOTES_DIR / "error_review_state.json"
 CONFIG_PATH = NOTES_DIR / "config.json"
 
-EXAM_DATE = date(2026, 9, 12)
+EXAM_DATE = get_target_exam_date()
 PASS_RATE = 59.0
 TARGET_RATE = 70.0
 MOCK_EVAL_RATE = 65.0

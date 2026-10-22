@@ -26,7 +26,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 PYTHON = sys.executable  # 当前运行的 python，跨平台通用
-EXAM_DATE = datetime(2026, 9, 12)
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from pmp_athena.config import get_target_exam_date  # noqa: E402
+
+_exam = get_target_exam_date()
+EXAM_DATE = datetime(_exam.year, _exam.month, _exam.day)
 
 # ── 工具函数 ───────────────────────────────────────────
 
@@ -68,7 +73,7 @@ def countdown() -> str:
     minutes = (delta.seconds % 3600) // 60
     if days < 0:
         return "🎉 考试日到了！祝大王旗开得胜！"
-    return f"📅 距离 2026-09-12 PMP 考试还有 {days} 天 {hours} 小时 {minutes} 分钟"
+    return f"📅 距离 {EXAM_DATE.date().isoformat()} PMP 考试还有 {days} 天 {hours} 小时 {minutes} 分钟"
 
 
 def print_banner() -> None:
