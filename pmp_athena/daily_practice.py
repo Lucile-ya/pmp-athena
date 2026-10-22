@@ -935,6 +935,8 @@ def start_area_session(area: str, limit: int | None = None) -> dict[str, Any]:
         }
     for i, q in enumerate(questions, start=1):
         q["index"] = i
+        # 种子题原本 source=area_seed，统一记成 area_practice，今日任务才能算进度
+        q["source"] = "area_practice"
 
     state = {
         "mode": "area",
@@ -945,6 +947,7 @@ def start_area_session(area: str, limit: int | None = None) -> dict[str, Any]:
         "correct_count": 0,
         "wrong_count": 0,
         "wrong_items": [],
+        "from_today_quest": False,
     }
     _save_state(state)
 
@@ -1617,6 +1620,33 @@ def _session_title(state: dict[str, Any]) -> str:
     return "每日一练"
 
 
+def _mark_area_quest_progress(*, correct: int, total: int, passed: bool) -> None:
+    """专项会话结束后写入今日任务进度，避免种子题 source 漏记导致卡在②。"""
+    try:
+        try:
+            from pmp_athena.config import TODAY_QUEST_PATH
+        except ModuleNotFoundError:
+            from config import TODAY_QUEST_PATH
+        if not TODAY_QUEST_PATH.is_file():
+            return
+        data = json.loads(TODAY_QUEST_PATH.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return
+        if data.get("date") != date.today().isoformat():
+            return
+        data["area_session_correct"] = int(correct)
+        data["area_session_total"] = int(total)
+        data["area_session_passed"] = bool(passed)
+        if passed:
+            data["area_session_done"] = True
+        TODAY_QUEST_PATH.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+
+
 def _finish_session(state: dict[str, Any], prefix_lines: list[str]) -> dict[str, Any]:
     total = len(state["questions"])
     correct = state["correct_count"]
@@ -1633,6 +1663,15 @@ def _finish_session(state: dict[str, Any], prefix_lines: list[str]) -> dict[str,
         lines.append(time_line)
     lines.append("")
     lines.append(f"📋 {_session_title(state)}完成：正确 {correct}/{total}（{rate}%）")
+    if state.get("mode") == "area":
+        pass_n = max(1, round(total * 0.7))
+        _mark_area_quest_progress(correct=correct, total=total, passed=correct >= pass_n)
+        if correct >= pass_n:
+            lines.append(f"✅ 过关（≥{pass_n} 题对）。回复「下一步」进入③摘要卡")
+        else:
+            lines.append(
+                f"⚠️ 未过关（需至少对 {pass_n} 题）。回复「下一步」补练差额，或发「专项 {state.get('label', '')}」重刷"
+            )
 
     wrong_items = state.get("wrong_items", [])
     if wrong_items:
@@ -1671,6 +1710,8 @@ def _finish_session(state: dict[str, Any], prefix_lines: list[str]) -> dict[str,
         "total": total,
         "rate": rate,
         "done": True,
+        "mode": state.get("mode"),
+        "label": state.get("label"),
         "elapsed_seconds": _elapsed_seconds(state),
         "wrong_items": wrong_items,
         "text": "\n".join(lines),

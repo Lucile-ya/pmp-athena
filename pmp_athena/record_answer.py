@@ -37,12 +37,14 @@ SourceType = Literal[
 VALID_SOURCES = {
     "daily_practice", "mock_exam", "manual", "screenshot", "review",
     "area_practice",
+    "area_seed",  # 专项种子题，归一到 area_practice
     "daily", "mock",  # 别名
 }
 
 SOURCE_ALIASES = {
     "daily": "daily_practice",
     "mock": "mock_exam",
+    "area_seed": "area_practice",
 }
 
 

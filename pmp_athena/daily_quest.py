@@ -326,7 +326,17 @@ def _area_done_count(areas: str | list[str]) -> int:
             continue
         if r.get("date") != today:
             continue
-        if r.get("source") != "area_practice":
+        src = str(r.get("source") or "")
+        # area_seed 会归一成 area_practice；旧数据可能仍是 area_seed / 误记成 manual
+        if src in ("area_practice", "area_seed"):
+            pass
+        elif (
+            src == "manual"
+            and str(r.get("parsed_by") or "") == "daily_practice.py"
+        ):
+            # 今日任务专项里种子题曾被记成 manual，仍计入进度
+            pass
+        else:
             continue
         got = normalize_area(r.get("knowledge_area") or "") or r.get("knowledge_area")
         if got in wants:
@@ -364,7 +374,11 @@ def _status() -> dict[str, Any]:
     focus = _focus_areas(st)
     area_n = 0 if skip_area else _area_done_count(focus if focus else (area or ""))
     step2_target = int(st.get("question_n") or AREA_PRACTICE_LIMIT)
-    step2_done = True if skip_area else area_n >= step2_target
+    session_done = bool(st.get("area_session_done")) and bool(st.get("area_session_passed"))
+    session_total = int(st.get("area_session_total") or 0)
+    if session_done and session_total > area_n:
+        area_n = session_total
+    step2_done = True if skip_area else (area_n >= step2_target or session_done)
     step3_done = bool(st.get("cards_shown"))
     all_done = step1_done and step2_done and step3_done
     if all_done and not st.get("done"):
