@@ -1,5 +1,5 @@
 {
-  "_note": "模考清单 — 手动维护。status 初始值为 pending，完成后由 mock_exam_kanban.py 自动联动更新。",
+  "_note": "模考清单 — 手动维护。status 初始值为 pending，完成后由 mock_exam_kanban.py 自动联动更新。现有卷已全部开放给专项/今日任务练习；全真模考留给以后新放进库的卷。",
   "mock_exams": [
     {
       "id": "M001",

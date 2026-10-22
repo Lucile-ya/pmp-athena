@@ -802,7 +802,7 @@ except ModuleNotFoundError:
 
 
 def _collect_area_questions(area: str) -> list[dict[str, Any]]:
-    """从题库+种子加载指定领域题目（含选项 + 正确答案），按题干去重，不切片。"""
+    """从题库+种子+开放模考卷加载指定领域题目（含选项 + 正确答案），按题干去重，不切片。"""
     resolved = _resolve_area(area)
     try:
         from pmp_athena.question_bank import QuestionBank
@@ -828,6 +828,22 @@ def _collect_area_questions(area: str) -> list[dict[str, Any]]:
             continue
         seen.add(key)
         questions.append(q)
+
+    # 现有模考卷全部开放进专项池（新卷以后另锁）
+    try:
+        from pmp_athena.mock_exam_engine import load_all_open_mock_questions
+    except ModuleNotFoundError:
+        try:
+            from mock_exam_engine import load_all_open_mock_questions  # type: ignore
+        except ImportError:
+            load_all_open_mock_questions = None  # type: ignore
+    if load_all_open_mock_questions:
+        for q in load_all_open_mock_questions(area=resolved):
+            key = (q.get("stem") or "")[:50]
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            questions.append(q)
     return questions
 
 

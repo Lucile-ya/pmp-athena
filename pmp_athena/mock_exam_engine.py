@@ -21,6 +21,7 @@ import re
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -42,7 +43,20 @@ logger = logging.getLogger("mock_exam_engine")
 TZ_CST = timezone(timedelta(hours=8))
 ENGINE_STATE_PATH = ROOT / "pmp_notes" / "mock_exam_engine.json"
 DAILY_DIR = ROOT / "pmp_notes" / "每日一练"
-MOCK_DIR = ROOT / "pmp_notes" / "模考"
+
+
+def _resolve_mock_dir() -> Path:
+    """现网卷在归档目录；空的 pmp_notes/模考 仅作落点，有文件才优先。"""
+    primary = ROOT / "pmp_notes" / "模考"
+    archive = ROOT / "pmp_notes" / "_归档_2609" / "模考"
+    if primary.is_dir() and any(primary.glob("*.pdf")):
+        return primary
+    if archive.is_dir() and any(archive.glob("*.pdf")):
+        return archive
+    return primary
+
+
+MOCK_DIR = _resolve_mock_dir()
 CACHE_DIR = MOCK_DIR  # OCR 缓存跟模考 PDF 放一起
 
 # Tesseract 路径自动检测
@@ -59,13 +73,18 @@ for _tp in [
 
 PAPER_MAP = {
     "one": "考前冲刺卷1", "two": "考前冲刺卷2",
-    "three": "考前冲刺卷3", "four": "模考卷二",
+    "three": "考前冲刺卷3", "four": "2606期模考二",
     "five": "模拟一", "six": "模拟二",
     "seven": "2609期模考一",
     "eight": "2609英文模考",
     "nine": "2609期模考二",
     "random": "随机模考",
 }
+
+# 现有库内卷全部开放给专项/今日任务练习；全真模考留给以后新放的卷
+PRACTICE_OPEN_PAPERS: frozenset[str] = frozenset(
+    k for k in PAPER_MAP if k != "random"
+)
 
 PAPER_FILES: dict[str, tuple[str, str]] = {
     "one": ("考前冲刺卷1-试题.pdf", "考前冲刺卷1-答案解析.pdf"),
@@ -79,8 +98,12 @@ PAPER_TEXT: dict[str, str] = {
     "six": "模拟二.pdf",
 }
 
-# 骐迹 2609 模考（题目 PDF + 答案解析 PDF，复用 daily_practice 解析器）
+# 骐迹双 PDF（题目 + 答案解析，复用 daily_practice 解析器）
 PAPER_QIJI: dict[str, tuple[str, str]] = {
+    "four": (
+        "2606期PMP模考二（5月31日）.pdf",
+        "2606期PMP模考二（5月31日）答案和解析.pdf",
+    ),
     "seven": (
         "2609期PMP模考一（8月22日）-骐迹教育.pdf",
         "2609期PMP模考一（8月22日）答案和解析-骐迹教育.pdf",
@@ -460,6 +483,133 @@ def load_hisai_mock_exam(paper_key: str) -> list[dict]:
     cache_path.write_text(json.dumps(questions, ensure_ascii=False, indent=2), encoding="utf-8")
     logger.info("Cached %d questions to %s", len(questions), cache_path.name)
     return questions
+
+
+def _read_cache_list(cache_path: Path, *, min_n: int = 1) -> list[dict]:
+    if not cache_path.exists():
+        return []
+    try:
+        data = json.loads(cache_path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    if isinstance(data, list) and len(data) >= min_n:
+        return data
+    return []
+
+
+def load_paper_questions(paper_key: str, *, allow_ocr: bool = True) -> list[dict]:
+    """按卷 key 加载题目（文字/骐迹/希赛/扫描）。
+
+    allow_ocr=False 时只读已有缓存，供专项池使用，避免微信侧触发 OCR 卡死。
+    """
+    if not allow_ocr:
+        if paper_key in PAPER_TEXT:
+            return _read_cache_list(_cache_path_for_pdf(PAPER_TEXT[paper_key]))
+        if paper_key in PAPER_QIJI:
+            q_pdf, _ = PAPER_QIJI[paper_key]
+            return _read_cache_list(_cache_path_for_pdf(f"{q_pdf}_qiji"))
+        if paper_key in PAPER_HISAI:
+            q_pdf, _ = PAPER_HISAI[paper_key]
+            return _read_cache_list(_cache_path_for_pdf(f"{q_pdf}_hisai"))
+        if paper_key in PAPER_FILES:
+            q_pdf, _ = PAPER_FILES[paper_key]
+            return _read_cache_list(_cache_path_for_pdf(f"{q_pdf}_scanned"))
+        return []
+
+    if paper_key in PAPER_TEXT:
+        return load_text_mock_exam(paper_key)
+    if paper_key in PAPER_QIJI:
+        return load_qiji_mock_exam(paper_key)
+    if paper_key in PAPER_HISAI:
+        return load_hisai_mock_exam(paper_key)
+    if paper_key in PAPER_FILES:
+        return load_scanned_mock_exam(paper_key)
+    return []
+
+
+def _mock_options_to_dict(options: Any) -> dict[str, str] | None:
+    """模考 options（list「A. …」或 dict）→ 专项用 A/B/C/D dict。"""
+    out: dict[str, str] = {}
+    if isinstance(options, dict):
+        for k, v in options.items():
+            letter = str(k).strip().upper()[:1]
+            if letter in "ABCDE" and str(v).strip():
+                out[letter] = str(v).strip()
+    elif isinstance(options, list):
+        for raw in options:
+            s = str(raw or "").strip()
+            m = re.match(r"^([A-E])\s*[\.、．\)]\s*(.+)$", s, re.S)
+            if not m:
+                continue
+            out[m.group(1).upper()] = m.group(2).strip()
+    if sorted(out.keys()) != ["A", "B", "C", "D"]:
+        return None
+    return out
+
+
+def mock_to_area_question(q: dict, *, paper: str = "") -> dict | None:
+    """模考引擎题 → 专项练习题；缺选项/答案/多选的丢掉。"""
+    if q.get("_is_multi"):
+        return None
+    correct = str(q.get("correct_answer") or "").strip().upper()
+    if not correct or correct not in "ABCD":
+        return None
+    stem = str(q.get("question") or q.get("stem") or "").strip()
+    if len(stem) < 12:
+        return None
+    opts = _mock_options_to_dict(q.get("options"))
+    if not opts:
+        return None
+    area = str(q.get("_area") or q.get("knowledge_area") or guess_area(stem) or "综合")
+    if area == "敏捷" or area.startswith("敏捷"):
+        area = "敏捷/混合方法"
+    return {
+        "index": 0,
+        "num": q.get("num"),
+        "stem": stem,
+        "options": opts,
+        "correct_answer": correct,
+        "explanation": q.get("explanation") or "",
+        "knowledge_area": area,
+        "question_type": "single",
+        "source": "mock_exam",
+        "paper": paper,
+    }
+
+
+def load_all_open_mock_questions(*, area: str | None = None) -> list[dict]:
+    """开放卷全部可练题（已解析缓存优先）。area 为空则全领域。"""
+    want = (area or "").strip()
+    if want.startswith("敏捷"):
+        want_aliases = {"敏捷", "敏捷/混合方法"}
+    else:
+        want_aliases = {want} if want else set()
+
+    out: list[dict] = []
+    seen: set[str] = set()
+    for key in sorted(PRACTICE_OPEN_PAPERS):
+        label = PAPER_MAP.get(key, key)
+        try:
+            # 专项只吃缓存，不现场 OCR
+            raw = load_paper_questions(key, allow_ocr=False)
+        except Exception as e:
+            logger.warning("Skip mock paper %s: %s", key, e)
+            continue
+        for q in raw:
+            converted = mock_to_area_question(q, paper=label)
+            if not converted:
+                continue
+            ka = str(converted.get("knowledge_area") or "")
+            if want_aliases and ka not in want_aliases and not (
+                want.startswith("敏捷") and ka.startswith("敏捷")
+            ):
+                continue
+            stem_key = converted["stem"][:50]
+            if stem_key in seen:
+                continue
+            seen.add(stem_key)
+            out.append(converted)
+    return out
 
 
 def _parse_text_pdf(pdf_path: Path) -> list[dict]:
