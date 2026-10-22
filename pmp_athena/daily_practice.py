@@ -674,7 +674,30 @@ _AREA_ALIASES: dict[str, str] = {
 
 def _resolve_area(area: str) -> str:
     area = (area or "").strip()
-    return _AREA_ALIASES.get(area, area)
+    if not area:
+        return area
+    if area in _AREA_ALIASES:
+        return _AREA_ALIASES[area]
+    try:
+        from pmp_athena.knowledge_retriever import normalize_area
+    except ModuleNotFoundError:
+        from knowledge_retriever import normalize_area
+    return normalize_area(area) or area
+
+
+def _split_areas(area: str) -> list[str]:
+    """「商业环境+敏捷」→ [商业环境, 敏捷/混合方法]。不按 / 切，避免拆开领域名。"""
+    parts = [p.strip() for p in re.split(r"[+＋,，、]", area or "") if p.strip()]
+    out: list[str] = []
+    for part in parts:
+        resolved = _resolve_area(part)
+        if resolved and resolved not in out:
+            out.append(resolved)
+    return out
+
+
+def _area_short(area: str) -> str:
+    return "敏捷" if (area or "").startswith("敏捷") else area
 
 
 def _parse_bank_question(record: dict[str, Any]) -> dict[str, Any] | None:
@@ -778,19 +801,18 @@ except ModuleNotFoundError:
     from config import DAILY_PRACTICE_TIME_LIMIT_SEC as _DAILY_TIME_LIMIT_SEC
 
 
-def load_area_questions(area: str) -> list[dict[str, Any]]:
-    """从题库加载指定知识领域的可用题目（含选项 + 正确答案），按题干去重。"""
+def _collect_area_questions(area: str) -> list[dict[str, Any]]:
+    """从题库+种子加载指定领域题目（含选项 + 正确答案），按题干去重，不切片。"""
+    resolved = _resolve_area(area)
     try:
         from pmp_athena.question_bank import QuestionBank
     except ModuleNotFoundError:
         from question_bank import QuestionBank
 
     qb = QuestionBank()
-    records = qb.list_by_area(_resolve_area(area))
-
     questions: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for r in records:
+    for r in qb.list_by_area(resolved):
         q = _parse_bank_question(r)
         if not q:
             continue
@@ -800,18 +822,68 @@ def load_area_questions(area: str) -> list[dict[str, Any]]:
         seen.add(key)
         questions.append(q)
 
-    for q in _load_area_seed_questions(_resolve_area(area)):
+    for q in _load_area_seed_questions(resolved):
         key = q["stem"][:50]
         if key in seen:
             continue
         seen.add(key)
         questions.append(q)
-
-    if len(questions) > _AREA_PRACTICE_LIMIT:
-        random.shuffle(questions)
-        questions = questions[:_AREA_PRACTICE_LIMIT]
-
     return questions
+
+
+def load_area_questions(area: str, limit: int | None = None) -> list[dict[str, Any]]:
+    """从题库加载指定知识领域的可用题目（含选项 + 正确答案），按题干去重。"""
+    questions = _collect_area_questions(area)
+    cap = _AREA_PRACTICE_LIMIT if limit is None else limit
+    if cap and len(questions) > cap:
+        random.shuffle(questions)
+        questions = questions[:cap]
+    return questions
+
+
+def load_mixed_area_questions(areas: list[str], limit: int) -> list[dict[str, Any]]:
+    """按周历混抽：多领域均分，某一域不够时用其他域补足。"""
+    uniq: list[str] = []
+    for raw in areas:
+        a = _resolve_area(raw)
+        if a and a not in uniq:
+            uniq.append(a)
+    if not uniq:
+        return []
+    cap = max(1, int(limit))
+    if len(uniq) == 1:
+        return load_area_questions(uniq[0], cap)
+
+    pools = {a: list(_collect_area_questions(a)) for a in uniq}
+    for qs in pools.values():
+        random.shuffle(qs)
+    base, extra = divmod(cap, len(uniq))
+    quotas = [base + (1 if i < extra else 0) for i in range(len(uniq))]
+    picked: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    leftovers: list[dict[str, Any]] = []
+    for area, quota in zip(uniq, quotas):
+        taken = 0
+        for q in pools[area]:
+            key = (q.get("stem") or "")[:50]
+            if not key or key in seen:
+                continue
+            if taken < quota:
+                picked.append(q)
+                seen.add(key)
+                taken += 1
+            else:
+                leftovers.append(q)
+    for q in leftovers:
+        if len(picked) >= cap:
+            break
+        key = (q.get("stem") or "")[:50]
+        if not key or key in seen:
+            continue
+        picked.append(q)
+        seen.add(key)
+    random.shuffle(picked)
+    return picked[:cap]
 
 
 def _format_area_batch(
@@ -849,15 +921,17 @@ def _format_area_batch(
     return "\n".join(lines).rstrip()
 
 
-def start_area_session(area: str) -> dict[str, Any]:
+def start_area_session(area: str, limit: int | None = None) -> dict[str, Any]:
     """启动「专项 <领域>」练习会话，复用每日一练的判卷状态机。"""
     _clear_state()
-    resolved = _resolve_area(area)
-    questions = load_area_questions(resolved)
+    areas = _split_areas(area)
+    cap = _AREA_PRACTICE_LIMIT if limit is None else max(1, int(limit))
+    questions = load_mixed_area_questions(areas, cap) if areas else []
+    label = "+".join(_area_short(a) for a in areas) or _resolve_area(area)
     if not questions:
         return {
             "status": "error",
-            "text": f"⚠️ 未找到「{resolved}」领域的可用题目（可能该领域未录入，或题干缺选项）。",
+            "text": f"⚠️ 未找到「{label}」领域的可用题目（可能该领域未录入，或题干缺选项）。",
         }
     for i, q in enumerate(questions, start=1):
         q["index"] = i
@@ -865,7 +939,7 @@ def start_area_session(area: str) -> dict[str, Any]:
     state = {
         "mode": "area",
         "date": None,
-        "label": resolved,
+        "label": label,
         "questions": questions,
         "current_index": 0,
         "correct_count": 0,
@@ -874,7 +948,7 @@ def start_area_session(area: str) -> dict[str, Any]:
     }
     _save_state(state)
 
-    header = f"🎯 专项练习 [{resolved}]（共 {len(questions)} 题 · 每批 {_AREA_PRACTICE_BATCH} 题）"
+    header = f"🎯 专项练习 [{label}]（共 {len(questions)} 题 · 每批 {_AREA_PRACTICE_BATCH} 题）"
     return {
         "status": "question",
         "question_index": 1,
@@ -1810,7 +1884,8 @@ def main() -> None:
     p_start.add_argument("--json", action="store_true")
 
     p_area = sub.add_parser("area-start", help="专项领域练习（专项 <领域>）")
-    p_area.add_argument("--area", required=True, help="知识领域名，如 成本管理")
+    p_area.add_argument("--area", required=True, help="知识领域名，如 成本管理；周历混域用 商业环境+敏捷")
+    p_area.add_argument("--limit", type=int, default=None, help="抽题数量，默认 AREA_PRACTICE_LIMIT")
     p_area.add_argument("--json", action="store_true")
 
     p_grade = sub.add_parser("grade", help="判卷")
@@ -1885,7 +1960,7 @@ def main() -> None:
         td = date.fromisoformat(args.date) if args.date else None
         result = start_session(target_date=td, random_mode=args.random)
     elif args.command == "area-start":
-        result = start_area_session(args.area)
+        result = start_area_session(args.area, limit=args.limit)
     elif args.command == "grade":
         result = grade_answers(args.answer)
     elif args.command == "audit":

@@ -240,9 +240,20 @@ def _state() -> dict:
             tm = _tomorrow_slot()
             data["why"] = slot.get("why") or data.get("why")
             data["skip_live"] = bool(slot.get("skip_live"))
+            data["live"] = slot.get("live") or data.get("live")
+            data["athena"] = slot.get("athena") or data.get("athena")
             data["tomorrow_area"] = tm.get("area")
             data["tomorrow_kind"] = tm.get("kind")
             data["tomorrow_focus"] = tm.get("focus") or []
+            if slot.get("focus"):
+                data["focus"] = list(slot["focus"])
+            if slot.get("area"):
+                data["area"] = slot.get("area")
+            if slot.get("question_n") is not None:
+                data["question_n"] = int(slot["question_n"])
+            if slot.get("review_n") is not None:
+                data["review_n"] = int(slot["review_n"])
+            _save_state(data)
         if pk and data.get("plan_key") != pk:
             history = list(data.get("history") or [])
             if data.get("date"):
@@ -520,11 +531,16 @@ def next_step() -> dict[str, Any]:
     if not s["step2_done"]:
         cmd_area = _area_label(s)
         pass_line = max(1, round(int(s["step2_target"]) * 0.7))
+        remain = max(1, int(s["step2_target"]) - int(s["area_n"]))
+        focus = list(s.get("focus") or [])
+        if not focus and area:
+            focus = [area]
         return {
             "status": "ok",
             "action": "area",
             "area": area,
-            "limit": s["step2_target"],
+            "focus": focus,
+            "limit": remain,
             "text": (
                 f"② 专项 {cmd_area} 开始（目标 {s['step2_target']} 题）\n"
                 f"已做 {s['area_n']} 题。过关：做满且至少对 {pass_line} 题（70%）。\n"

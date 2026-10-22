@@ -54,6 +54,23 @@ class RetakeCalendarTests(unittest.TestCase):
         self.assertEqual(p.kind, "finale")
         self.assertEqual(p.question_n, 0)
 
+    def test_oct30_quality_20(self) -> None:
+        p = day_plan(date(2026, 10, 30))
+        self.assertIsNotNone(p)
+        assert p is not None
+        self.assertEqual(p.kind, "area")
+        self.assertEqual(p.areas, ["质量管理"])
+        self.assertEqual(p.question_n, 20)
+
+    def test_nov19_people_plus_business(self) -> None:
+        p = day_plan(date(2026, 11, 19))
+        self.assertIsNotNone(p)
+        assert p is not None
+        self.assertEqual(p.kind, "area")
+        self.assertIn("干系人管理", p.areas)
+        self.assertIn("商业环境", p.areas)
+        self.assertEqual(p.question_n, 25)
+
     def test_dec5_exam(self) -> None:
         p = day_plan(date(2026, 12, 5))
         self.assertIsNotNone(p)

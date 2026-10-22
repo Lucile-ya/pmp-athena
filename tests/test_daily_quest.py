@@ -130,6 +130,12 @@ class DailyQuestTests(unittest.TestCase):
                 r2 = next_step()
                 self.assertEqual(r2["action"], "area")
                 self.assertEqual(r2["area"], "成本管理")
+                self.assertEqual(r2["focus"], ["成本管理", "进度管理"])
+                self.assertEqual(r2["limit"], 15)
+
+                status["area_n"] = 8
+                r2b = next_step()
+                self.assertEqual(r2b["limit"], 7)
 
                 status["step2_done"] = True
                 status["area_n"] = 15
