@@ -13,9 +13,11 @@ if str(ROOT) not in sys.path:
 
 from pmp_athena.error_insights import format_wrong_feedback  # noqa: E402
 from pmp_athena.study_advisor import (  # noqa: E402
+    _after_stubborn_fail,
     _clean_review_question,
     _find_full_question,
     _format_review_question,
+    _format_root_nail,
     _is_polluted_question,
 )
 
@@ -90,6 +92,47 @@ class ReviewDisplayTests(unittest.TestCase):
         self.assertNotIn("🔑", text)
         self.assertNotIn("📌 总结", text)
         self.assertLessEqual(len(text.splitlines()), 2)
+
+    def test_root_nail_is_one_line(self) -> None:
+        err = {
+            "id": 2,
+            "question": "风险已经发生，项目经理应更新问题日志还是风险登记册",
+            "explanation": "已发生的是问题，记问题日志，不要上报修订报告",
+            "my_answer": "上报发起人",
+        }
+        nail = _format_root_nail(err)
+        self.assertTrue(nail.startswith("钉死："))
+        self.assertNotIn("🔑", nail)
+        self.assertLessEqual(len(nail.splitlines()), 1)
+
+    def test_stubborn_fail_starts_variant(self) -> None:
+        from unittest.mock import patch
+
+        err = {"id": 84, "question": "镀金", "knowledge_area": "整合管理"}
+        lines: list[str] = []
+        fake = {
+            "status": "variant_question",
+            "root_cause": "镀金",
+            "variant_ids": [1, 2],
+            "variant_index": 0,
+            "variant_correct": 0,
+            "variant_total": 2,
+            "text": "💡 根因变式巩固（第 1/2 题）\n题干",
+        }
+        with patch(
+            "pmp_athena.error_insights.is_high_frequency_marked", return_value=True
+        ), patch(
+            "pmp_athena.error_insights.count_mistakes", return_value={"total": 4}
+        ), patch(
+            "pmp_athena.root_cause_variants.review_variant_start_v2", return_value=fake
+        ):
+            out = _after_stubborn_fail(84, err, lines)
+        self.assertIsNotNone(out)
+        assert out is not None
+        self.assertEqual(out["status"], "graded_variant_pending")
+        self.assertFalse(out["correct"])
+        self.assertIn("换一道同坑", out["text"])
+        self.assertNotIn("💡 根因变式巩固", out["text"])
 
 
 if __name__ == "__main__":

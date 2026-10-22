@@ -846,6 +846,82 @@ def review_next(*, include_header: bool = False) -> dict:
     }
 
 
+def _format_root_nail(error: dict) -> str:
+    """反复错题再错时：一行钉死根因，不堆表情。"""
+    try:
+        from pmp_athena.root_cause_engine import diagnose
+        from pmp_athena.root_cause_variants import get_root_cause_summary
+    except ImportError:
+        from root_cause_engine import diagnose
+        from root_cause_variants import get_root_cause_summary
+
+    diag = diagnose(error)
+    if not diag:
+        return ""
+    summary = get_root_cause_summary(diag.get("name", ""))
+    if summary:
+        return f"钉死：{summary['core_distinction']}"
+    mnemonic = (diag.get("mnemonic") or diag.get("diagnosis") or "").strip()
+    return f"钉死：{mnemonic}" if mnemonic else ""
+
+
+def _variant_pending_return(
+    lines: list[str],
+    error_id: int,
+    variant_result: dict,
+    *,
+    is_correct: bool,
+) -> dict:
+    rc_name = variant_result.get("root_cause", "")
+    lines.append("")
+    lines.append("────────")
+    text = str(variant_result.get("text", "")).replace("💡 根因变式巩固", "换一道同坑")
+    lines.append(text)
+    if variant_result["status"] == "variant_question":
+        return {
+            "status": "graded_variant_pending",
+            "correct": is_correct,
+            "error_id": error_id,
+            "variant_ids": variant_result.get("variant_ids", []),
+            "variant_index": variant_result.get("variant_index", 0),
+            "variant_correct": variant_result.get("variant_correct", 0),
+            "variant_total": variant_result.get("variant_total", 0),
+            "variant_sub_mode": "question",
+            "text": "\n".join(lines),
+        }
+    return {
+        "status": "graded_variant_pending",
+        "correct": is_correct,
+        "error_id": error_id,
+        "variant_sub_mode": "summary",
+        "root_cause": rc_name,
+        "text": "\n".join(lines),
+    }
+
+
+def _after_stubborn_fail(error_id: int, error: dict, lines: list[str]) -> dict | None:
+    """原题再错 ≥3 次：钉根因，优先同坑变式，不再甩下一道无关题。"""
+    try:
+        from pmp_athena.error_insights import is_high_frequency_marked, count_mistakes
+        from pmp_athena.root_cause_variants import review_variant_start_v2
+    except ImportError:
+        from error_insights import is_high_frequency_marked, count_mistakes
+        from root_cause_variants import review_variant_start_v2
+
+    times = count_mistakes(error_id).get("total", 0)
+    if not is_high_frequency_marked(error_id) and times < 3:
+        return None
+
+    nail = _format_root_nail(error)
+    if nail:
+        lines.append(nail)
+
+    variant_result = review_variant_start_v2(error_id)
+    if variant_result.get("status") == "variant_question":
+        return _variant_pending_return(lines, error_id, variant_result, is_correct=False)
+    return None
+
+
 def grade_review(error_id: int, user_answer: str) -> dict:
     """判卷并返回下一题（微信硬路由用）。
 
@@ -980,6 +1056,9 @@ def grade_review(error_id: int, user_answer: str) -> dict:
         except ImportError:
             from error_insights import format_wrong_feedback
         lines.append(format_wrong_feedback(error, user_answer=user_ans))
+        stubborn = _after_stubborn_fail(error_id, error, lines)
+        if stubborn is not None:
+            return stubborn
 
     # ── 高频错题变式触发 ──
     if is_correct:
