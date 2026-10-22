@@ -40,7 +40,8 @@ TODAY_QUEST_PATH = NOTES_DIR / "today_quest.json"
 AREA_SEED_DIR = NOTES_DIR / "area_seeds"
 AREA_PRACTICE_LIMIT = 15
 AREA_PRACTICE_BATCH = 5  # 专项练习每批推送题数（微信/终端一致）
-DAILY_PRACTICE_BATCH = 5  # 每日一练每批出题数，答完再判卷
+DAILY_PRACTICE_BATCH = 10  # 每日一练一次出齐，交卷再判卷
+DAILY_PRACTICE_TIME_LIMIT_SEC = 13 * 60  # 10 题目标 13 分钟（约 78 秒/题）
 KNOWLEDGE_INDEX_PATH = PROJECT_ROOT / "pmp_knowledge_index.json"
 
 # ── Embedding 模型 ──────────────────────────────────────────

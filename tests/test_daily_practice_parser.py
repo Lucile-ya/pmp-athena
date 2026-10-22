@@ -242,7 +242,7 @@ def test_grade_batch() -> None:
         _clear_state()
 
 
-def test_daily_batch_waits_for_five() -> None:
+def test_daily_batch_waits_for_ten() -> None:
     from pmp_athena import daily_practice as dp
     from pmp_athena.daily_practice import _clear_state, _save_state, grade_answers
 
@@ -270,17 +270,19 @@ def test_daily_batch_waits_for_five() -> None:
             "correct_count": 0,
             "wrong_count": 0,
             "wrong_items": [],
+            "started_at": "2026-10-22T17:00:00",
         }
     )
     try:
         too_few = grade_answers("A")
         assert too_few.get("status") == "error", too_few
-        assert "期望 5 个答案" in too_few.get("text", "")
-        first = grade_answers("ABCDA")
-        assert first.get("status") == "question", first
-        assert "本批判卷" in first.get("text", "")
-        assert "Q6" in first.get("text", "")
-        assert "解析不应出现在出题里" not in first.get("text", "").split("📦")[-1]
+        assert "期望 10 个答案" in too_few.get("text", "")
+        half = grade_answers("ABCDA")
+        assert half.get("status") == "error", half
+        done = grade_answers("A" * 10)
+        assert done.get("done"), done
+        assert "本批判卷" in done.get("text", "")
+        assert "用时" in done.get("text", "")
     finally:
         dp._record_answer = original
         _clear_state()
@@ -297,9 +299,8 @@ def test_start_oct22_first_batch_if_present() -> None:
     r = start_session(target_date=date(2026, 10, 22))
     text = r.get("text", "")
     assert r.get("status") == "question", r
-    assert "第 1/2 批" in text
-    assert "Q1" in text and "Q5" in text
-    assert "Q6" not in text
+    assert "目标 13 分钟" in text
+    assert "Q1" in text and "Q10" in text
     assert "答案：" not in text and "正确答案" not in text
     _clear_state()
 
@@ -409,7 +410,7 @@ def main() -> int:
         test_oct22_pdf_if_present,
         test_option_not_watermark_tail,
         test_grade_batch,
-        test_daily_batch_waits_for_five,
+        test_daily_batch_waits_for_ten,
         test_start_oct22_first_batch_if_present,
         test_parse_multichoice_answer_chinese_comma,
         test_grade_multichoice,

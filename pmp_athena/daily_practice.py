@@ -4,8 +4,8 @@
 
 流程:
   menu     → 列出未完成日期（全部完成则提示随机）
-  start    → 加载 PDF，开始出题
-  grade    → 判卷并推进下一题
+  start    → 查未完成，一次出齐并开始计时
+  grade    → 收齐全部答案后判卷 + 用时
   resolve  → 解析用户输入的日期
 """
 
@@ -16,7 +16,7 @@ import json
 import random
 import re
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -770,10 +770,12 @@ try:
     from pmp_athena.config import AREA_PRACTICE_LIMIT as _AREA_PRACTICE_LIMIT
     from pmp_athena.config import AREA_PRACTICE_BATCH as _AREA_PRACTICE_BATCH
     from pmp_athena.config import DAILY_PRACTICE_BATCH as _DAILY_PRACTICE_BATCH
+    from pmp_athena.config import DAILY_PRACTICE_TIME_LIMIT_SEC as _DAILY_TIME_LIMIT_SEC
 except ModuleNotFoundError:
     from config import AREA_PRACTICE_LIMIT as _AREA_PRACTICE_LIMIT
     from config import AREA_PRACTICE_BATCH as _AREA_PRACTICE_BATCH
     from config import DAILY_PRACTICE_BATCH as _DAILY_PRACTICE_BATCH
+    from config import DAILY_PRACTICE_TIME_LIMIT_SEC as _DAILY_TIME_LIMIT_SEC
 
 
 def load_area_questions(area: str) -> list[dict[str, Any]]:
@@ -832,8 +834,9 @@ def _format_area_batch(
     if header:
         lines.append(header)
         lines.append("")
-    lines.append(f"📦 第 {batch_no}/{batch_total} 批（Q{batch[0]['index']}–Q{batch[-1]['index']}）")
-    lines.append("")
+    if batch_total > 1:
+        lines.append(f"📦 第 {batch_no}/{batch_total} 批（Q{batch[0]['index']}–Q{batch[-1]['index']}）")
+        lines.append("")
     for q in batch:
         lines.append(_format_question(q))
         lines.append("")
@@ -841,8 +844,8 @@ def _format_area_batch(
     if hint_n == 1:
         lines.append("💬 回复字母，如 `B`")
     else:
-        sample = "BACDC"[:hint_n]
-        lines.append(f"💬 回复 {hint_n} 个字母，如 `{sample}`")
+        sample = ("BACDC" * 4)[:hint_n]
+        lines.append(f"💬 一次回复 {hint_n} 个字母，如 `{sample}`")
     return "\n".join(lines).rstrip()
 
 
@@ -1176,8 +1179,39 @@ def _batch_mismatch_text(questions: list[dict[str, Any]], raw: str) -> str:
         chunk = raw[i : i + need] if i < len(raw) else ""
         lines.append(f"Q{q.get('index', '?')}{tag}: {chunk or '?'}")
         i += need
-    lines.append("⚠️ 请一次提交本批全部答案后再判卷。")
+    lines.append("⚠️ 请一次提交全部答案后再判卷。")
     return "\n".join(lines)
+
+
+def _elapsed_seconds(state: dict[str, Any]) -> int | None:
+    raw = state.get("started_at")
+    if not raw:
+        return None
+    try:
+        started = datetime.fromisoformat(str(raw))
+    except ValueError:
+        return None
+    now = datetime.now(started.tzinfo) if started.tzinfo else datetime.now()
+    return max(0, int((now - started).total_seconds()))
+
+
+def _format_time_report(state: dict[str, Any], *, total: int | None = None) -> str:
+    seconds = _elapsed_seconds(state)
+    if seconds is None:
+        return ""
+    n = total or len(state.get("questions") or []) or 1
+    minutes, secs = divmod(seconds, 60)
+    avg = round(seconds / n) if n else 0
+    limit = _DAILY_TIME_LIMIT_SEC
+    limit_m = limit // 60
+    if seconds <= limit:
+        pace = "✅ 节奏达标"
+    else:
+        pace = f"⚠️ 超时 {seconds - limit} 秒（目标 {limit_m} 分钟）"
+    return (
+        f"⏱️ 用时 {minutes} 分 {secs} 秒"
+        f"（目标 {limit_m} 分钟，平均 {avg} 秒/题）\n{pace}"
+    )
 
 
 def start_session(*, target_date: date | None = None, random_mode: bool = False) -> dict[str, Any]:
@@ -1224,11 +1258,16 @@ def start_session(*, target_date: date | None = None, random_mode: bool = False)
         "correct_count": 0,
         "wrong_count": 0,
         "wrong_items": [],
+        "started_at": datetime.now().isoformat(timespec="seconds"),
     }
     _save_state(state)
 
     title = _format_label(session_date) if session_date else label
-    header = f"📝 {title}每日一练（共 {len(questions)} 题 · 每批 {_DAILY_PRACTICE_BATCH} 题）"
+    limit_m = _DAILY_TIME_LIMIT_SEC // 60
+    header = (
+        f"📝 {title}每日一练（共 {len(questions)} 题）\n"
+        f"⏰ 计时开始 · 目标 {limit_m} 分钟交卷"
+    )
     hint = _incomplete_hint(session_date)
     if hint:
         header = f"{header}\n{hint}"
@@ -1352,6 +1391,10 @@ def _grade_answer_list(answers: list[str]) -> dict[str, Any]:
         total = last_result.get("total", graded)
         correct_total = last_result.get("correct", batch_correct)
         rate = last_result.get("rate", 0)
+        time_line = _format_time_report(state, total=total)
+        if time_line:
+            lines.append(time_line)
+            lines.append("")
         lines.append(f"📋 {_session_title(state)}完成：正确 {correct_total}/{total}（{rate}%）")
         finish_text = last_result.get("text", "")
         if "💾 已记录完成" in finish_text:
@@ -1359,7 +1402,8 @@ def _grade_answer_list(answers: list[str]) -> dict[str, Any]:
                 if fl.startswith("💾"):
                     lines.append(fl)
                     break
-        return {**last_result, "text": "\n".join(lines)}
+        elapsed = _elapsed_seconds(state)
+        return {**last_result, "elapsed_seconds": elapsed, "text": "\n".join(lines)}
 
     # 每日一练 / 专项：下一批；不要在判卷前泄漏未做题答案
     state_after = _load_state() or state
@@ -1509,6 +1553,10 @@ def _finish_session(state: dict[str, Any], prefix_lines: list[str]) -> dict[str,
         _mark_completed(date.fromisoformat(state["date"]))
 
     lines = list(prefix_lines)
+    time_line = _format_time_report(state, total=total)
+    if time_line:
+        lines.append("")
+        lines.append(time_line)
     lines.append("")
     lines.append(f"📋 {_session_title(state)}完成：正确 {correct}/{total}（{rate}%）")
 
@@ -1549,6 +1597,7 @@ def _finish_session(state: dict[str, Any], prefix_lines: list[str]) -> dict[str,
         "total": total,
         "rate": rate,
         "done": True,
+        "elapsed_seconds": _elapsed_seconds(state),
         "wrong_items": wrong_items,
         "text": "\n".join(lines),
     }
