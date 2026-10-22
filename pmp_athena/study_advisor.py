@@ -543,6 +543,35 @@ def _has_options(text: str) -> bool:
     return bool(_OPTION_RE.search(text or ""))
 
 
+def _is_polluted_question(text: str) -> bool:
+    """题干里掺了「选项A：解析」或对错提示，会把眼睛看花。"""
+    return bool(
+        re.search(
+            r"选项[A-Ea-e][:：]|正确答案是|因此不选|做法不妥|【解析】",
+            text or "",
+        )
+    )
+
+
+def _clean_review_question(text: str) -> str:
+    """只留题干 + A/B/C/D，去掉夹在中间的选项解析。"""
+    raw = (text or "").strip()
+    if not raw:
+        return ""
+    m = re.search(r"^[A-Da-d][\.、．\)]\s*", raw, re.M)
+    if m:
+        stem = raw[: m.start()].strip()
+        opts = raw[m.start() :].strip()
+    else:
+        stem, opts = raw, ""
+    stem = re.sub(r"(?:\s*选项[A-Ea-e][:：][^选项\n]*)+", " ", stem)
+    stem = re.sub(r"\s+", " ", stem).strip()
+    if opts:
+        opts = re.sub(r"(?<!^)\s*([A-Da-d][\.、．\)])\s+", r"\n\1 ", opts).strip()
+        return f"{stem}\n{opts}" if stem else opts
+    return stem
+
+
 def _load_options_supplement() -> dict:
     if not OPTIONS_SUPPLEMENT.exists():
         return {}
@@ -608,21 +637,31 @@ def _find_full_question(error_id: int, errors: list, bank: list) -> dict:
         return {}
 
     with_opts = [r for r in candidates if _has_options(r.get("question", ""))]
-    record = max(with_opts or candidates, key=lambda r: len(r.get("question", "")))
+    pool = with_opts or candidates
+    record = min(
+        pool,
+        key=lambda r: (
+            0 if not _is_polluted_question(r.get("question", "")) else 1,
+            0 if _has_options(r.get("question", "")) else 1,
+            -len(r.get("question") or ""),
+        ),
+    )
 
     merged = dict(record)
-    merged["question"] = _merge_options(record.get("question", ""), error_id)
+    merged["question"] = _clean_review_question(
+        _merge_options(record.get("question", ""), error_id)
+    )
     return merged
 
 
-def _format_review_question(error_id: int, record: dict) -> str:
+def _format_review_question(error_id: int, record: dict, *, times_wrong: int = 0) -> str:
     """格式化单道复习题（不含答案、解析、历史作答）；缺选项降级为知识点回顾"""
-    question = record.get("question", "").strip()
+    question = _clean_review_question(record.get("question", "").strip())
     if not _has_options(question):
         return _format_option_missing_knowledge(error_id, record)
     area = record.get("knowledge_area", "综合")
-    lines = [f"📝 复习 #{error_id} [{area}]", question]
-    return "\n".join(lines)
+    badge = f"  🔥{times_wrong}次" if times_wrong >= 3 else ""
+    return f"📝 复习 #{error_id} [{area}]{badge}\n{question}"
 
 
 def _format_option_missing_knowledge(error_id: int, record: dict) -> str:
@@ -647,145 +686,19 @@ def _format_option_missing_knowledge(error_id: int, record: dict) -> str:
 
 
 def _enhance_high_frequency_question(error_id: int, record: dict) -> str:
-    """高频错题增强格式：锚点 + 等级 + 根因诊断 + 演化洞察 + 口诀 + 变式预告"""
+    """高频错题出题：只给题干和选项，口诀放到判卷后。"""
     try:
-        from pmp_athena.error_insights import (
-            count_mistakes, build_mnemonic, is_high_frequency_marked,
-        )
+        from pmp_athena.error_insights import count_mistakes
     except ImportError:
-        from error_insights import (
-            count_mistakes, build_mnemonic, is_high_frequency_marked,
-        )
-    try:
-        from pmp_athena.root_cause_engine import diagnose as rc_diagnose, format_root_cause_card
-    except ImportError:
-        from root_cause_engine import diagnose as rc_diagnose, format_root_cause_card
-    try:
-        from pmp_athena.semantic_anchors import format_anchor_with_cue
-    except ImportError:
-        from semantic_anchors import format_anchor_with_cue
-    try:
-        from pmp_athena.error_evolution import format_evolution_summary, format_evolution_report
-    except ImportError:
-        from error_evolution import format_evolution_summary, format_evolution_report
-
-    mistake_info = count_mistakes(error_id)
-    total_wrong = mistake_info["total"]
-
-    # 上次错误记录
-    bank = load_json(QUESTION_BANK)
-    if not isinstance(bank, list):
-        bank = []
-    wrong_records = sorted(
-        [r for r in bank if r.get("error_log_id") == error_id and r.get("is_correct") is False],
-        key=lambda r: r.get("date", ""),
-        reverse=True,
+        from error_insights import count_mistakes
+    return _format_review_question(
+        error_id, record, times_wrong=count_mistakes(error_id)["total"]
     )
-    last_wrong = wrong_records[0] if wrong_records else record
-
-    # 根因诊断
-    root_cause = rc_diagnose(record, wrong_records)
-
-    # 锚点话术（优先显示）
-    try:
-        anchor_text = format_anchor_with_cue(record, wrong_records)
-    except Exception:
-        anchor_text = ""
-
-    # 口诀
-    mnemonic = build_mnemonic(record)
-
-    # 演化洞察（≥3 次时显示）
-    evolution_text = ""
-    if total_wrong >= 3:
-        try:
-            evolution_text = format_evolution_summary(error_id)
-        except Exception:
-            pass
-
-    area = record.get("knowledge_area", "综合")
-    question = record.get("question", "").strip()
-
-    lines = []
-    if anchor_text:
-        lines.append(anchor_text)
-        lines.append("")
-
-    lines.extend([
-        f"📌 错题等级：🔥 高频错题（已错 {total_wrong} 次）",
-    ])
-    lines.append("")
-    lines.append(f"📝 复习 #{error_id} [{area}]")
-    lines.append(question)
-    if not _has_options(question):
-        lines.append("")
-        lines.append("💬 本题缺选项，已降级为回顾。回复「已掌握」继续，「无法补录」移出队列。")
-    else:
-        lines.append("")
-        lines.append("💡 答对后可能推送同考点变式。")
-
-    return "\n".join(lines)
 
 
 def _enhance_stubborn_question(error_id: int, record: dict) -> str:
-    """高频顽疾深度拆解格式：锚点 + 等级 + 每次错选记录 + 根因诊断 + 口诀 + 反向训练预告"""
-    try:
-        from pmp_athena.error_insights import count_mistakes, build_mnemonic
-    except ImportError:
-        from error_insights import count_mistakes, build_mnemonic
-    try:
-        from pmp_athena.root_cause_engine import diagnose as rc_diagnose, format_root_cause_card
-    except ImportError:
-        from root_cause_engine import diagnose as rc_diagnose, format_root_cause_card
-    try:
-        from pmp_athena.semantic_anchors import format_anchor_with_cue
-    except ImportError:
-        from semantic_anchors import format_anchor_with_cue
-
-    mistake_info = count_mistakes(error_id)
-    total_wrong = mistake_info["total"]
-
-    # 全部错选记录（按日期正序，展示每次错选）
-    bank = load_json(QUESTION_BANK)
-    if not isinstance(bank, list):
-        bank = []
-    wrong_records = sorted(
-        [r for r in bank if r.get("error_log_id") == error_id and r.get("is_correct") is False],
-        key=lambda r: r.get("date", ""),
-    )
-
-    # 根因诊断
-    root_cause = rc_diagnose(record, wrong_records)
-
-    # 锚点话术（优先显示）
-    try:
-        anchor_text = format_anchor_with_cue(record, wrong_records)
-    except Exception:
-        anchor_text = ""
-
-    # 口诀
-    mnemonic = build_mnemonic(record)
-
-    area = record.get("knowledge_area", "综合")
-    question = record.get("question", "").strip()
-
-    lines = []
-    if anchor_text:
-        lines.append(anchor_text)
-        lines.append("")
-
-    lines.append(f"📌 错题等级：🔥 高频顽疾（已错 {total_wrong} 次）")
-    lines.append("")
-    lines.append(f"📝 复习 #{error_id} [{area}]")
-    lines.append(question)
-    if not _has_options(question):
-        lines.append("")
-        lines.append("💬 本题缺选项，已降级为回顾。回复「已掌握」继续，「无法补录」移出队列。")
-    else:
-        lines.append("")
-        lines.append("💡 答对后可能推送同考点变式。")
-
-    return "\n".join(lines)
+    """高频顽疾出题：版式与普通复习题相同，避免微信刷屏。"""
+    return _enhance_high_frequency_question(error_id, record)
 
 
 def review_next(*, include_header: bool = False) -> dict:
@@ -911,23 +824,16 @@ def review_next(*, include_header: bool = False) -> dict:
     else:
         body = _format_review_question(error_id, record)
 
-    # 进度行：已完成 / 总到期数
-    done_count = len(due_ids) - len(pending)
-    progress = f"[{done_count}/{len(due_ids)}]"
+    quota = min(limit, len(due_ids)) if limit else len(due_ids)
 
     if include_header:
-        sprint_tag = "🔥 冲刺" if is_sprint else ("⚡ 30天" if is_pre30 else "")
-        limit_hint = f"（今日上限 {limit} 题，已完成 {completed_today}/{limit}）{sprint_tag}"
-        # 高频顽疾统计（累计错误 ≥4 次的到期错题）
-        stubborn_count = _count_stubborn(pending, bank, review)
-        stubborn_line = f"\n🔥 高频顽疾：{stubborn_count} 道待攻克" if stubborn_count > 0 else ""
+        sprint_tag = " 🔥冲刺" if is_sprint else (" ⚡30天" if is_pre30 else "")
         text = (
-            f"📚 今日待复习错题: {len(due_ids)} 道（还剩 {len(pending)} 道）{limit_hint}"
-            f"{stubborn_line}\n\n"
+            f"📚 今日 {quota} 题 · 已完成 {completed_today}{sprint_tag}\n\n"
             f"{body}"
         )
     else:
-        text = f"{progress}\n{body}"
+        text = body
 
     return {
         "status": "question",
@@ -1015,11 +921,10 @@ def grade_review(error_id: int, user_answer: str) -> dict:
         sr._write_state(state)
         lines = [f"🗑️ #{error_id} 已标记「无法补录」，移出复习队列。"]
         nxt = review_next(include_header=False)
-        if nxt["status"] == "question":
+        if nxt.get("text"):
             lines.append("")
-            lines.append(nxt["text"])
-        else:
-            lines.append("")
+            if nxt["status"] == "question":
+                lines.append("────────")
             lines.append(nxt["text"])
         return {
             "status": "graded",
@@ -1039,11 +944,10 @@ def grade_review(error_id: int, user_answer: str) -> dict:
         sr.grade(error_id, quality)
         lines = ["✅ 已记录！" if user_ans == "已掌握" else "📌 已标记，明天再复习。"]
         nxt = review_next(include_header=False)
-        if nxt["status"] == "question":
+        if nxt.get("text"):
             lines.append("")
-            lines.append(nxt["text"])
-        else:
-            lines.append("")
+            if nxt["status"] == "question":
+                lines.append("────────")
             lines.append(nxt["text"])
         return {
             "status": "graded",
@@ -1147,6 +1051,7 @@ def grade_review(error_id: int, user_answer: str) -> dict:
     nxt = review_next(include_header=False)
     if nxt["status"] == "question":
         lines.append("")
+        lines.append("────────")
         lines.append(nxt["text"])
     elif nxt["status"] in ("done", "empty"):
         lines.append("")
@@ -1385,6 +1290,7 @@ def grade_variant_answer(
         nxt = review_next(include_header=False)
         if nxt["status"] == "question":
             lines.append("")
+            lines.append("────────")
             lines.append(nxt["text"])
         else:
             lines.append("")
@@ -1480,6 +1386,7 @@ def review_skip_current(error_id: int) -> dict:
     else:
         if nxt["status"] == "question":
             lines.append("")
+            lines.append("────────")
             lines.append(nxt["text"])
         elif nxt["status"] in ("done", "empty"):
             lines.append("")
