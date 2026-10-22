@@ -90,6 +90,46 @@ def test_july16_pdf_if_present() -> None:
     assert "A公司" in q3 and "B公司" in q3
 
 
+SAMPLE_DUNHAO = """
+1、【单选题】在部署一个企业资源管理系统期间，财务总监辞职。项目经理应该做什么？
+A、发布更新干系人登记册的变更请求
+B、将项目文档发送给该财务总监
+C、请新财务总监更新项目成本管理计划
+D、与新的财务总监开会了解参与情况
+答案：A
+解析：新干系人先更新登记册。
+2、【单选题】项目经理应该做什么？
+A、执行根本原因分析
+B、执行干系人分析
+C、执行假设条件和制约因素分析
+D、执行数据分析
+答案：C
+解析：先审查制约因素。
+"""
+
+
+def test_parse_chinese_dunhao_question_numbers() -> None:
+    qs = _parse_questions(SAMPLE_DUNHAO)
+    assert len(qs) == 2, [q["num"] for q in qs]
+    assert qs[0]["stem"].startswith("在部署一个企业资源管理系统期间")
+    assert qs[0]["options"]["D"].startswith("与新的财务总监开会")
+    ans = _parse_answers(SAMPLE_DUNHAO)
+    assert ans[1]["answer"] == "A"
+    assert ans[2]["answer"] == "C"
+
+
+def test_oct22_pdf_if_present() -> None:
+    folder = _ROOT / "pmp_notes" / "每日一练"
+    if not any("10月22日" in f.name and "答案" not in f.name for f in folder.glob("*.pdf")):
+        print("⏭️  SKIP oct22 pdf: 文件不存在")
+        return
+    qs = load_questions_for_date(date(2026, 10, 22))
+    assert len(qs) == 10, len(qs)
+    assert all(len(q.get("options") or {}) >= 4 for q in qs)
+    assert all(q.get("correct_answer") for q in qs)
+    assert "财务总监" in qs[0]["stem"]
+
+
 def test_option_not_watermark_tail() -> None:
     from pmp_athena.daily_practice import _clean_option
 
@@ -157,9 +197,17 @@ def test_qiji_2609_mock2_if_present() -> None:
     assert all(len(q.get("options") or {}) >= 4 for q in qs)
 
 
+def _silence_recording(monkey_mod):
+    original = monkey_mod._record_answer
+    monkey_mod._record_answer = lambda *a, **k: None
+    return original
+
+
 def test_grade_batch() -> None:
+    from pmp_athena import daily_practice as dp
     from pmp_athena.daily_practice import _clear_state, _save_state, grade_answers
 
+    original = _silence_recording(dp)
     _clear_state()
     _save_state(
         {
@@ -185,9 +233,74 @@ def test_grade_batch() -> None:
             "wrong_items": [],
         }
     )
-    r = grade_answers("AC")
-    assert r.get("done"), r
-    assert "批量判卷" in r.get("text", "")
+    try:
+        r = grade_answers("AC")
+        assert r.get("done"), r
+        assert "本批判卷" in r.get("text", "")
+    finally:
+        dp._record_answer = original
+        _clear_state()
+
+
+def test_daily_batch_waits_for_five() -> None:
+    from pmp_athena import daily_practice as dp
+    from pmp_athena.daily_practice import _clear_state, _save_state, grade_answers
+
+    original = _silence_recording(dp)
+    _clear_state()
+    _save_state(
+        {
+            "mode": "fixed",
+            "date": "2026-10-22",
+            "label": "10月22日",
+            "questions": [
+                {
+                    "index": i + 1,
+                    "num": i + 1,
+                    "stem": f"题干{i+1}",
+                    "options": {"A": "a", "B": "b", "C": "c", "D": "d"},
+                    "correct_answer": "A",
+                    "explanation": "解析不应出现在出题里",
+                    "knowledge_area": "综合",
+                    "question_type": "single",
+                }
+                for i in range(10)
+            ],
+            "current_index": 0,
+            "correct_count": 0,
+            "wrong_count": 0,
+            "wrong_items": [],
+        }
+    )
+    try:
+        too_few = grade_answers("A")
+        assert too_few.get("status") == "error", too_few
+        assert "期望 5 个答案" in too_few.get("text", "")
+        first = grade_answers("ABCDA")
+        assert first.get("status") == "question", first
+        assert "本批判卷" in first.get("text", "")
+        assert "Q6" in first.get("text", "")
+        assert "解析不应出现在出题里" not in first.get("text", "").split("📦")[-1]
+    finally:
+        dp._record_answer = original
+        _clear_state()
+
+
+def test_start_oct22_first_batch_if_present() -> None:
+    folder = _ROOT / "pmp_notes" / "每日一练"
+    if not any("10月22日" in f.name and "答案" not in f.name for f in folder.glob("*.pdf")):
+        print("⏭️  SKIP oct22 start: 文件不存在")
+        return
+    from pmp_athena.daily_practice import _clear_state, start_session
+
+    _clear_state()
+    r = start_session(target_date=date(2026, 10, 22))
+    text = r.get("text", "")
+    assert r.get("status") == "question", r
+    assert "第 1/2 批" in text
+    assert "Q1" in text and "Q5" in text
+    assert "Q6" not in text
+    assert "答案：" not in text and "正确答案" not in text
     _clear_state()
 
 
@@ -216,8 +329,10 @@ def test_aug24_q10_if_present() -> None:
 
 
 def test_grade_multichoice() -> None:
+    from pmp_athena import daily_practice as dp
     from pmp_athena.daily_practice import _clear_state, _save_state, grade_answers
 
+    original = _silence_recording(dp)
     _clear_state()
     _save_state(
         {
@@ -252,11 +367,13 @@ def test_grade_multichoice() -> None:
             "wrong_items": [],
         }
     )
-    r = grade_answers("ACD")
-    assert r.get("status") == "question", r
-    assert "✅ 正确" in r.get("text", ""), r
-    assert r.get("question_index") == 2
-    _clear_state()
+    try:
+        r = grade_answers("ACDB")
+        assert r.get("done"), r
+        assert "本批判卷" in r.get("text", "")
+    finally:
+        dp._record_answer = original
+        _clear_state()
 
 
 def test_parse_inline_bank_options() -> None:
@@ -288,8 +405,12 @@ def main() -> int:
         test_parse_block_not_truncated,
         test_watermark_line_skipped,
         test_recover_orphan_option_c,
+        test_parse_chinese_dunhao_question_numbers,
+        test_oct22_pdf_if_present,
         test_option_not_watermark_tail,
         test_grade_batch,
+        test_daily_batch_waits_for_five,
+        test_start_oct22_first_batch_if_present,
         test_parse_multichoice_answer_chinese_comma,
         test_grade_multichoice,
         test_july16_pdf_if_present,

@@ -103,7 +103,7 @@ def _is_watermark_line(line: str) -> bool:
 def _strip_question_header(line: str) -> str:
     """去掉题号/题型标签，避免 [单选] 被误当成第二个【】块吞掉整行题干。"""
     line = line.strip()
-    line = re.sub(r"^\d+[\.．]\s*", "", line)
+    line = re.sub(r"^\d+[\.．、]\s*", "", line)
     line = re.sub(r"^【[^】]*】\s*", "", line)
     line = re.sub(r"^[料资部内育教迹骐练一日每\s]+", "", line)
     line = re.sub(r"^\[(?:单选|多选)[^\]]*\]\s*", "", line)
@@ -273,7 +273,7 @@ def _looks_like_new_option_line(line: str, prev_option: str, opts: dict[str, str
     s = line.strip()
     if not s or _is_watermark_line(s):
         return False
-    if re.match(r"^\d+[\.．]", s):
+    if re.match(r"^\d+[\.．、]", s):
         return False
     if _OPTION_LINE.match(s):
         return False
@@ -320,7 +320,7 @@ def _guess_knowledge_area(stem: str, explanation: str = "") -> str:
 
 # PDF 题块/选项识别（兼容【单选题】【问答题】[单选]、A：/A、/A. 等格式）
 _QUESTION_BLOCK_SPLIT = re.compile(
-    r"(?=\n[\s料资部内育教迹骐练一日每]*\d+[\.．][\s料资部内育教迹骐练一日每]*【)"
+    r"(?=\n[\s料资部内育教迹骐练一日每]*\d+[\.．、][\s料资部内育教迹骐练一日每]*【)"
 )
 _OPTION_LINE = re.compile(
     r"^[料资部内育教迹骐练一日每\s]*([A-E])\s*[、\.:：]\s*(.*)$",
@@ -354,6 +354,8 @@ _MULTI_MARKERS = (
 
 def _normalize_pdf_text(text: str) -> str:
     text = text.replace("．", ".")
+    # 中文顿号题号：1、【单选题】→ 1.【单选题】
+    text = re.sub(r"(\d+)\s*、\s*(?=【)", r"\1.", text)
     # 修正 OCR 题号错位：3【. 单选题】→ 3. 【单选题】
     text = re.sub(r"(\d+)\s*【\s*\.", r"\1. 【", text)
     # 去掉题号与句点之间的全角空格：4 ．【 → 4.【（部分 PDF 题头格式不统一）
@@ -376,8 +378,12 @@ def _normalize_pdf_text(text: str) -> str:
         r"\n\1",
         text,
     )
-    # 去掉【单选题】/【多选题】内部空格：4.【 单 选 题 】→ 4.【单选题】
-    text = re.sub(r"【\s*([单多问])\s*选\s*题\s*】", r"【\1选题】", text)
+    # 去掉【单选题】/【多选题】内部空格/水印：4.【 单 选 育 题 】→ 4.【单选题】
+    text = re.sub(
+        r"【\s*([单多问])\s*[料资部内育教迹骐练一日每]*\s*选\s*[料资部内育教迹骐练一日每]*\s*题\s*】",
+        r"【\1选题】",
+        text,
+    )
     text = re.sub(r"^内部资料\s*\n", "", text.strip())
     return text
 
@@ -393,7 +399,7 @@ def _split_question_blocks(text: str) -> list[str]:
 
 def _parse_explanation(block: str) -> str:
     em = re.search(
-        r"解析\s*[:：]\s*(.+?)(?=\n\s*\d+\.\s*【|\n答案\s*[:：]|$)",
+        r"解析\s*[:：]\s*(.+?)(?=\n\s*\d+[\.．、]\s*【|\n答案\s*[:：]|$)",
         block,
         re.S,
     )
@@ -417,7 +423,7 @@ def _parse_questions(text: str) -> list[dict[str, Any]]:
     questions: list[dict[str, Any]] = []
 
     for block in blocks:
-        m = re.match(r"\s*(\d+)\.", block)
+        m = re.match(r"\s*(\d+)[\.．、]", block)
         if not m:
             continue
         num = int(m.group(1))
@@ -435,7 +441,7 @@ def _parse_questions(text: str) -> list[dict[str, Any]]:
             if om:
                 current = om.group(1).upper()
                 opts[current] = om.group(2)
-            elif current and current in opts and not re.match(r"^\d+[\.．]", line):
+            elif current and current in opts and not re.match(r"^\d+[\.．、]", line):
                 if _is_watermark_line(line):
                     continue
                 if _looks_like_new_option_line(line, opts[current], opts):
@@ -446,7 +452,7 @@ def _parse_questions(text: str) -> list[dict[str, Any]]:
                         continue
                 opts[current] += " " + line
             elif not opts:
-                if re.match(r"^\d+[\.．]", line):
+                if re.match(r"^\d+[\.．、]", line):
                     line = _strip_question_header(line)
                 if _is_watermark_line(line):
                     continue
@@ -473,7 +479,7 @@ def _parse_answers(text: str) -> dict[int, dict[str, str]]:
     answers: dict[int, dict[str, str]] = {}
 
     for block in blocks:
-        m = re.match(r"\s*(\d+)\.", block)
+        m = re.match(r"\s*(\d+)[\.．、]", block)
         if not m:
             continue
         num = int(m.group(1))
@@ -763,9 +769,11 @@ def _load_area_seed_questions(area: str) -> list[dict[str, Any]]:
 try:
     from pmp_athena.config import AREA_PRACTICE_LIMIT as _AREA_PRACTICE_LIMIT
     from pmp_athena.config import AREA_PRACTICE_BATCH as _AREA_PRACTICE_BATCH
+    from pmp_athena.config import DAILY_PRACTICE_BATCH as _DAILY_PRACTICE_BATCH
 except ModuleNotFoundError:
     from config import AREA_PRACTICE_LIMIT as _AREA_PRACTICE_LIMIT
     from config import AREA_PRACTICE_BATCH as _AREA_PRACTICE_BATCH
+    from config import DAILY_PRACTICE_BATCH as _DAILY_PRACTICE_BATCH
 
 
 def load_area_questions(area: str) -> list[dict[str, Any]]:
@@ -880,7 +888,7 @@ def _format_options(options: dict[str, str]) -> str:
         if len(text) > 80:
             text = text[:80] + "…"
         parts.append(f"{letter}. {text}")
-    return " ".join(parts)
+    return "\n".join(parts)
 
 
 def _format_question(q: dict[str, Any], *, header: str = "") -> str:
@@ -1103,6 +1111,75 @@ def resolve_date(text: str) -> date | None:
     return None
 
 
+def _pick_incomplete_date(*, today: date | None = None) -> date | None:
+    """优先今天未完成，否则最早未完成。"""
+    incomplete = list_incomplete_dates()
+    if not incomplete:
+        return None
+    today = today or date.today()
+    if today in incomplete:
+        return today
+    return incomplete[0]
+
+
+def _incomplete_hint(session_date: date | None) -> str:
+    others = [d for d in list_incomplete_dates() if d != session_date]
+    if not others:
+        return ""
+    labels = "、".join(_format_label(d) for d in others)
+    return f"📌 其余未完成：{labels}"
+
+
+def _is_daily_batch_mode(state: dict[str, Any] | None) -> bool:
+    return bool(state) and state.get("mode") in ("fixed", "random")
+
+
+def _current_batch(state: dict[str, Any]) -> list[dict[str, Any]]:
+    idx = int(state.get("current_index", 0))
+    questions: list[dict[str, Any]] = state.get("questions") or []
+    n = min(_DAILY_PRACTICE_BATCH, max(0, len(questions) - idx))
+    return questions[idx : idx + n]
+
+
+def _letters_needed(q: dict[str, Any]) -> int:
+    if q.get("question_type") == "multi" or _is_multichoice_block(q.get("stem", "")):
+        ca = str(q.get("correct_answer") or "")
+        n = len(_normalize_answer_text(ca, multi=True))
+        return n if n >= 2 else 2
+    return 1
+
+
+def _split_batch_answers(raw: str, questions: list[dict[str, Any]]) -> list[str] | None:
+    answers: list[str] = []
+    i = 0
+    for q in questions:
+        need = _letters_needed(q)
+        chunk = raw[i : i + need]
+        if len(chunk) < need:
+            return None
+        answers.append(chunk)
+        i += need
+    if i != len(raw):
+        return None
+    return answers
+
+
+def _batch_mismatch_text(questions: list[dict[str, Any]], raw: str) -> str:
+    expected = sum(_letters_needed(q) for q in questions)
+    lines = [
+        f"📋 本批 {len(questions)} 道，期望 {expected} 个答案，收到 {len(raw)} 个",
+    ]
+    i = 0
+    for q in questions:
+        need = _letters_needed(q)
+        tag = f" [选择{need}项]" if need > 1 else ""
+        chunk = raw[i : i + need] if i < len(raw) else ""
+        lines.append(f"Q{q.get('index', '?')}{tag}: {chunk or '?'}")
+        i += need
+    lines.append("⚠️ 请一次提交本批全部答案后再判卷。")
+    return "\n".join(lines)
+
+
 def start_session(*, target_date: date | None = None, random_mode: bool = False) -> dict[str, Any]:
     _clear_state()
 
@@ -1116,14 +1193,14 @@ def start_session(*, target_date: date | None = None, random_mode: bool = False)
         questions = load_questions_for_date(target_date)
         label = _format_label(target_date)
     else:
-        incomplete = list_incomplete_dates()
-        if incomplete:
-            return {
-                "status": "select",
-                "text": menu()["text"],
-            }
-        questions, label = load_random_questions(10)
-        random_mode = True
+        picked = _pick_incomplete_date()
+        if picked:
+            questions = load_questions_for_date(picked)
+            session_date = picked
+            label = _format_label(picked)
+        else:
+            questions, label = load_random_questions(10)
+            random_mode = True
 
     if not questions:
         return {"status": "error", "text": "⚠️ 未能加载题目，请检查 PDF 文件。"}
@@ -1150,25 +1227,40 @@ def start_session(*, target_date: date | None = None, random_mode: bool = False)
     }
     _save_state(state)
 
-    header = f"📝 {_format_label(session_date) if session_date else label}每日一练（共 {len(questions)} 题）"
-    q0 = questions[0]
+    title = _format_label(session_date) if session_date else label
+    header = f"📝 {title}每日一练（共 {len(questions)} 题 · 每批 {_DAILY_PRACTICE_BATCH} 题）"
+    hint = _incomplete_hint(session_date)
+    if hint:
+        header = f"{header}\n{hint}"
     return {
         "status": "question",
         "question_index": 1,
         "total": len(questions),
         "mode": state["mode"],
         "date": state["date"],
-        "text": _format_question(q0, header=header),
+        "text": _format_area_batch(
+            questions, 0, header=header, batch_size=_DAILY_PRACTICE_BATCH
+        ),
     }
 
 
 def grade_answers(user_answer: str) -> dict[str, Any]:
-    """判卷入口：单选题可批量；多选题整串判当前题。"""
+    """判卷入口：每日一练按批提交；专项可逐题；多选题整串判当前题。"""
     raw = user_answer.strip().upper().replace(",", "").replace(" ", "")
     if not raw:
         return {"status": "error", "text": "⚠️ 请回复 A/B/C/D"}
 
     state = _load_state()
+    if _is_daily_batch_mode(state):
+        assert state is not None
+        batch = _current_batch(state)
+        if not batch:
+            return {"status": "error", "text": "⚠️ 练习已结束，请发送「每日一练」重新开始。"}
+        answers = _split_batch_answers(raw, batch)
+        if answers is None:
+            return {"status": "error", "text": _batch_mismatch_text(batch, raw)}
+        return _grade_answer_list(answers)
+
     if state and state.get("questions"):
         idx = int(state.get("current_index", 0))
         questions: list[dict] = state["questions"]
@@ -1206,16 +1298,26 @@ def grade_batch(user_answer: str) -> dict[str, Any]:
             "text": f"⚠️ 提交了 {len(raw)} 个答案，但只剩 {remaining} 题。请核对后重发。",
         }
 
-    start_correct = state["correct_count"]
+    return _grade_answer_list(list(raw))
+
+
+def _grade_answer_list(answers: list[str]) -> dict[str, Any]:
+    state = _load_state()
+    if not state or not state.get("questions"):
+        return {
+            "status": "error",
+            "text": "⚠️ 当前没有进行中的每日一练，请发送「每日一练」开始。",
+        }
+
     start_wrong_len = len(state.get("wrong_items", []))
     batch_correct = 0
     batch_wrong: list[dict[str, Any]] = []
 
     last_result: dict[str, Any] | None = None
-    for letter in raw:
+    for ans in answers:
         state_before = _load_state() or {}
         correct_before = state_before.get("correct_count", 0)
-        last_result = grade_current(letter)
+        last_result = grade_current(ans)
         if last_result.get("status") == "error":
             return last_result
         state_mid = _load_state()
@@ -1230,9 +1332,9 @@ def grade_batch(user_answer: str) -> dict[str, Any]:
     assert last_result is not None
     if last_result.get("done") and not batch_wrong:
         batch_wrong = (last_result.get("wrong_items") or [])[start_wrong_len:]
-    graded = len(raw)
+    graded = len(answers)
 
-    lines = [f"📊 批量判卷：正确 {batch_correct}/{graded}"]
+    lines = [f"📊 本批判卷：正确 {batch_correct}/{graded}"]
     if batch_wrong:
         lines.append("")
         for w in batch_wrong:
@@ -1259,12 +1361,17 @@ def grade_batch(user_answer: str) -> dict[str, Any]:
                     break
         return {**last_result, "text": "\n".join(lines)}
 
-    # 专项练习：下一批 5 题；其他模式仍推下一题
+    # 每日一练 / 专项：下一批；不要在判卷前泄漏未做题答案
     state_after = _load_state() or state
-    if state_after.get("mode") == "area":
+    if state_after.get("mode") in ("area", "fixed", "random"):
         idx = int(state_after.get("current_index", 0))
         qs = state_after.get("questions") or []
-        nxt = _format_area_batch(qs, idx)
+        batch_size = (
+            _AREA_PRACTICE_BATCH
+            if state_after.get("mode") == "area"
+            else _DAILY_PRACTICE_BATCH
+        )
+        nxt = _format_area_batch(qs, idx, batch_size=batch_size)
         if nxt:
             lines.append("")
             lines.append(nxt)

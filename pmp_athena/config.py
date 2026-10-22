@@ -40,6 +40,7 @@ TODAY_QUEST_PATH = NOTES_DIR / "today_quest.json"
 AREA_SEED_DIR = NOTES_DIR / "area_seeds"
 AREA_PRACTICE_LIMIT = 15
 AREA_PRACTICE_BATCH = 5  # 专项练习每批推送题数（微信/终端一致）
+DAILY_PRACTICE_BATCH = 5  # 每日一练每批出题数，答完再判卷
 KNOWLEDGE_INDEX_PATH = PROJECT_ROOT / "pmp_knowledge_index.json"
 
 # ── Embedding 模型 ──────────────────────────────────────────
