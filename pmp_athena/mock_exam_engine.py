@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-模考引擎 — 状态机驱动的逐题模考（直接解析每日一练PDF组卷）。
+模考引擎 — 状态机驱动，每批 10 题 + 计时（直接解析每日一练PDF组卷）。
 
 用法:
     python pmp_athena/mock_exam_engine.py start --paper one
-    python pmp_athena/mock_exam_engine.py answer A
+    python pmp_athena/mock_exam_engine.py answer BACDCABDCA
     python pmp_athena/mock_exam_engine.py pause
     python pmp_athena/mock_exam_engine.py resume
     python pmp_athena/mock_exam_engine.py status
@@ -30,6 +30,11 @@ from pmp_athena.error_logger import ErrorLogger
 from pmp_athena.question_bank import QuestionBank
 from pmp_athena.mock_exam_state import MockExamState
 from pmp_athena.exam_recorder import ExamRecorder
+
+try:
+    from pmp_athena.config import MOCK_EXAM_BATCH as BATCH_SIZE
+except Exception:
+    BATCH_SIZE = 10
 
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger("mock_exam_engine")
@@ -665,7 +670,7 @@ def _parse_scanned_answers(full_text: str) -> dict[int, dict]:
 
 
 class MockExamEngine:
-    """逐题模考引擎 — 状态文件驱动。"""
+    """模考引擎 — 每批 10 题，交卷后计时 + 判卷。"""
 
     def __init__(self, state_path: Path | None = None):
         self.path = state_path or ENGINE_STATE_PATH
@@ -695,7 +700,7 @@ class MockExamEngine:
     # ── 公共 API ─────────────────────────────────────────────
 
     def start(self, paper: str) -> dict:
-        """加载题目，写入状态，返回第一题。"""
+        """加载题目，写入状态，返回第一批 10 题。"""
         existing = self._read()
         if existing and existing.get("status") in ("active", "paused"):
             return {
@@ -773,6 +778,8 @@ class MockExamEngine:
             "start_ts": self._now_ts(),
             "paused_accumulated": 0,
             "last_resume_ts": self._now_ts(),
+            "batch_base_elapsed": 0,
+            "batch_times": [],
         }
         self._write(state)
 
@@ -784,34 +791,103 @@ class MockExamEngine:
         except Exception:
             pass
 
-        return self._fmt_q(state, 0)
+        return self._fmt_batch(state, 0)
 
     def answer(self, letter: str) -> dict:
-        """记录答案、前进。全部答完自动判卷。支持多选。"""
+        """收齐本批答案后判卷并计时。全部答完自动出总报告。"""
         state = self._read()
         if not state:
             return {"status": "error", "error": "没有活跃的模考。"}
         if state["status"] != "active":
             return {"status": "error", "error": f"模考状态为 {state['status']}。"}
 
-        letter = letter.strip().upper()
-        # 多选答案：排序归一化
-        if len(letter) > 1:
-            letter = "".join(sorted(set(letter)))
+        raw = letter.strip().upper().replace(",", "").replace(" ", "").replace("、", "")
+        if not raw or not all(c in "ABCDE" for c in raw):
+            return {"status": "error", "error": "请回复本批字母，如 BACDCABDCA"}
 
-        if not all(c in "ABCDE" for c in letter):
-            return {"status": "error", "error": f"无效答案: {letter}"}
+        questions: list[dict] = state.get("questions") or []
+        idx = int(state.get("current_index", 0))
+        batch = questions[idx : idx + BATCH_SIZE]
+        if not batch:
+            return {"status": "error", "error": "本批没有题目。"}
 
-        idx = state["current_index"]
-        state["answers"][str(idx)] = letter
-        state["current_index"] = idx + 1
+        answers = self._split_batch_answers(raw, batch)
+        if answers is None:
+            text = self._batch_mismatch_text(batch, raw, start_index=idx)
+            return {"status": "error", "error": text, "text": text}
+
+        batch_sec = int(self._active_elapsed(state) - float(state.get("batch_base_elapsed", 0)))
+        batch_sec = max(0, batch_sec)
+
+        batch_correct = 0
+        batch_wrong: list[dict] = []
+        for offset, ans in enumerate(answers):
+            q = batch[offset]
+            qnum = idx + offset
+            if q.get("_is_multi"):
+                ans = "".join(sorted(c for c in ans if c in "ABCDE"))
+            state.setdefault("answers", {})[str(qnum)] = ans
+            ua_sorted = "".join(sorted(ans))
+            ca_sorted = "".join(
+                sorted(c for c in str(q.get("correct_answer", "")).upper() if c in "ABCDE")
+            )
+            area = q.get("_area", "综合")
+            if ua_sorted == ca_sorted:
+                batch_correct += 1
+            else:
+                batch_wrong.append(
+                    {
+                        "index": qnum + 1,
+                        "user_answer": ans,
+                        "correct_answer": q.get("correct_answer", ""),
+                        "explanation": (q.get("explanation") or "")[:80],
+                        "area": area,
+                    }
+                )
+
+        state["current_index"] = idx + len(batch)
+        state.setdefault("batch_times", []).append(batch_sec)
 
         if state["current_index"] >= state["total"]:
             self._write(state)
             return self.grade()
 
+        state["batch_base_elapsed"] = self._active_elapsed(state)
         self._write(state)
-        return self._fmt_q(state, state["current_index"])
+
+        graded = len(batch)
+        rate = round(batch_correct / graded * 100) if graded else 0
+        batch_no = idx // BATCH_SIZE + 1
+        lines = [f"📊 第 {batch_no} 批结果：正确 {batch_correct}/{graded}（{rate}%）", ""]
+        lines.extend(
+            self._pace_lines(
+                batch_sec,
+                batch_n=graded,
+                answered=state["current_index"],
+                total=state["total"],
+                cum_sec=int(self._active_elapsed(state)),
+            )
+        )
+        if batch_wrong:
+            lines.append("")
+            lines.append("❌ 错题：")
+            for w in batch_wrong:
+                line = (
+                    f"Q{w['index']} [{w['area']}]: "
+                    f"你的 {w['user_answer']} → 正确 {w['correct_answer']}"
+                )
+                if w.get("explanation"):
+                    line += f"\n  解析: {w['explanation']}"
+                lines.append(line)
+        nxt = self._fmt_batch(state, state["current_index"])
+        lines.append("")
+        lines.append(nxt.get("text", ""))
+        return {
+            "status": "question",
+            "index": state["current_index"] + 1,
+            "total": state["total"],
+            "text": "\n".join(lines).rstrip(),
+        }
 
     def pause(self) -> dict:
         state = self._read()
@@ -829,11 +905,14 @@ class MockExamEngine:
         self._write(state)
         answered = len(state.get("answers", {}))
         elapsed = int(state["paused_accumulated"] / 60)
+        idx = int(state.get("current_index", 0))
+        batch_no = idx // BATCH_SIZE + 1
+        batch_total = (state["total"] + BATCH_SIZE - 1) // BATCH_SIZE
         return {
             "status": "paused",
             "text": (
                 f"⏸️  模考已暂停（已做答 {elapsed} 分）\n"
-                f"   进度: {answered}/{state['total']} 题\n"
+                f"   进度: 第 {batch_no}/{batch_total} 批（{answered}/{state['total']} 题）\n"
                 f"   回复「继续」恢复，回复「放弃模考」退出。"
             ),
         }
@@ -850,7 +929,7 @@ class MockExamEngine:
         self._write(state)
         idx = state["current_index"]
         answered = len(state.get("answers", {}))
-        q = self._fmt_q(state, idx)
+        q = self._fmt_batch(state, idx)
         return {
             "status": "active",
             "text": f"▶️  模考已继续（进度 {answered}/{state['total']}）",
@@ -966,7 +1045,8 @@ class MockExamEngine:
             "elapsed_minutes": elapsed // 60,
             "text": (
                 f"📊 模考: {s.get('paper')}\n"
-                f"   进度: {answered}/{s['total']} 题\n"
+                f"   进度: 第 {idx // BATCH_SIZE + 1}/{(s['total'] + BATCH_SIZE - 1) // BATCH_SIZE} 批"
+                f"（{answered}/{s['total']} 题）\n"
                 f"   状态: {s.get('status')}\n"
                 f"   用时: {elapsed // 60} 分"
             ),
@@ -980,10 +1060,12 @@ class MockExamEngine:
         if state["status"] != "active":
             return {"status": "error", "error": f"模考状态为 {state['status']}，无法重发题目。"}
         idx = state["current_index"]
-        q = self._fmt_q(state, idx)
+        q = self._fmt_batch(state, idx)
+        batch_no = idx // BATCH_SIZE + 1
+        batch_total = (state["total"] + BATCH_SIZE - 1) // BATCH_SIZE
         return {
             "status": "question",
-            "text": f"📌 模考进行中（第 {idx + 1} 题 / 共 {state['total']} 题）",
+            "text": f"📌 模考进行中（第 {batch_no}/{batch_total} 批 · {idx}/{state['total']} 题）",
             "next": q,
         }
 
@@ -1020,11 +1102,113 @@ class MockExamEngine:
         self._write(state)
         idx = state.get("current_index", 0)
         answered = len(state.get("answers", {}))
-        q = self._fmt_q(state, idx)
+        q = self._fmt_batch(state, idx)
         return {
             "status": "recovered",
             "text": f"♻️  已恢复上次模考（进度 {answered}/{state.get('total')}）",
             "next": q,
+        }
+
+    def _active_elapsed(self, state: dict) -> float:
+        acc = float(state.get("paused_accumulated", 0))
+        if state.get("status") == "active":
+            acc += self._now_ts() - float(state.get("last_resume_ts", self._now_ts()))
+        return acc
+
+    def _letters_needed(self, q: dict) -> int:
+        if q.get("_is_multi"):
+            ca = "".join(c for c in str(q.get("correct_answer") or "").upper() if c in "ABCDE")
+            n = len(ca)
+            return n if n >= 2 else 2
+        return 1
+
+    def _split_batch_answers(self, raw: str, questions: list[dict]) -> list[str] | None:
+        answers: list[str] = []
+        i = 0
+        for q in questions:
+            need = self._letters_needed(q)
+            chunk = raw[i : i + need]
+            if len(chunk) < need:
+                return None
+            answers.append(chunk)
+            i += need
+        if i != len(raw):
+            return None
+        return answers
+
+    def _batch_mismatch_text(self, questions: list[dict], raw: str, *, start_index: int) -> str:
+        expected = sum(self._letters_needed(q) for q in questions)
+        lines = [
+            f"📋 本批 {len(questions)} 道，期望 {expected} 个答案，收到 {len(raw)} 个",
+        ]
+        i = 0
+        for offset, q in enumerate(questions):
+            need = self._letters_needed(q)
+            tag = f" [选择{need}项]" if need > 1 else ""
+            chunk = raw[i : i + need] if i < len(raw) else ""
+            lines.append(f"Q{start_index + offset + 1}{tag}: {chunk or '?'}")
+            i += need
+        lines.append("⚠️ 请一次提交本批全部答案后再判卷。")
+        return "\n".join(lines)
+
+    def _pace_lines(
+        self,
+        batch_sec: int,
+        *,
+        batch_n: int,
+        answered: int,
+        total: int,
+        cum_sec: int,
+    ) -> list[str]:
+        avg = round(batch_sec / batch_n) if batch_n else 0
+        est = int(cum_sec / answered * total) if answered else 0
+        est_min = est // 60
+        bm, bs = divmod(max(0, batch_sec), 60)
+        cm, cs = divmod(max(0, cum_sec), 60)
+        lines = [
+            f"⏱️ 本批用时: {bm} 分 {bs} 秒（平均 {avg} 秒/题）",
+            f"⏱️ 累计用时: {cm} 分 {cs} 秒",
+            f"📉 预估总用时: {est_min} 分钟（基于当前节奏 × {total} 题）",
+        ]
+        if est_min > 200:
+            lines.append("⚠️ 当前节奏偏慢，建议每题控制在 60 秒以内。遇到不确定的题先标记跳过。")
+        elif est_min <= 180:
+            lines.append("✅ 节奏良好，保持。")
+        else:
+            lines.append("⚠️ 注意控制每题节奏。")
+        if batch_sec > 40 * 60:
+            lines.append(f"⚠️ 本批耗时偏长（{bm}分钟），建议每题控制在 1 分钟左右。")
+        remain = 230 - est_min - (total * 8 // 60)
+        if remain < 10:
+            lines.append("🚨 时间预警！含涂卡后剩余可能不足 10 分钟，请加快节奏。")
+        return lines
+
+    def _fmt_batch(self, state, idx) -> dict:
+        qs = state.get("questions", [])
+        total = state.get("total", len(qs))
+        if idx >= len(qs):
+            return {"status": "error", "error": f"索引越界: {idx}"}
+        batch = qs[idx : idx + BATCH_SIZE]
+        batch_no = idx // BATCH_SIZE + 1
+        batch_total = (total + BATCH_SIZE - 1) // BATCH_SIZE
+        end = idx + len(batch)
+        lines = [
+            f"📝 {state.get('paper', '模考')}（共 {total} 题 · 每批 {BATCH_SIZE} 题）",
+            f"📦 第 {batch_no}/{batch_total} 批（Q{idx + 1}–Q{end}）",
+            "⏰ 本批计时开始 · 建议 10 分钟内交卷",
+            "",
+        ]
+        for i in range(idx, end):
+            lines.append(self._fmt_q(state, i)["text"])
+            lines.append("")
+        n = len(batch)
+        sample = ("BACDC" * 4)[:n]
+        lines.append(f"💬 一次回复 {n} 个字母，如 `{sample}`")
+        return {
+            "status": "question",
+            "index": idx + 1,
+            "total": total,
+            "text": "\n".join(lines).rstrip(),
         }
 
     def _fmt_q(self, state, idx) -> dict:
@@ -1046,6 +1230,7 @@ class MockExamEngine:
             "══════════════════════════",
             "",
             f"⏱️  做答用时: {minutes} 分钟",
+            f"   单题平均: {round(minutes * 60 / total) if total else 0} 秒",
             f"✏️  涂卡估算: {total * 8 // 60} 分钟（{total}题×8秒）",
             "",
             f"📊 总正确率: {correct}/{total}（{round(rate * 100, 1)}%）",

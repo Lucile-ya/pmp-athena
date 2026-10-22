@@ -42,6 +42,7 @@ AREA_PRACTICE_LIMIT = 15
 AREA_PRACTICE_BATCH = 5  # 专项练习每批推送题数（微信/终端一致）
 DAILY_PRACTICE_BATCH = 10  # 每日一练一次出齐，交卷再判卷
 DAILY_PRACTICE_TIME_LIMIT_SEC = 13 * 60  # 10 题目标 13 分钟（约 78 秒/题）
+MOCK_EXAM_BATCH = 10  # 模考每批 10 题，答完再判卷并统计用时
 KNOWLEDGE_INDEX_PATH = PROJECT_ROOT / "pmp_knowledge_index.json"
 
 # ── Embedding 模型 ──────────────────────────────────────────
