@@ -192,7 +192,7 @@ def _clean_stem(stem: str) -> str:
     return legacy[:500] if legacy else stem[:500]
 
 
-_PAREN_ACRONYM = re.compile(r"（[A-Za-z]{2,12}）")
+_PAREN_ACRONYM = re.compile(r"[（(][A-Za-z]{2,12}[）)]")
 _CHINESE_BEFORE_ENGLISH = re.compile(
     r"(?<=[。！？?；;：:）\)""''\u4e00-\u9fff])(?=[A-Za-z])"
     r"|\s+(?=[A-Z][a-z])",
@@ -286,8 +286,17 @@ def _looks_like_new_option_line(line: str, prev_option: str, opts: dict[str, str
         return False
     if re.match(r"^[A-Z][a-z]", s):
         return True
-    if re.search(r"[\u4e00-\u9fff]{4,}", s) and not re.match(r"^[A-E]\s", s, re.I):
-        return True
+    # 中文续行：双语 PDF 英文选项后的中文翻译，不算新选项
+    line_cn = len(re.findall(r"[\u4e00-\u9fff]", s))
+    line_latin = len(re.findall(r"[A-Za-z]", s))
+    if line_cn >= 4 and line_cn > line_latin:
+        prev_cn = len(re.findall(r"[\u4e00-\u9fff]", prev))
+        prev_latin = len(re.findall(r"[A-Za-z]", prev))
+        if prev_latin > prev_cn:
+            return False
+        # 纯中文卷：上一选项已结束且本行也是中文 → 可能丢了字母前缀
+        if not re.match(r"^[A-E]\s", s, re.I):
+            return True
     return False
 
 
