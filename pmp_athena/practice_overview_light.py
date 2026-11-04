@@ -285,9 +285,23 @@ def generate_summary(from_date: str | None = None) -> str:
         else:
             monthly[key].append(r)
 
-    sorted_months = sorted(set(monthly.keys()) | set(monthly_dups.keys()))
+    # ── 模考 / 章节练习分组（章节=App 题库刷题，计入月度题量）──
+    month_exams: dict[str, list[dict]] = defaultdict(list)
+    month_chapters: dict[str, list[dict]] = defaultdict(list)
+    for e in exams:
+        ed = e.get("exam_date", "")[:7]
+        if not ed:
+            continue
+        if _is_chapter_practice(e):
+            month_chapters[ed].append(e)
+        else:
+            month_exams[ed].append(e)
 
-    # ── 首次/二次正确率（不含模考重复记账）──
+    sorted_months = sorted(
+        set(monthly.keys()) | set(monthly_dups.keys()) | set(month_chapters.keys())
+    )
+
+    # ── 首次/二次正确率（不含模考重复记账；章节练习无逐题，不进此段）──
     first_seen_questions: set[str] = set()
     month_first_correct: dict[str, int] = defaultdict(int)
     month_first_total: dict[str, int] = defaultdict(int)
@@ -308,18 +322,6 @@ def generate_summary(from_date: str | None = None) -> str:
                 month_second_total[m] += 1
                 if r.get("is_correct"):
                     month_second_correct[m] += 1
-
-    # ── 模考分组（排除章节练习等非标准模考）──
-    month_exams: dict[str, list[dict]] = defaultdict(list)
-    month_chapters: dict[str, list[dict]] = defaultdict(list)
-    for e in exams:
-        ed = e.get("exam_date", "")[:7]
-        if not ed:
-            continue
-        if _is_chapter_practice(e):
-            month_chapters[ed].append(e)
-        else:
-            month_exams[ed].append(e)
 
     # ── 格式输出 ──
     start_month = sorted_months[0] if sorted_months else today.strftime("%Y-%m")
@@ -344,14 +346,28 @@ def generate_summary(from_date: str | None = None) -> str:
     # ── 逐月详情 ──
     month_details: list[dict] = []
 
+    chapter_total_all = 0
+    chapter_correct_all = 0
+
     for m in sorted_months:
         records = monthly.get(m, [])
         dup_n = monthly_dups.get(m, 0)
-        t = len(records)
+        bank_t = len(records)
         judged = [r for r in records if r.get("is_correct") is not None]
-        c = sum(1 for r in judged if r.get("is_correct"))
-        rate = c / max(1, len(judged)) * 100
-        pending = t - len(judged)
+        bank_c = sum(1 for r in judged if r.get("is_correct"))
+        pending = bank_t - len(judged)
+
+        chapters = month_chapters.get(m, [])
+        chap_t = sum(int(e.get("total_questions") or 0) for e in chapters)
+        chap_c = sum(int(e.get("correct_count") or 0) for e in chapters)
+        chapter_total_all += chap_t
+        chapter_correct_all += chap_c
+
+        # 章节练习=App 题库刷题，并入月度刷题量（与逐题入库互补，不重复记模考）
+        t = bank_t + chap_t
+        c = bank_c + chap_c
+        judged_n = len(judged) + chap_t
+        rate = c / max(1, judged_n) * 100
 
         f_t = month_first_total.get(m, 0)
         f_c = month_first_correct.get(m, 0)
@@ -360,15 +376,33 @@ def generate_summary(from_date: str | None = None) -> str:
 
         ym = int(m[:4]), int(m[5:])
         date_range = _format_date_range(m, records)
+        if (not records) and chapters:
+            chap_days = sorted(
+                {
+                    (e.get("exam_date") or "")[:10]
+                    for e in chapters
+                    if e.get("exam_date")
+                }
+            )
+            if chap_days:
+                date_range = _format_date_range(
+                    m, [{"date": d} for d in chap_days]
+                )
         n_exams = len(month_exams.get(m, []))
 
         lines.append(f"📅 {_MONTH_CN[ym[1]]}（{date_range}）")
         pending_note = f"（待判卷 {pending} 题）" if pending > 0 else ""
         dup_note = f"（已剔除 {dup_n} 条模考重复记账）" if dup_n else ""
         lines.append(
-            f"刷题：{t} 题 | 正确率 {_format_monthly_rate(c, len(judged))}"
+            f"刷题：{t} 题 | 正确率 {_format_monthly_rate(c, judged_n)}"
             f"{pending_note}{dup_note}"
         )
+        if chap_t > 0 and bank_t > 0:
+            lines.append(
+                f"  其中：逐题入库 {bank_t} + 章节/App题库 {chap_t}"
+            )
+        elif chap_t > 0:
+            lines.append(f"  其中：章节/App题库 {chap_t}")
         lines.append(
             f"  首次正确率 {_format_monthly_rate(f_c, f_t)}"
             f"  |  二次正确率 {_format_monthly_rate(s_c, s_t)}"
@@ -394,7 +428,7 @@ def generate_summary(from_date: str | None = None) -> str:
         else:
             lines.append("模考：0 次")
 
-        for e in month_chapters.get(m, []):
+        for e in chapters:
             name = _exam_display_name(e.get("exam_id", "章节练习"))
             ed = e.get("exam_date", "")[5:10].replace("-", "/")
             cc = e.get("correct_count")
@@ -440,11 +474,13 @@ def generate_summary(from_date: str | None = None) -> str:
     if daily_lines:
         lines.extend(daily_lines)
 
-    # ── 总览 ──
+    # ── 总览（逐题入库 + 章节/App 题库截图）──
     judged_all = [r for r in bank_for_rate if r.get("is_correct") is not None]
-    correct = sum(1 for r in judged_all if r.get("is_correct"))
-    overall_pct = correct / max(1, len(judged_all)) * 100
-    total = len(bank_for_rate)
+    bank_correct = sum(1 for r in judged_all if r.get("is_correct"))
+    bank_total = len(bank_for_rate)
+    correct = bank_correct + chapter_correct_all
+    total = bank_total + chapter_total_all
+    overall_pct = correct / max(1, (len(judged_all) + chapter_total_all)) * 100
 
     # 薄弱领域
     area_stats: dict[str, dict] = defaultdict(lambda: {"total": 0, "correct": 0})
@@ -508,6 +544,10 @@ def generate_summary(from_date: str | None = None) -> str:
         "─" * 30,
         f"总刷题：{total} 题 | 总正确率：{overall_pct:.1f}%",
     ])
+    if chapter_total_all > 0:
+        lines.append(
+            f"（含章节/App题库 {chapter_total_all} 题；逐题入库 {bank_total} 题）"
+        )
     if dup_mock_n > 0:
         lines.append(f"（原始题库 {len(bank)} 条含模考重复记账，已剔除 {dup_mock_n} 条）")
     if total_review > 0:
