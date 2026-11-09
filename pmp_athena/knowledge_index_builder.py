@@ -347,12 +347,14 @@ def build_index(notes_dir: Path | None = None) -> dict[str, Any]:
 
     # 过滤 error 占位
     clean = [e for e in entries if "_error" not in e]
+    pattern_hits = sorted(root.rglob(PATTERN_PDF_NAME))
+    pattern_rel = _rel(pattern_hits[0]) if pattern_hits else f"pmp_notes/{PATTERN_PDF_NAME}"
     return {
         "version": 1,
         "built_at": datetime.now().isoformat(timespec="seconds"),
         "project_root": str(PROJECT_ROOT).replace("\\", "/"),
         "notes_dir": _rel(root),
-        "pattern_pdf": f"pmp_notes/{PATTERN_PDF_NAME}",
+        "pattern_pdf": pattern_rel,
         "files_scanned": files_scanned,
         "entry_count": len(clean),
         "entries": clean,

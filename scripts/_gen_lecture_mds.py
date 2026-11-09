@@ -2,7 +2,7 @@
 """Generate Qiji lecture MD summaries into pmp_notes/."""
 from pathlib import Path
 
-notes = Path(__file__).resolve().parents[1] / "pmp_notes"
+notes = Path(__file__).resolve().parents[1] / "pmp_notes" / "摘要"
 
 FILES = {}
 
