@@ -52,8 +52,113 @@ DOMAIN_FILES: dict[str, str] = {
     "范围管理": "09-范围管理.md",
 }
 
+# 薄弱域 → 摘要 MD（相对 薄弱点速记/）+ 讲义 PDF
+# 先扫摘要，卡住再翻 PDF；通关套路另见三十六种套路。
+DOMAIN_LECTURES: dict[str, dict[str, str]] = {
+    "商业环境": {
+        "摘要": "../摘要/PMP2_价值交付体系.md",
+        "摘要2": "../摘要/ECO考纲_2026_速查.md",
+        "讲义": "../讲义/PMP2.价值交付体系-骐迹教育.pdf",
+        "标签": "PMP2 价值交付 · ECO",
+    },
+    "成本管理": {
+        "摘要": "../摘要/PMP10_财务管理.md",
+        "讲义": "../讲义/PMP10.财务管理-骐迹教育.pdf",
+        "标签": "PMP10 财务管理",
+    },
+    "敏捷/混合方法": {
+        "摘要": "../摘要/PMP4_开发方法和生命周期.md",
+        "摘要2": "../摘要/敏捷实践指南_摘要.md",
+        "讲义": "../讲义/PMP4.开发方法和生命周期-骐迹教育.pdf",
+        "标签": "PMP4 生命周期 · 敏捷指南",
+    },
+    "质量管理": {
+        "摘要": "../摘要/PMP16_质量绩效域.md",
+        "讲义": "../讲义/PMP16.质量绩效域-骐迹教育.pdf",
+        "标签": "PMP16 质量绩效域",
+    },
+    "进度管理": {
+        "摘要": "../摘要/PMP8-9_进度管理.md",
+        "讲义": "../讲义/PMP8-9.进度管理-骐迹教育.pdf",
+        "标签": "PMP8-9 进度管理",
+    },
+    "资源管理": {
+        "摘要": "../摘要/PMP12-13_资源团队管理.md",
+        "讲义": "../讲义/PMP12-13.资源团队管理-骐迹教育.pdf",
+        "标签": "PMP12-13 资源/团队",
+    },
+    "干系人管理": {
+        "摘要": "../摘要/PMP11_利益相关方管理.md",
+        "讲义": "../讲义/PMP11.利益相关方管理-骐迹教育.pdf",
+        "标签": "PMP11 利益相关方",
+    },
+    "整合管理": {
+        "摘要": "../摘要/PMP5-6_项目治理绩效域.md",
+        "摘要2": "../摘要/PMP3_项目管理原则.md",
+        "讲义": "../讲义/PMP5-6.项目治理绩效域-骐迹教育.pdf",
+        "标签": "PMP5-6 治理 · PMP3 原则",
+    },
+    "范围管理": {
+        "摘要": "../摘要/PMP7_范围管理.md",
+        "讲义": "../讲义/PMP7.范围管理-骐迹教育.pdf",
+        "标签": "PMP7 范围管理",
+    },
+}
+
 # 展示顺序（与 README 优先级一致）
 DOMAIN_ORDER = list(DOMAIN_FILES.keys())
+
+
+def format_lecture_line(area: str) -> str:
+    """各领域速记顶部的讲义对照一行。"""
+    info = DOMAIN_LECTURES.get(area) or {}
+    if not info:
+        return ""
+    abs_parts: list[str] = []
+    if info.get("摘要"):
+        name = Path(info["摘要"]).name
+        abs_parts.append(f"[摘要·{name}]({info['摘要']})")
+    if info.get("摘要2"):
+        name = Path(info["摘要2"]).name
+        abs_parts.append(f"[摘要·{name}]({info['摘要2']})")
+    if info.get("讲义"):
+        name = Path(info["讲义"]).name
+        abs_parts.append(f"[讲义 PDF]({info['讲义']})")
+    label = info.get("标签") or area
+    return f"> **讲义对照**（{label}）：先扫摘要 → 卡住再翻 PDF · " + " · ".join(abs_parts)
+
+
+def format_lecture_readme_table() -> str:
+    """README 用的讲义对照表。"""
+    lines = [
+        "## 讲义对照（薄弱点用）",
+        "",
+        "> 路径相对本目录：`../摘要/`、`../讲义/`。先扫摘要，再翻 PDF。  ",
+        "> 通关套路另册：[三十六种套路速查](../摘要/三十六种套路_速查.md)",
+        "",
+        "| 薄弱域 | 先看摘要 | 对照讲义 PDF | 速记 |",
+        "|--------|----------|--------------|------|",
+    ]
+    for area in DOMAIN_ORDER:
+        info = DOMAIN_LECTURES[area]
+        fname = DOMAIN_FILES[area]
+        abs1 = f"[{Path(info['摘要']).name}]({info['摘要']})"
+        if info.get("摘要2"):
+            abs1 += f"<br>+ [{Path(info['摘要2']).name}]({info['摘要2']})"
+        pdf = f"[{Path(info['讲义']).name}]({info['讲义']})"
+        sheet = f"[{fname.replace('.md', '')}](./{fname})"
+        short = "敏捷" if area.startswith("敏捷") else area
+        lines.append(f"| {short} | {abs1} | {pdf} | {sheet} |")
+    lines += [
+        "",
+        "| 跨域 | 先看摘要 | 对照 | 速记 |",
+        "|------|----------|------|------|",
+        "| 跳步骤 / First-Next | [攻错决策卡](./00-考前攻错决策卡.md) | [三十六种套路](../摘要/三十六种套路_速查.md) | 00 |",
+        "| 资源·整合·敏捷·干系人分域 | [三领域对比](./00-三领域对比速记卡.md) | — | 00 |",
+        "| 成本·进度·商业公式 | [Process 合订](./00-P0三领域完整知识点.md) | PMP10 / 8-9 / PMP2 | 00 |",
+        "",
+    ]
+    return "\n".join(lines)
 
 _MENU_TRIGGERS = frozenset({
     "薄弱点速记", "薄弱速记", "速记菜单", "速记清单", "速记列表",

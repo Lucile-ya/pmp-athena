@@ -1665,7 +1665,7 @@ def _day_by_day_lines(
             lines.append("- 23:00 前停，睡不够比少背两句更伤正确率")
         elif d == 2:
             lines.append(f"### {date_s} · 倒数第二天（D-2）")
-            lines.append("- 上午：高频错题摘要卡 + 三领域对比速记卡")
+            lines.append("- 上午：考前攻错决策卡 + 三领域对比速记卡")
             lines.append(f"- 下午：口诀过一遍薄弱项（{' / '.join(weak_names[:2])}），可刷错题 ≤20")
             lines.append("- 不新开整套模考；把 First/Next/Best 问法再过一遍")
         elif d == 3:

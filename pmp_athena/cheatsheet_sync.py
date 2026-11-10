@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-薄弱点速记同步 — 从 error_log 追加易错陷阱、刷新 README 优先级表、重生成高频错题摘要卡。
+薄弱点速记同步 — 从 error_log 追加易错陷阱、刷新 README、同步 00 总览卡、高频卡降级占位。
 
 CLI:
   python pmp_athena/cheatsheet_sync.py sync          # 增量同步错题 → MD
   python pmp_athena/cheatsheet_sync.py refresh-readme
   python pmp_athena/cheatsheet_sync.py refresh-hf-cards
+  python pmp_athena/cheatsheet_sync.py refresh-overview
   python pmp_athena/cheatsheet_sync.py all           # 全部
 """
 
@@ -31,6 +32,8 @@ try:
         DOMAIN_FILES,
         DOMAIN_ORDER,
         _resolve_cheatsheet_area,
+        format_lecture_line,
+        format_lecture_readme_table,
         get_weak_areas,
     )
 except ModuleNotFoundError:
@@ -40,11 +43,16 @@ except ModuleNotFoundError:
         DOMAIN_FILES,
         DOMAIN_ORDER,
         _resolve_cheatsheet_area,
+        format_lecture_line,
+        format_lecture_readme_table,
         get_weak_areas,
     )
 
 SYNC_STATE_PATH = CHEATSHEET_DIR / ".sync_state.json"
 README_PATH = CHEATSHEET_DIR / "README.md"
+OVERVIEW_DECISION = CHEATSHEET_DIR / "00-考前攻错决策卡.md"
+OVERVIEW_COMPARE = CHEATSHEET_DIR / "00-三领域对比速记卡.md"
+OVERVIEW_PROCESS = CHEATSHEET_DIR / "00-P0三领域完整知识点.md"
 AUTO_TRAP_HEADING = "### 来自你的错题（自动"
 # 兼容旧标题，同步时整段替换
 AUTO_TRAP_HEADING_ALIASES = (
@@ -66,6 +74,7 @@ class SyncResult:
     traps_added: dict[str, int] = field(default_factory=dict)
     readme_updated: bool = False
     headers_updated: int = 0
+    overview_updated: int = 0
     synced_ids: list[int] = field(default_factory=list)
     skipped_duplicate: int = 0
     hf_cards_count: int = 0
@@ -82,15 +91,16 @@ class SyncResult:
             lines.append(f"- 可背口诀已刷新 **{self.total_traps}** 条（{', '.join(parts)}）")
         if self.hf_cards_updated:
             lines.append(
-                f"- 高频错题摘要卡已刷新（**{self.hf_cards_count}** 道，"
-                "`00-高频错题摘要卡.md`）"
+                f"- 高频卡已降级占位（错≥3 仍计 **{self.hf_cards_count}** 道，不当教材）"
             )
         elif self.hf_cards_count:
-            lines.append(f"- 高频错题摘要卡待刷新（当前 **{self.hf_cards_count}** 道）")
+            lines.append(f"- 高频顽疾索引 **{self.hf_cards_count}** 道（练题走「复习错题」）")
         if self.readme_updated:
             lines.append("- README 优先级表已刷新")
         if self.headers_updated:
             lines.append(f"- 已更新 {self.headers_updated} 份领域速记的数据头")
+        if self.overview_updated:
+            lines.append(f"- 已同步 {self.overview_updated} 份总览卡（攻错/对比/Process合订）")
         if self.skipped_duplicate:
             lines.append(f"- 跳过 {self.skipped_duplicate} 条重复")
         if not lines:
@@ -555,8 +565,8 @@ def build_recitation_plan(
                 morning = "模考日：轻量口诀"
                 afternoon = "全真模考"
             else:
-                morning = "[00-高频错题摘要卡](./00-高频错题摘要卡.md) + [三领域对比](./00-三领域对比速记卡.md)"
-                afternoon = "复习错题 / 随机模考"
+                morning = "[00-考前攻错决策卡](./00-考前攻错决策卡.md) + [三领域对比](./00-三领域对比速记卡.md)"
+                afternoon = "`复习错题` / 弱项专项"
         else:
             num = slot.get("num") or ""
             morning = f"{num} {_sprint_short_area(slot['area'])}".strip()
@@ -599,9 +609,10 @@ def _ranked_area_triples() -> list[tuple[str, str, str]]:
 
 
 def _insert_daily_hf_section(content: str, section: str) -> str:
-    """把今日推荐摘要卡插入 README（考前加练段之后）。"""
+    """把今日顽疾号插入 README（考前加练段之后）。"""
     new_content, n = re.subn(
-        r"## 今日推荐摘要卡（10分钟）\n.*?(?=\n---\n\n## (?:每份文档结构|三、每份文档怎么读))",
+        r"## 今日(?:推荐摘要卡（10分钟）|顽疾号（不要读长摘要卡）)\n.*?"
+        r"(?=\n---\n\n## (?:每份文档结构|三、每份文档怎么读))",
         section.strip() + "\n",
         content,
         count=1,
@@ -615,7 +626,7 @@ def _insert_daily_hf_section(content: str, section: str) -> str:
     ):
         if marker in content:
             insert = (
-                "\n\n**每日睡前**：过下方「今日推荐摘要卡」（当日领域 + 顽疾，约 10 道）"
+                "\n\n**每日睡前**：过下方「今日顽疾号」→ 发「复习错题」"
                 f"\n\n---\n\n{section.strip()}\n{marker}"
             )
             return content.replace(marker, insert, 1)
@@ -772,12 +783,56 @@ def refresh_readme(*, dry_run: bool = False, hf_cards_count: int | None = None) 
     )
 
     content = re.sub(
-        r"\*\*P0 完整合订\*\*：.*",
-        "**P0 完整合订**：[00-P0三领域完整知识点](./00-P0三领域完整知识点.md)"
-        "（成本 + 进度 为当前 P0；商业环境已降至 P2，合订本仍可对照）",
+        r"\*\*(?:P0 完整合订|Process 合订)\*\*：.*",
+        "**Process 合订**：[00-P0三领域完整知识点](./00-P0三领域完整知识点.md)"
+        "（成本/进度公式 + 商业环境速查；主战场仍按存量：资源→敏捷→干系人→整合）",
         content,
         count=1,
     )
+
+    # 总览卡入口：攻错/对比优先；高频长摘要降级
+    content = re.sub(
+        r"\| \[00-高频错题摘要卡\]\(\./00-高频错题摘要卡\.md\) \|[^\n]+\|",
+        "| [00-高频错题摘要卡](./00-高频错题摘要卡.md) | **已降级** · 不当教材；顽疾发「复习错题」 |",
+        content,
+        count=1,
+    )
+    content = re.sub(
+        r"\*\*先过总览卡，不要直接扎进 01–09：\*\*\n\n.*?(?=\n\n### 分领域顺序)",
+        "**先过总览卡，不要直接扎进 01–09：**\n\n"
+        "1. [00-考前攻错决策卡](./00-考前攻错决策卡.md) — 你近四成错是跳步骤，跟领域关系不大  \n"
+        "2. [00-三领域对比速记卡](./00-三领域对比速记卡.md) — 做题前 30 秒判断「卡在哪件事」  \n"
+        "3. [00-P0三领域完整知识点](./00-P0三领域完整知识点.md) — 成本/进度公式 + 商业环境速查（不当主刷）",
+        content,
+        count=1,
+        flags=re.DOTALL,
+    )
+    content = re.sub(
+        r"\*\*每日睡前\*\*：.*",
+        "**每日睡前**：过下方「今日顽疾号」→ 发「复习错题」做完整题（不要读长摘要卡）",
+        content,
+        count=1,
+    )
+
+    lecture_table = format_lecture_readme_table()
+    content, n_lec_readme = re.subn(
+        r"## 讲义对照（薄弱点用）\n.*?(?=\n---\n\n## )",
+        lecture_table,
+        content,
+        count=1,
+        flags=re.DOTALL,
+    )
+    if not n_lec_readme:
+        # 插在「一、摘要卡清单」整段之后
+        marker = "\n---\n\n## 二、根据做题数据"
+        if marker in content:
+            content = content.replace(
+                marker,
+                "\n\n" + lecture_table + "---\n\n## 二、根据做题数据",
+                1,
+            )
+        else:
+            content = content.rstrip() + "\n\n" + lecture_table
 
     if hf_cards_count is not None:
         content = _update_readme_hf_line(content, hf_cards_count)
@@ -856,7 +911,33 @@ def refresh_domain_headers(*, dry_run: bool = False) -> int:
             count=1,
             flags=re.MULTILINE,
         )
-        if (n or n_title) and new_content != content:
+        lecture = format_lecture_line(area)
+        if lecture:
+            if re.search(r"> \*\*讲义对照\*\*：", new_content):
+                new_content, n_lec = re.subn(
+                    r"> \*\*讲义对照\*\*[^\n]*",
+                    lecture,
+                    new_content,
+                    count=1,
+                )
+            else:
+                # 插在总口诀行后；若无总口诀则插在数据行后
+                new_content, n_lec = re.subn(
+                    r"(> \*\*总口诀\*\*：[^\n]+)",
+                    rf"\1\n{lecture}",
+                    new_content,
+                    count=1,
+                )
+                if not n_lec:
+                    new_content, n_lec = re.subn(
+                        r"(> \*\*你的数据\*\*：[^\n]+)",
+                        rf"\1\n{lecture}",
+                        new_content,
+                        count=1,
+                    )
+        else:
+            n_lec = 0
+        if (n or n_title or n_lec) and new_content != content:
             if not dry_run:
                 path.write_text(new_content, encoding="utf-8")
             updated += 1
@@ -891,23 +972,180 @@ def sync_hf_cards(
 
 
 def _update_readme_hf_line(content: str, count: int) -> str:
-    pattern = (
-        r"(\*\*考前加练\*\*：\[00-高频错题摘要卡\]\(\./00-高频错题摘要卡\.md\))"
-        r"（错 ≥3 次的 \d+ 道题 · 锚点\+口诀）"
+    pattern = r"\*\*考前加练\*\*：.*"
+    repl = (
+        f"**考前加练**：发「复习错题」过完整题"
+        f"（错 ≥3 次约 **{count}** 道；长摘要卡已降级，不当教材）"
     )
-    repl = rf"\1（错 ≥3 次的 {count} 道题 · 锚点+口诀）"
     new_content, n = re.subn(pattern, repl, content, count=1)
     if n:
         return new_content
-    # 兼容旧版无该行 README
     marker = "## 推荐 7 天背诵计划"
-    insert = (
-        f"\n**考前加练**：[00-高频错题摘要卡](./00-高频错题摘要卡.md)"
-        f"（错 ≥3 次的 {count} 道题 · 锚点+口诀）\n"
-    )
-    if marker in content and "00-高频错题摘要卡" not in content:
-        return content.replace(marker, insert + marker, 1)
+    if marker in content and "**考前加练**" not in content:
+        return content.replace(marker, f"\n{repl}\n\n{marker}", 1)
     return content
+
+
+def _process_order_pct() -> int | None:
+    errors = _load_errors()
+    typed = [e for e in errors if str(e.get("error_type") or "").strip()]
+    if not typed:
+        return None
+    n = sum(1 for e in typed if e.get("error_type") == "流程顺序错")
+    return round(100 * n / len(typed))
+
+
+def _next_hard_node(today: date | None = None) -> str:
+    today = today or date.today()
+    try:
+        from pmp_athena.retake_calendar import day_plan
+    except ModuleNotFoundError:
+        from retake_calendar import day_plan  # type: ignore
+    from datetime import timedelta
+
+    for i in range(0, 21):
+        d = today + timedelta(days=i)
+        plan = day_plan(d)
+        if not plan:
+            continue
+        if plan.kind == "mock":
+            return f"{d.month}/{d.day} 模考"
+        if plan.kind == "exam":
+            return f"{d.month}/{d.day} 考试"
+    return "12/5 考试"
+
+
+def refresh_overview_cards(*, dry_run: bool = False) -> int:
+    """同步三份总览卡的日期头 + 实时错题数据（与 01–09 同频）。"""
+    today = date.today()
+    d_day = _d_day(today)
+    phase = "🔥 冲刺模考期" if d_day <= 11 else ("⚡ 强化刷题期" if d_day <= 30 else "📖 基础巩固期")
+    next_node = _next_hard_node(today)
+    weak = get_weak_areas()
+    weak_map = {a: (rate, wrong, total) for a, rate, wrong, total in weak}
+    err_counts = _error_counts_by_area(_load_errors())
+    updated = 0
+
+    def _rate_wrong(area: str) -> tuple[str, int]:
+        info = weak_map.get(area)
+        err_n = err_counts.get(area, 0)
+        if info:
+            return f"{info[0]:.0%}", err_n
+        return "—", err_n
+
+    # —— 考前攻错决策卡 ——
+    if OVERVIEW_DECISION.is_file():
+        content = OVERVIEW_DECISION.read_text(encoding="utf-8")
+        pct = _process_order_pct()
+        pct_s = f"**{pct}%**" if pct is not None else "约四成"
+        header = (
+            f"> 生成日期：{today.isoformat()} · 距 **2026-12-05** 补考约 {max(d_day, 0)} 天"
+            f" · 阶段：{phase} · 下一关：**{next_node}**  \n"
+            f"> 不是背句子。每道题先在脑子里走完「发生了什么 → 现在该哪一步」，再看选项。  \n"
+            f"> 你约 {pct_s} 的错是**流程顺序错**：把后面正确的事，当成了现在该做的事。  \n"
+            f"> **讲义对照**：先看本文流水线 → 再翻 [三十六种套路速查](../摘要/三十六种套路_速查.md)；"
+            f"分域讲义见 [README 讲义对照](./README.md#讲义对照薄弱点用)。"
+        )
+        new_content, n = re.subn(
+            r"^> 生成日期：.*?(?=\n\n---)",
+            header,
+            content,
+            count=1,
+            flags=re.DOTALL | re.MULTILINE,
+        )
+        if n and new_content != content:
+            if not dry_run:
+                OVERVIEW_DECISION.write_text(new_content, encoding="utf-8")
+            updated += 1
+
+    # —— 三领域对比速记卡 ——
+    if OVERVIEW_COMPARE.is_file():
+        content = OVERVIEW_COMPARE.read_text(encoding="utf-8")
+        n_res = err_counts.get("资源管理", 0)
+        n_agile = err_counts.get("敏捷", 0) + err_counts.get("敏捷/混合方法", 0)
+        n_stk = err_counts.get("干系人管理", 0)
+        n_int = err_counts.get("整合管理", 0)
+        agile_info = weak_map.get("敏捷") or weak_map.get("敏捷/混合方法")
+        agile_rate = f"{agile_info[0]:.0%}" if agile_info else "—"
+        header = (
+            f"> 生成日期：{today.isoformat()} · 距 **2026-12-05** 约 {max(d_day, 0)} 天"
+            f" · 阶段：{phase} · 用途：做题前 30 秒分域  \n"
+            f"> 按错题本存量，这四块仍是主战场：资源 **{n_res}** · 敏捷 **≈{n_agile}**"
+            f" · 干系人 **{n_stk}** · 整合 **{n_int}**  \n"
+            f"> 口诀只是最后提醒。先判「卡在哪件事」，再选动作。  \n"
+            f"> **讲义对照**：四域见 [README 讲义对照表](./README.md#讲义对照薄弱点用)"
+            f"（资源 PMP12-13 · 整合 PMP5-6 · 敏捷 PMP4 · 干系人 PMP11）。"
+        )
+        new_content, n = re.subn(
+            r"^> 生成日期：.*?(?=\n\n资源 /)",
+            header + "\n",
+            content,
+            count=1,
+            flags=re.DOTALL | re.MULTILINE,
+        )
+        # 正文里敏捷错误率一句
+        new_content2, n2 = re.subn(
+            r"你敏捷错误率仍约 \*\*[^*]+\*\*",
+            f"你敏捷错误率仍约 **{agile_rate}**",
+            new_content,
+            count=1,
+        )
+        if (n or n2) and new_content2 != content:
+            if not dry_run:
+                OVERVIEW_COMPARE.write_text(new_content2, encoding="utf-8")
+            updated += 1
+
+    # —— Process 合订（成本/进度/商业环境）——
+    if OVERVIEW_PROCESS.is_file():
+        content = OVERVIEW_PROCESS.read_text(encoding="utf-8")
+        cost_r, cost_n = _rate_wrong("成本管理")
+        sch_r, sch_n = _rate_wrong("进度管理")
+        biz_r, biz_n = _rate_wrong("商业环境")
+        header = (
+            f"> 生成日期：{today.isoformat()} · 距 **2026-12-05** 约 {max(d_day, 0)} 天"
+            f" · 阶段：{phase} · 下一关：**{next_node}**  \n"
+            f"> **定位**：这是「公式 + 概念」合订，不是今天主刷顺序。  \n"
+            f"> 主战场按**错题本存量**仍是：资源 → 敏捷 → 干系人 → 整合，见 "
+            f"[README](./README.md) / [攻错决策卡](./00-考前攻错决策卡.md)。  \n"
+            f"> 成本/进度：**错误率仍高**（约 {cost_r} / {sch_r}），题量不大，适合模考前扫公式。  \n"
+            f"> 商业环境：新版权重抬高；错题本约 {biz_n}，模考一要求域正确率 ≥**60%**。  \n"
+            f"> 用法：模考前扫决策链 + 闪卡；不要拿本册替代「今日任务」周历。  \n"
+            f"> **讲义对照**：成本 [PMP10 摘要](../摘要/PMP10_财务管理.md)/"
+            f"[PDF](../讲义/PMP10.财务管理-骐迹教育.pdf) · "
+            f"进度 [PMP8-9 摘要](../摘要/PMP8-9_进度管理.md)/"
+            f"[PDF](../讲义/PMP8-9.进度管理-骐迹教育.pdf) · "
+            f"商业 [PMP2 摘要](../摘要/PMP2_价值交付体系.md)/"
+            f"[PDF](../讲义/PMP2.价值交付体系-骐迹教育.pdf) · "
+            f"完整表 [README](./README.md#讲义对照薄弱点用)。"
+        )
+        new_content, n = re.subn(
+            r"^> 生成日期：.*?(?=\n\n\| 领域 \|)",
+            header + "\n",
+            content,
+            count=1,
+            flags=re.DOTALL | re.MULTILINE,
+        )
+        table = (
+            "| 领域 | 错误率（约） | 错题本（约） | 总口诀 | 本轮怎么用 |\n"
+            "|------|:------------:|:------------:|--------|------------|\n"
+            f"| 🟡 成本管理 | **{cost_r}** | {cost_n} | 挣值先算 EV，储备分应急和管理 | 公式必背；错 ≥3 次再专项 |\n"
+            f"| 🟡 进度管理 | **{sch_r}** | {sch_n} | 关键路径零浮动，赶工加钱并行险 | 压缩手段必分清；模考前闪卡 |\n"
+            f"| 🟢 商业环境 | **{biz_r}** | {biz_n} | 先论证价值，再谈怎么干 | 跟周历刷；论证/合规/选项目 |"
+        )
+        new_content2, n2 = re.subn(
+            r"\| 领域 \| 错误率（约） \| 错题本（约） \| 总口诀 \| 本轮怎么用 \|\n"
+            r".*?\n\| 🟢 商业环境 \|[^\n]+\|",
+            table,
+            new_content,
+            count=1,
+            flags=re.DOTALL,
+        )
+        if (n or n2) and new_content2 != content:
+            if not dry_run:
+                OVERVIEW_PROCESS.write_text(new_content2, encoding="utf-8")
+            updated += 1
+
+    return updated
 
 
 def _touch_daily_refresh() -> None:
@@ -923,6 +1161,7 @@ def sync_all(*, dry_run: bool = False) -> SyncResult:
     trap_result.hf_cards_updated = hf_written
     trap_result.readme_updated = refresh_readme(dry_run=dry_run, hf_cards_count=hf_count)
     trap_result.headers_updated = refresh_domain_headers(dry_run=dry_run)
+    trap_result.overview_updated = refresh_overview_cards(dry_run=dry_run)
     if not dry_run:
         _touch_daily_refresh()
     return trap_result
@@ -991,7 +1230,12 @@ def format_sync_brief(result: SyncResult | None) -> str:
     """判卷/做题后一行摘要，无变更时返回空串。"""
     if result is None:
         return ""
-    if not (result.total_traps or result.hf_cards_updated or result.readme_updated):
+    if not (
+        result.total_traps
+        or result.hf_cards_updated
+        or result.readme_updated
+        or result.overview_updated
+    ):
         return ""
     return "📌 速记已同步：" + " · ".join(
         line.lstrip("- ") for line in result.summary_lines()
@@ -1003,7 +1247,7 @@ def format_wechat_sync_report(result: SyncResult) -> str:
     lines.extend(result.summary_lines())
     lines.extend([
         "",
-        "💬 发「今日速记」背诵 · 「薄弱点速记」看优先级 · 「高频错题摘要卡」微信速查",
+        "💬 发「今日速记」背诵 · 「薄弱点速记」看优先级 · 「复习错题」过顽疾原题",
     ])
     return "\n".join(lines)
 
@@ -1016,7 +1260,8 @@ def main() -> None:
         ("sync", "增量同步错题到易错陷阱"),
         ("refresh-readme", "刷新 README 优先级表"),
         ("refresh-headers", "刷新各领域 MD 数据头"),
-        ("refresh-hf-cards", "重生成高频错题摘要卡 MD"),
+        ("refresh-overview", "同步三份总览卡数据头"),
+        ("refresh-hf-cards", "刷新高频卡降级占位页"),
         ("all", "全部同步"),
         ("run", "同 all"),
     ):
@@ -1034,6 +1279,8 @@ def main() -> None:
         result = SyncResult(readme_updated=refresh_readme(dry_run=dry))
     elif cmd == "refresh-headers":
         result = SyncResult(headers_updated=refresh_domain_headers(dry_run=dry))
+    elif cmd == "refresh-overview":
+        result = SyncResult(overview_updated=refresh_overview_cards(dry_run=dry))
     elif cmd == "refresh-hf-cards":
         count, written = sync_hf_cards(dry_run=dry)
         result = SyncResult(hf_cards_count=count, hf_cards_updated=written)
@@ -1048,6 +1295,7 @@ def main() -> None:
             "traps_added": result.traps_added,
             "readme_updated": result.readme_updated,
             "headers_updated": result.headers_updated,
+            "overview_updated": result.overview_updated,
             "hf_cards_count": result.hf_cards_count,
             "hf_cards_updated": result.hf_cards_updated,
             "total_traps": result.total_traps,

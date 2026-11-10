@@ -3,35 +3,20 @@
 
 from __future__ import annotations
 
-import re
 import sys
 from datetime import date
 from pathlib import Path
 
 try:
-    from pmp_athena.config import ERROR_LOG_PATH, NOTES_DIR
+    from pmp_athena.config import NOTES_DIR
 except ModuleNotFoundError:
-    from config import ERROR_LOG_PATH, NOTES_DIR
+    from config import NOTES_DIR
 
 try:
-    from pmp_athena.error_insights import (
-        _load_json,
-        build_answer_text,
-        build_mnemonic,
-        build_summary,
-        rank_high_frequency_errors,
-    )
-    from pmp_athena.semantic_anchors import format_anchor_with_cue
+    from pmp_athena.error_insights import rank_high_frequency_errors
     from pmp_athena.knowledge_retriever import normalize_area
 except ModuleNotFoundError:
-    from error_insights import (
-        _load_json,
-        build_answer_text,
-        build_mnemonic,
-        build_summary,
-        rank_high_frequency_errors,
-    )
-    from semantic_anchors import format_anchor_with_cue
+    from error_insights import rank_high_frequency_errors
     from knowledge_retriever import normalize_area
 
 STUBBORN_MIN = 4
@@ -85,34 +70,30 @@ def format_daily_hf_table(
     today: date,
     link_cards_file: bool = False,
 ) -> str:
+    """README 睡前清单：只列题号，不甩半截题干；练题走「复习错题」。"""
+    del err_map, link_cards_file
     focus_s = " / ".join(_short_hf_area(a) for a in focus_areas) if focus_areas else "顽疾"
-    href = "./00-高频错题摘要卡.md" if link_cards_file else ""
     lines = [
-        "## 今日推荐摘要卡（10分钟）",
+        "## 今日顽疾号（不要读长摘要卡）",
         "",
-        f"> {today.month}月{today.day}日 · 当日领域：**{focus_s}** · 含错 ≥{STUBBORN_MIN} 次顽疾 · 共 {len(picked)} 道  ",
-        "> 先看题干和错因，不要只背口诀",
+        f"> {today.month}月{today.day}日 · 当日域：**{focus_s}** · "
+        f"共 {len(picked)} 号 · 发「复习错题」做完整题",
         "",
-        "| # | 领域 | 错次 | 口诀 | 题干 |",
-        "|:-:|------|:----:|------|------|",
+        "| # | 领域 | 错次 |",
+        "|:-:|------|:----:|",
     ]
     for it in picked:
-        eid = it["error_id"]
-        err = err_map.get(eid, {})
-        mnemonic = build_mnemonic(err) if err else "—"
-        mnemonic = re.sub(r"\s+", " ", mnemonic).strip()
-        if len(mnemonic) > 24:
-            mnemonic = mnemonic[:23] + "…"
-        gist = re.sub(r"\s+", " ", it.get("question_preview") or "").strip()
-        if len(gist) > 30:
-            gist = gist[:29] + "…"
-        area = _short_hf_area(it.get("knowledge_area", ""))
-        num = f"[#{eid}]({href})" if href else f"#{eid}"
         lines.append(
-            f"| {num} | {area} | **{it.get('mistake_count', '?')}** | {mnemonic} | {gist} |"
+            f"| #{it['error_id']} | {_short_hf_area(it.get('knowledge_area', ''))} "
+            f"| **{it.get('mistake_count', '?')}** |"
         )
     if not picked:
-        lines.append("| — | — | — | 暂无高频卡 | 先发「复习错题」积累 |")
+        lines.append("| — | 暂无 | — |")
+    lines += [
+        "",
+        "背口诀：[考前攻错决策卡](./00-考前攻错决策卡.md) · "
+        "[三领域对比](./00-三领域对比速记卡.md) · `今日速记`",
+    ]
     return "\n".join(lines)
 
 
@@ -122,95 +103,38 @@ def export_cards(
     min_mistakes: int = 3,
     focus_areas: list[str] | None = None,
 ) -> Path:
+    """写入降级占位页（不当教材）。完整题走「复习错题」/今日任务③。"""
+    del focus_areas  # 保留签名兼容 sync 调用
     items = rank_high_frequency_errors(top_n=top_n, min_mistakes=min_mistakes)
-    errors = _load_json(ERROR_LOG_PATH)
-    if not isinstance(errors, list):
-        errors = []
-    err_map = {e["id"]: e for e in errors if e.get("id")}
-
-    picked = pick_daily_hf_cards(items, focus_areas)
-    daily_table = format_daily_hf_table(
-        picked,
-        err_map,
-        focus_areas=focus_areas or [],
-        today=date.today(),
-        link_cards_file=False,
-    )
-
-    index_rows = [
-        "## 全部索引",
-        "",
-        "| 序 | # | 领域 | 错次 | 题干 |",
-        "|:--:|:-:|------|:----:|------|",
+    stubborn = [
+        it for it in items if int(it.get("mistake_count") or 0) >= STUBBORN_MIN
     ]
-    for i, item in enumerate(items, 1):
-        gist = re.sub(r"\s+", " ", item.get("question_preview") or "").strip()
-        if len(gist) > 32:
-            gist = gist[:31] + "…"
-        index_rows.append(
-            f"| {i} | #{item['error_id']} | {_short_hf_area(item.get('knowledge_area', ''))} "
-            f"| **{item['mistake_count']}** | {gist} |"
-        )
-
+    ids = " ".join(f"#{it['error_id']}" for it in stubborn[:20]) or "（暂无）"
     lines = [
-        "# 🔥 高频错题摘要卡",
+        "# 高频错题索引（已降级 · 不当教材）",
         "",
-        f"> 生成日期：{date.today()} · 阈值：同一题错 ≥{min_mistakes} 次 · 共 {len(items)} 道",
-        "> 用法：先过「今日推荐」10 分钟 → 考前再刷全部索引",
+        f"> {date.today()} · 错 ≥{min_mistakes} 次共 **{len(items)}** 道"
+        f"（≥{STUBBORN_MIN} 次约 **{len(stubborn)}** 道）。",
+        "> **不要通读本文件。** 半截题干/口诀错配收益低。",
+        "> 要练：发「复习错题」；要背：发「今日速记」或打开 `01–09`。",
         "",
-        daily_table,
+        "## 改看这些",
         "",
-        "---",
+        "| 目的 | 去哪 |",
+        "|------|------|",
+        "| 搞懂跳步骤 | [00-考前攻错决策卡](./00-考前攻错决策卡.md) |",
+        "| 30 秒分域 | [00-三领域对比速记卡](./00-三领域对比速记卡.md) |",
+        "| 公式/储备/压缩 | [00-P0三领域完整知识点](./00-P0三领域完整知识点.md) |",
+        "| 分领域口诀 | [README](./README.md) → `01–09` |",
         "",
-        *index_rows,
+        "## 机器仍在用什么",
         "",
-        "---",
+        "- 微信「今日任务」③ / 「复习错题」按错次出**完整题**（不经过本 MD）。",
+        "- 本文件只占位，避免旧链接 404；不再生成长摘要。",
+        "",
+        f"错 ≥{STUBBORN_MIN} 次优先过原题：{ids}",
         "",
     ]
-
-    for i, item in enumerate(items, 1):
-        eid = item["error_id"]
-        err = err_map.get(eid, {})
-        q = re.sub(r"\s+", " ", err.get("question", item["question_preview"])).strip()
-        if len(q) > 120:
-            q = q[:120] + "…"
-        my_a = err.get("my_answer", "?")
-        correct = err.get("correct_answer", "?")
-        area = item["knowledge_area"]
-        cnt = item["mistake_count"]
-        try:
-            anchor_line = format_anchor_with_cue(err).replace("\n", " / ")
-        except Exception:
-            anchor_line = ""
-        summary = build_summary(err)
-        mnemonic = build_mnemonic(err)
-        answer = build_answer_text(err)
-        if len(answer) > 150:
-            answer = answer[:150] + "…"
-
-        lines += [
-            f"## {i}. 错题 #{eid} · {area} · 错 {cnt} 次",
-            "",
-            f"**题干**：{q}",
-            "",
-            "| 你的错选 | 正确答案 |",
-            "|:--------:|:--------:|",
-            f"| **{my_a}** | **{correct}** |",
-            "",
-        ]
-        if anchor_line:
-            lines += [f"**🔑 锚点**：{anchor_line}", ""]
-        lines += [
-            f"**📌 总结**：{summary}",
-            "",
-            f"**🎯 口诀**：{mnemonic}",
-            "",
-            f"**💡 要点**：{answer}",
-            "",
-            "---",
-            "",
-        ]
-
     out = Path(NOTES_DIR) / "薄弱点速记" / "00-高频错题摘要卡.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("\n".join(lines), encoding="utf-8")
