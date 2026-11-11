@@ -913,28 +913,29 @@ def refresh_domain_headers(*, dry_run: bool = False) -> int:
         )
         lecture = format_lecture_line(area)
         if lecture:
-            if re.search(r"> \*\*讲义对照\*\*：", new_content):
+            # 清掉全部旧「讲义对照」行（含历史重复），再只留一行
+            stripped, n_rm = re.subn(
+                r"(?:\n)?^> \*\*讲义对照\*\*[^\n]*",
+                "",
+                new_content,
+                flags=re.MULTILINE,
+            )
+            new_content = stripped
+            new_content, n_lec = re.subn(
+                r"(> \*\*总口诀\*\*：[^\n]+)",
+                rf"\1\n{lecture}",
+                new_content,
+                count=1,
+            )
+            if not n_lec:
                 new_content, n_lec = re.subn(
-                    r"> \*\*讲义对照\*\*[^\n]*",
-                    lecture,
-                    new_content,
-                    count=1,
-                )
-            else:
-                # 插在总口诀行后；若无总口诀则插在数据行后
-                new_content, n_lec = re.subn(
-                    r"(> \*\*总口诀\*\*：[^\n]+)",
+                    r"(> \*\*你的数据\*\*：[^\n]+)",
                     rf"\1\n{lecture}",
                     new_content,
                     count=1,
                 )
-                if not n_lec:
-                    new_content, n_lec = re.subn(
-                        r"(> \*\*你的数据\*\*：[^\n]+)",
-                        rf"\1\n{lecture}",
-                        new_content,
-                        count=1,
-                    )
+            if n_rm and not n_lec:
+                n_lec = n_rm  # 至少记一次变更
         else:
             n_lec = 0
         if (n or n_title or n_lec) and new_content != content:

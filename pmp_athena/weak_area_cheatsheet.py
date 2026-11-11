@@ -94,9 +94,11 @@ DOMAIN_LECTURES: dict[str, dict[str, str]] = {
     },
     "整合管理": {
         "摘要": "../摘要/PMP5-6_项目治理绩效域.md",
-        "摘要2": "../摘要/PMP3_项目管理原则.md",
+        "摘要2": "../摘要/PMP17_项目的执行交付与收尾.md",
+        "摘要3": "../摘要/PMP3_项目管理原则.md",
         "讲义": "../讲义/PMP5-6.项目治理绩效域-骐迹教育.pdf",
-        "标签": "PMP5-6 治理 · PMP3 原则",
+        "讲义2": "../讲义/PMP17.项目的执行交付与收尾-骐迹教育.pptx",
+        "标签": "PMP5-6 治理 · PMP17 执行交付",
     },
     "范围管理": {
         "摘要": "../摘要/PMP7_范围管理.md",
@@ -109,23 +111,28 @@ DOMAIN_LECTURES: dict[str, dict[str, str]] = {
 DOMAIN_ORDER = list(DOMAIN_FILES.keys())
 
 
+def _lecture_link_label(path: str) -> str:
+    name = Path(path).name
+    if name.lower().endswith(".pptx"):
+        return f"[讲义 PPTX·{name}]({path})"
+    return f"[讲义 PDF·{name}]({path})"
+
+
 def format_lecture_line(area: str) -> str:
     """各领域速记顶部的讲义对照一行。"""
     info = DOMAIN_LECTURES.get(area) or {}
     if not info:
         return ""
     abs_parts: list[str] = []
-    if info.get("摘要"):
-        name = Path(info["摘要"]).name
-        abs_parts.append(f"[摘要·{name}]({info['摘要']})")
-    if info.get("摘要2"):
-        name = Path(info["摘要2"]).name
-        abs_parts.append(f"[摘要·{name}]({info['摘要2']})")
-    if info.get("讲义"):
-        name = Path(info["讲义"]).name
-        abs_parts.append(f"[讲义 PDF]({info['讲义']})")
+    for key in ("摘要", "摘要2", "摘要3"):
+        if info.get(key):
+            name = Path(info[key]).name
+            abs_parts.append(f"[摘要·{name}]({info[key]})")
+    for key in ("讲义", "讲义2"):
+        if info.get(key):
+            abs_parts.append(_lecture_link_label(info[key]))
     label = info.get("标签") or area
-    return f"> **讲义对照**（{label}）：先扫摘要 → 卡住再翻 PDF · " + " · ".join(abs_parts)
+    return f"> **讲义对照**（{label}）：先扫摘要 → 卡住再翻原件 · " + " · ".join(abs_parts)
 
 
 def format_lecture_readme_table() -> str:
@@ -133,19 +140,22 @@ def format_lecture_readme_table() -> str:
     lines = [
         "## 讲义对照（薄弱点用）",
         "",
-        "> 路径相对本目录：`../摘要/`、`../讲义/`。先扫摘要，再翻 PDF。  ",
+        "> 路径相对本目录：`../摘要/`、`../讲义/`。先扫摘要，再翻 PDF/PPTX。  ",
         "> 通关套路另册：[三十六种套路速查](../摘要/三十六种套路_速查.md)",
         "",
-        "| 薄弱域 | 先看摘要 | 对照讲义 PDF | 速记 |",
-        "|--------|----------|--------------|------|",
+        "| 薄弱域 | 先看摘要 | 对照讲义 | 速记 |",
+        "|--------|----------|----------|------|",
     ]
     for area in DOMAIN_ORDER:
         info = DOMAIN_LECTURES[area]
         fname = DOMAIN_FILES[area]
         abs1 = f"[{Path(info['摘要']).name}]({info['摘要']})"
-        if info.get("摘要2"):
-            abs1 += f"<br>+ [{Path(info['摘要2']).name}]({info['摘要2']})"
+        for key in ("摘要2", "摘要3"):
+            if info.get(key):
+                abs1 += f"<br>+ [{Path(info[key]).name}]({info[key]})"
         pdf = f"[{Path(info['讲义']).name}]({info['讲义']})"
+        if info.get("讲义2"):
+            pdf += f"<br>+ [{Path(info['讲义2']).name}]({info['讲义2']})"
         sheet = f"[{fname.replace('.md', '')}](./{fname})"
         short = "敏捷" if area.startswith("敏捷") else area
         lines.append(f"| {short} | {abs1} | {pdf} | {sheet} |")
