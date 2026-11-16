@@ -321,76 +321,81 @@ def _escape_xml(text: str) -> str:
     )
 
 
-def render_overview_pdf(
-    md_name: str,
-    *,
-    label: str | None = None,
-    out_dir: Path | None = None,
-) -> Path:
-    """把 00-*.md 全文结构导出为 PDF（合订/决策卡/对比卡）。"""
+def _md_styles(font_name: str):
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_CENTER, TA_LEFT
-    from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-    from reportlab.lib.units import mm
-    from reportlab.platypus import (
-        KeepTogether,
-        Paragraph,
-        SimpleDocTemplate,
-        Spacer,
-        Table,
-        TableStyle,
-    )
-
-    md_path = CHEATSHEET_DIR / md_name
-    if not md_path.is_file():
-        raise FileNotFoundError(md_path)
-    md = md_path.read_text(encoding="utf-8")
-    font_name = _register_font()
-
-    out_dir = out_dir or (PDF_DIR / date.today().isoformat())
-    out_dir.mkdir(parents=True, exist_ok=True)
-    stem = label or md_path.stem
-    out_path = out_dir / f"{md_path.stem}.pdf"
 
     styles = getSampleStyleSheet()
-    h1 = ParagraphStyle(
-        "ov_h1", parent=styles["Heading1"], fontName=font_name,
-        fontSize=14, spaceBefore=8, spaceAfter=6, alignment=TA_CENTER,
-    )
-    h2 = ParagraphStyle(
-        "ov_h2", parent=styles["Heading2"], fontName=font_name,
-        fontSize=11, spaceBefore=8, spaceAfter=3,
-    )
-    h3 = ParagraphStyle(
-        "ov_h3", parent=styles["Heading3"], fontName=font_name,
-        fontSize=10, spaceBefore=6, spaceAfter=2,
-    )
-    body = ParagraphStyle(
-        "ov_b", parent=styles["Normal"], fontName=font_name,
-        fontSize=8.5, leading=12, alignment=TA_LEFT,
-    )
-    quote = ParagraphStyle(
-        "ov_q", parent=body, textColor=colors.HexColor("#374151"),
-        leftIndent=6, spaceBefore=2, spaceAfter=2,
-    )
-    code_s = ParagraphStyle(
-        "ov_c", parent=body, fontName=font_name, fontSize=7.5, leading=10,
-        backColor=colors.HexColor("#f3f4f6"), leftIndent=4, rightIndent=4,
-    )
-    cell = ParagraphStyle(
-        "ov_cell", parent=body, fontSize=7.5, leading=10,
-    )
+    return {
+        "h1": ParagraphStyle(
+            "ov_h1", parent=styles["Heading1"], fontName=font_name,
+            fontSize=14, spaceBefore=8, spaceAfter=6, alignment=TA_CENTER,
+        ),
+        "h2": ParagraphStyle(
+            "ov_h2", parent=styles["Heading2"], fontName=font_name,
+            fontSize=11, spaceBefore=8, spaceAfter=3,
+        ),
+        "h3": ParagraphStyle(
+            "ov_h3", parent=styles["Heading3"], fontName=font_name,
+            fontSize=10, spaceBefore=6, spaceAfter=2,
+        ),
+        "body": ParagraphStyle(
+            "ov_b", parent=styles["Normal"], fontName=font_name,
+            fontSize=8.5, leading=12, alignment=TA_LEFT,
+        ),
+        "quote": ParagraphStyle(
+            "ov_q",
+            parent=styles["Normal"],
+            fontName=font_name,
+            fontSize=8.5,
+            leading=12,
+            textColor=colors.HexColor("#374151"),
+            leftIndent=6,
+            spaceBefore=2,
+            spaceAfter=2,
+        ),
+        "code": ParagraphStyle(
+            "ov_c",
+            parent=styles["Normal"],
+            fontName=font_name,
+            fontSize=7.5,
+            leading=10,
+            backColor=colors.HexColor("#f3f4f6"),
+            leftIndent=4,
+            rightIndent=4,
+        ),
+        "cell": ParagraphStyle(
+            "ov_cell",
+            parent=styles["Normal"],
+            fontName=font_name,
+            fontSize=7.5,
+            leading=10,
+        ),
+        "meta": ParagraphStyle(
+            "ov_meta",
+            parent=styles["Normal"],
+            fontName=font_name,
+            fontSize=8,
+            alignment=TA_CENTER,
+        ),
+    }
 
-    story: list = []
-    story.append(Paragraph(f"PMP 薄弱点速记 · {_escape_xml(stem)}", h1))
-    story.append(
-        Paragraph(
-            f"更新日期 {date.today().isoformat()}",
-            ParagraphStyle("ov_meta", parent=body, alignment=TA_CENTER, fontSize=8),
-        )
-    )
-    story.append(Spacer(1, 4))
+
+def _append_md_flowables(
+    story: list,
+    md: str,
+    *,
+    font_name: str,
+    styles: dict,
+) -> None:
+    """把一段 Markdown 追加进 story（全文结构渲染）。"""
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import KeepTogether, Paragraph, Spacer, Table, TableStyle
+
+    h1, h2, h3 = styles["h1"], styles["h2"], styles["h3"]
+    body, quote, code_s, cell = styles["body"], styles["quote"], styles["code"], styles["cell"]
 
     lines = md.splitlines()
     i = 0
@@ -401,10 +406,8 @@ def render_overview_pdf(
         nonlocal code_buf
         if not code_buf:
             return
-        text = "\n".join(code_buf)
-        # Preformatted 对中文 TTF 支持一般，改逐行 Paragraph
         block: list = []
-        for ln in text.splitlines() or [""]:
+        for ln in ("\n".join(code_buf)).splitlines() or [""]:
             block.append(Paragraph(_escape_xml(ln) or "&nbsp;", code_s))
         story.append(KeepTogether(block))
         story.append(Spacer(1, 4))
@@ -425,7 +428,6 @@ def render_overview_pdf(
             i += 1
             continue
 
-        # 表格块
         if raw.strip().startswith("|") and "|" in raw.strip()[1:]:
             table_lines = []
             while i < len(lines) and lines[i].strip().startswith("|"):
@@ -441,14 +443,11 @@ def render_overview_pdf(
                     rows_raw.append(parts)
             if rows_raw:
                 ncols = max(len(r) for r in rows_raw)
-                usable = 170 * mm
-                col_w = usable / ncols
-                data = []
-                for ri, r in enumerate(rows_raw):
-                    padded = r + [""] * (ncols - len(r))
-                    data.append(
-                        [Paragraph(_escape_xml(_plain(c)), cell) for c in padded]
-                    )
+                col_w = (170 * mm) / ncols
+                data = [
+                    [Paragraph(_escape_xml(_plain(c)), cell) for c in (r + [""] * (ncols - len(r)))]
+                    for r in rows_raw
+                ]
                 t = Table(data, colWidths=[col_w] * ncols, repeatRows=1)
                 t.setStyle(
                     TableStyle(
@@ -490,6 +489,36 @@ def render_overview_pdf(
     if in_code:
         flush_code()
 
+
+def render_overview_pdf(
+    md_name: str,
+    *,
+    label: str | None = None,
+    out_dir: Path | None = None,
+) -> Path:
+    """把 00-*.md 全文结构导出为 PDF（合订/决策卡/对比卡）。"""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+
+    md_path = CHEATSHEET_DIR / md_name
+    if not md_path.is_file():
+        raise FileNotFoundError(md_path)
+    md = md_path.read_text(encoding="utf-8")
+    font_name = _register_font()
+    styles = _md_styles(font_name)
+
+    out_dir = out_dir or (PDF_DIR / date.today().isoformat())
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stem = label or md_path.stem
+    out_path = out_dir / f"{md_path.stem}.pdf"
+
+    story: list = []
+    story.append(Paragraph(f"PMP 薄弱点速记 · {_escape_xml(stem)}", styles["h1"]))
+    story.append(Paragraph(f"更新日期 {date.today().isoformat()}", styles["meta"]))
+    story.append(Spacer(1, 4))
+    _append_md_flowables(story, md, font_name=font_name, styles=styles)
+
     doc = SimpleDocTemplate(
         str(out_path),
         pagesize=A4,
@@ -498,6 +527,65 @@ def render_overview_pdf(
         topMargin=10 * mm,
         bottomMargin=10 * mm,
         title=f"薄弱点速记-{stem}",
+    )
+    doc.build(story)
+    return out_path
+
+
+def render_bind_pdf(*, out_dir: Path | None = None) -> Path:
+    """全册合一：00 总览三份 + 01–09 九域，装订成一份 PDF。"""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer
+
+    font_name = _register_font()
+    styles = _md_styles(font_name)
+    out_dir = out_dir or (PDF_DIR / date.today().isoformat())
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / "00-薄弱点速记全册合订.pdf"
+
+    story: list = []
+    story.append(Paragraph("PMP 薄弱点速记 · 全册合订", styles["h1"]))
+    story.append(Paragraph(f"更新日期 {date.today().isoformat()}", styles["meta"]))
+    story.append(
+        Paragraph(
+            "含：攻错决策卡 / 三域对比 / Process合订 + 九大领域可背诵版",
+            styles["meta"],
+        )
+    )
+    story.append(Spacer(1, 8))
+
+    md_files: list[str] = [name for name, _label in OVERVIEW_PDF_FILES]
+    for area in DOMAIN_ORDER:
+        fname = DOMAIN_FILES.get(area)
+        if fname:
+            md_files.append(fname)
+
+    first = True
+    for md_name in md_files:
+        md_path = CHEATSHEET_DIR / md_name
+        if not md_path.is_file():
+            continue
+        if not first:
+            story.append(PageBreak())
+        first = False
+        story.append(Paragraph(f"▸ {_escape_xml(md_path.stem)}", styles["h2"]))
+        story.append(Spacer(1, 4))
+        _append_md_flowables(
+            story,
+            md_path.read_text(encoding="utf-8"),
+            font_name=font_name,
+            styles=styles,
+        )
+
+    doc = SimpleDocTemplate(
+        str(out_path),
+        pagesize=A4,
+        leftMargin=12 * mm,
+        rightMargin=12 * mm,
+        topMargin=10 * mm,
+        bottomMargin=10 * mm,
+        title="薄弱点速记-全册合订",
     )
     doc.build(story)
     return out_path
@@ -535,7 +623,8 @@ def render_p0() -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser(description="薄弱点速记导出 PDF")
     sub = parser.add_subparsers(dest="command")
-    sub.add_parser("all", help="全部领域 + 00 总览合订")
+    sub.add_parser("all", help="全部领域分册 + 00 总览（多份）")
+    sub.add_parser("bind", help="全册合一 PDF（一份装订）")
     sub.add_parser("today", help="今日推荐领域")
     sub.add_parser("p0", help="导出 Process 合订（成本/进度/商业）")
     sub.add_parser("overview", help="只导出 00 总览三份")
@@ -549,6 +638,9 @@ def main() -> None:
         print(f"✅ 已生成 {len(paths)} 份 PDF → {PDF_DIR / date.today().isoformat()}")
         for p in paths:
             print(f"  {p.name}")
+    elif cmd == "bind":
+        p = render_bind_pdf()
+        print(f"✅ 全册合订 {p}")
     elif cmd == "overview":
         paths = []
         for md_name, label in OVERVIEW_PDF_FILES:

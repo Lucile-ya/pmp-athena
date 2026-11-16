@@ -181,8 +181,13 @@ _PDF_TRIGGERS = frozenset({
     "速记PDF", "速记 pdf", "导出速记PDF", "导出速记", "生成速记PDF", "薄弱点PDF",
 })
 _PDF_TODAY_TRIGGERS = frozenset({"今日速记PDF", "今日PDF", "今天速记PDF"})
+# 全册合一（00+九域装订成一份）
+_PDF_BIND_TRIGGERS = frozenset({
+    "合订PDF", "合订 pdf", "全册PDF", "全册合订", "全部合订PDF", "速记合订",
+})
+# 仅 Process 三域（成本/进度/商业）
 _PDF_P0_TRIGGERS = frozenset({
-    "合订PDF", "P0PDF", "P0 PDF", "Process合订PDF", "三领域PDF", "成本进度商业PDF",
+    "P0PDF", "P0 PDF", "Process合订PDF", "三领域PDF", "成本进度商业PDF",
 })
 _PDF_OVERVIEW_TRIGGERS = frozenset({"总览PDF", "00PDF", "决策卡PDF"})
 
@@ -254,6 +259,8 @@ def parse_cheatsheet_request(text: str) -> tuple[str, str | None]:
         return ("sync", None)
     if t in _PDF_TODAY_TRIGGERS:
         return ("pdf_today", None)
+    if t in _PDF_BIND_TRIGGERS:
+        return ("pdf_bind", None)
     if t in _PDF_P0_TRIGGERS:
         return ("pdf_p0", None)
     if t in _PDF_OVERVIEW_TRIGGERS:
@@ -536,7 +543,9 @@ def push_menu() -> str:
         "📖 **用法**",
         "  发「今日速记」→ 跟补考周历 / 模考弱域（不再纯轮换）",
         "  发「速记 成本管理」→ 指定领域",
-        "  发「速记PDF」→ 导出全部领域 PDF（按日归档）",
+        "  发「合订PDF」→ 00+九域装订成一份全册",
+        "  发「速记PDF」→ 分册导出全部领域（按日归档）",
+        "  发「P0PDF」→ 仅成本/进度/商业 Process 合订",
         "  发「今日速记PDF」→ 只导出今天推荐领域",
         "  发「速记清单」→ 本菜单",
         "",
@@ -662,12 +671,13 @@ def handle_message(text: str) -> str:
             from cheatsheet_sync import format_wechat_sync_report, sync_all
         return format_wechat_sync_report(sync_all())
 
-    if action in ("pdf_all", "pdf_today", "pdf_area", "pdf_p0", "pdf_overview"):
+    if action in ("pdf_all", "pdf_today", "pdf_area", "pdf_p0", "pdf_overview", "pdf_bind"):
         try:
             from pmp_athena.cheatsheet_pdf import (
                 OVERVIEW_PDF_FILES,
                 render_all,
                 render_area_pdf,
+                render_bind_pdf,
                 render_overview_pdf,
                 render_p0,
                 render_today,
@@ -677,14 +687,21 @@ def handle_message(text: str) -> str:
                 OVERVIEW_PDF_FILES,
                 render_all,
                 render_area_pdf,
+                render_bind_pdf,
                 render_overview_pdf,
                 render_p0,
                 render_today,
             )
         try:
+            if action == "pdf_bind":
+                p = render_bind_pdf()
+                return _format_pdf_result(
+                    [p],
+                    title="全册合订 PDF（00总览 + 九大领域，一份装订）",
+                )
             if action == "pdf_all":
                 paths = render_all()
-                return _format_pdf_result(paths, title="速记 PDF 已全部导出")
+                return _format_pdf_result(paths, title="速记 PDF 已全部分册导出")
             if action == "pdf_overview":
                 paths = [
                     render_overview_pdf(md_name, label=label)

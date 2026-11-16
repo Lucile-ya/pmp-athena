@@ -357,29 +357,236 @@ def _strip_auto_trap_block(section: str) -> str:
     return cleaned.rstrip() + "\n"
 
 
+def _is_option_letter_junk(text: str) -> bool:
+    """判卷残留：别再选/锁X/应选X 等，不当教材行。"""
+    t = text or ""
+    return bool(
+        re.search(r"别再选|别选\s*[A-Ea-e]|应选\s*[A-Ea-e]|锁\s*[A-Ea-e]|实践指南|P\d{2}\b", t)
+    )
+
+
+def _pitfall_to_wrong_col(pitfall: str) -> str:
+    """把「别xxx」收成易错/闪卡问句。垃圾选项句返回空。"""
+    if _is_option_letter_junk(pitfall):
+        return ""
+    t = (pitfall or "").strip()
+    t = re.sub(r"^别+", "", t).strip()
+    t = re.sub(r"（×\d+）$", "", t).strip()
+    if len(t) > MAX_PITFALL_COL:
+        t = t[: MAX_PITFALL_COL - 1] + "…"
+    return t
+
+
+def _clean_display_rows(rows: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """展示用：丢掉选项字母垃圾坑，口诀仍可留。"""
+    out: list[tuple[str, str]] = []
+    for remember, pitfall in rows:
+        if _is_option_letter_junk(remember):
+            continue
+        if _is_option_letter_junk(pitfall):
+            # 坑是垃圾时，用短「别踩」占位，避免整行丢掉好口诀
+            pitfall = "别踩干扰项"
+        if len((remember or "").strip()) < 4:
+            continue
+        out.append((remember.strip(), pitfall.strip()))
+    return out
+
+
+def _scrub_hand_trap_junk_rows(
+    section: str,
+    auto_rows: list[tuple[str, str]] | None = None,
+) -> str:
+    """清掉误合并进手写易错表的垃圾行 / 与自动区重复的反转行。"""
+    m = re.search(
+        r"(\|\s*❌\s*错\s*\|\s*✅\s*对\s*\|\s*\n\|[-| :]+\|\s*\n)((?:\|[^\n]+\n)*)",
+        section,
+    )
+    if not m:
+        return section
+    header, body = m.group(1), m.group(2)
+    auto_remember = {
+        re.sub(r"\s+", "", (r or "")).lower()
+        for r, _p in (auto_rows or [])
+        if r
+    }
+    auto_pit_core = {
+        re.sub(r"\s+", "", _pitfall_to_wrong_col(p) or p or "").lower()
+        for _r, p in (auto_rows or [])
+        if p and not _is_option_letter_junk(p)
+    }
+    kept: list[str] = []
+    for line in body.splitlines(keepends=True):
+        if not line.strip().startswith("|"):
+            kept.append(line)
+            continue
+        parts = [p.strip() for p in line.split("|") if p.strip()]
+        if len(parts) < 2:
+            kept.append(line)
+            continue
+        left, right = parts[0], parts[1]
+        if _is_option_letter_junk(left) or _is_option_letter_junk(right):
+            continue
+        # 反转合并行：右列=自动口诀，或左列=自动坑 → 与自动区重复，删
+        rk = re.sub(r"\s+", "", right).lower()
+        lk = re.sub(r"\s+", "", left).lower()
+        if rk in auto_remember or lk in auto_pit_core:
+            # 保留带「模拟考试1」标注的手写精华行
+            if "模拟考试" not in left and "模拟考试" not in right:
+                continue
+        kept.append(line)
+    return section[: m.start()] + header + "".join(kept) + section[m.end() :]
+
+
+def _merge_hand_trap_table(section: str, rows: list[tuple[str, str]]) -> str:
+    """不再往手写易错表追加（避免日积月累重复）。只清垃圾/重复行。"""
+    return _scrub_hand_trap_junk_rows(section, auto_rows=rows)
+
+
+def _rewrite_xian_gaodong_auto(
+    content: str,
+    rows: list[tuple[str, str]],
+    today: str,
+) -> str:
+    """在「先搞懂」下整段重写「### 自动钉死」要点（没有该章则跳过）。"""
+    m = re.search(r"^##\s*先搞懂[^\n]*\s*$", content, re.MULTILINE)
+    if not m:
+        return content
+    start = m.end()
+    rest = content[start:]
+    nxt = re.search(r"^##\s", rest, re.MULTILINE)
+    end = start + (nxt.start() if nxt else len(rest))
+    section = content[start:end]
+    # 去掉旧自动钉死块
+    section = re.sub(
+        r"\n*###\s*自动钉死[^\n]*\n(?:.*?)(?=\n### |\n## |\Z)",
+        "\n",
+        section,
+        flags=re.DOTALL,
+    )
+    if rows:
+        bullets = []
+        for i, (remember, pitfall) in enumerate(rows[:5], 1):
+            bullets.append(f"{i}. **{remember}** — {pitfall}")
+        block = (
+            f"\n### 自动钉死（更新于 {today}）\n\n"
+            "> 来自错题本高频口诀，跟「易错陷阱 / 背这句」同源，每天先扫这 5 条。\n\n"
+            + "\n".join(bullets)
+            + "\n"
+        )
+        # 插在「先搞懂」标题后、第一个 ### 手工节之前；若无手工 ### 则放段首
+        first_h3 = re.search(r"^###\s+", section, re.MULTILINE)
+        if first_h3:
+            section = section[: first_h3.start()] + block + "\n" + section[first_h3.start() :]
+        else:
+            section = block + section
+    return content[:start] + section + content[end:]
+
+
+def _rewrite_flash_auto(
+    content: str,
+    rows: list[tuple[str, str]],
+    today: str,
+) -> str:
+    """在闪卡节末尾重写「### 自动加练」表。"""
+    m = re.search(r"^##\s*🃏\s*闪卡[^\n]*\s*$", content, re.MULTILINE)
+    if not m:
+        return content
+    start = m.end()
+    rest = content[start:]
+    nxt = re.search(r"^##\s", rest, re.MULTILINE)
+    end = start + (nxt.start() if nxt else len(rest))
+    section = content[start:end]
+    section = re.sub(
+        r"\n*###\s*自动加练[^\n]*\n(?:.*?)(?=\n### |\n## |\Z)",
+        "\n",
+        section,
+        flags=re.DOTALL,
+    )
+    rows = _clean_display_rows(rows)
+    if rows:
+        lines = ["| 问 | 答 |", "|----|-----|"]
+        for remember, pitfall in rows[:8]:
+            q = _pitfall_to_wrong_col(pitfall)
+            if len(q) < 4:
+                continue
+            lines.append(f"| {q}？ | {remember} |")
+        if len(lines) > 2:
+            block = (
+                f"\n### 自动加练（更新于 {today}）\n\n"
+                "> 遮住右列自测；与错题口诀同步，每次覆盖不追加。\n\n"
+                + "\n".join(lines)
+                + "\n"
+            )
+            section = section.rstrip() + "\n" + block
+    return content[:start] + section + content[end:]
+
+
+def _rewrite_decision_auto_patch(
+    content: str,
+    rows: list[tuple[str, str]],
+    today: str,
+) -> str:
+    """在做题决策链代码块**闭合后**追加/替换自动补丁（绝不写入 fence 内）。"""
+    m = re.search(r"^##\s*.*做题决策链\s*$", content, re.MULTILINE)
+    if not m:
+        return content
+    start = m.end()
+    rest = content[start:]
+    nxt = re.search(r"^##\s", rest, re.MULTILINE)
+    end = start + (nxt.start() if nxt else len(rest))
+    section = content[start:end]
+    # 清掉误插进代码块内外的旧补丁
+    section = re.sub(
+        r"\n*>\s*\*\*自动补丁（[^)]+）\*\*[^\n]*\n?",
+        "\n",
+        section,
+    )
+    rows = _clean_display_rows(rows)
+    if not rows:
+        return content[:start] + section + content[end:]
+    items = "；".join(remember for remember, _p in rows[:6])
+    patch = f"\n> **自动补丁（{today}）**：{items}\n"
+    # 匹配完整 ```...```，插在闭合 fence 之后
+    fence = re.search(r"```[^\n]*\n.*?```", section, re.DOTALL)
+    if fence:
+        pos = fence.end()
+        section = section[:pos] + patch + section[pos:]
+    else:
+        section = section.rstrip() + "\n" + patch
+    return content[:start] + section + content[end:]
+
+
 def _rewrite_auto_memory_section(
     content: str,
     rows: list[tuple[str, str]],
     today: str,
 ) -> str:
-    """整段重写自动区为可背口诀表。rows 为空则只清理旧垃圾。"""
+    """整段重写自动区；手写易错表只清垃圾不追加；先搞懂/闪卡/决策补丁整段覆盖。"""
+    rows = _clean_display_rows(rows)
     span = _find_trap_section_span(content)
     if not span:
-        return content
+        updated = content
+    else:
+        start, end = span
+        section = _strip_auto_trap_block(content[start:end])
+        section = _merge_hand_trap_table(section, rows)
+        if rows:
+            table_rows = "".join(f"| {w} | {r} |\n" for w, r in rows)
+            block = (
+                f"\n{AUTO_TRAP_HEADING} · 更新于 {today}）\n\n"
+                "> 只背左列整句；右列是坑。半截解析/OCR 已过滤，不够 10 条不强凑。"
+                "本区每次同步**整段覆盖**，不会无限加长。\n\n"
+                "| 背这句 | 别踩 |\n"
+                "|--------|------|\n"
+                f"{table_rows}"
+            )
+            section = section.rstrip() + block + "\n"
+        updated = content[:start] + section + content[end:]
 
-    start, end = span
-    section = _strip_auto_trap_block(content[start:end])
-    if rows:
-        table_rows = "".join(f"| {w} | {r} |\n" for w, r in rows)
-        block = (
-            f"\n{AUTO_TRAP_HEADING} · 更新于 {today}\n\n"
-            "> 只背左列整句；右列是坑。半截解析/OCR 已过滤，不够 10 条不强凑。\n\n"
-            "| 背这句 | 别踩 |\n"
-            "|--------|------|\n"
-            f"{table_rows}"
-        )
-        section = section.rstrip() + block + "\n"
-    return content[:start] + section + content[end:]
+    updated = _rewrite_xian_gaodong_auto(updated, rows, today)
+    updated = _rewrite_flash_auto(updated, rows, today)
+    updated = _rewrite_decision_auto_patch(updated, rows, today)
+    return updated
 
 
 def _insert_auto_trap_rows(content: str, new_rows: list[tuple[str, str]], today: str) -> str:
@@ -492,7 +699,7 @@ def collect_trap_candidates(
 
 
 def sync_traps_from_errors(*, dry_run: bool = False) -> SyncResult:
-    """按当前错题本整段重写各领域「来自你的错题」可背区。"""
+    """按错题本回写各领域：先搞懂钉死点 + 易错表合并 + 背这句区 + 决策补丁 + 闪卡加练。"""
     result = SyncResult()
     errors = _load_errors()
     state = _load_sync_state()
