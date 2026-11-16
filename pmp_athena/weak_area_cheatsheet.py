@@ -177,6 +177,14 @@ _MENU_TRIGGERS = frozenset({
 })
 _TODAY_TRIGGERS = frozenset({"今日速记", "今天速记", "每日速记"})
 _SYNC_TRIGGERS = frozenset({"刷新速记", "同步速记", "更新速记", "速记同步"})
+_PDF_TRIGGERS = frozenset({
+    "速记PDF", "速记 pdf", "导出速记PDF", "导出速记", "生成速记PDF", "薄弱点PDF",
+})
+_PDF_TODAY_TRIGGERS = frozenset({"今日速记PDF", "今日PDF", "今天速记PDF"})
+_PDF_P0_TRIGGERS = frozenset({
+    "合订PDF", "P0PDF", "P0 PDF", "Process合订PDF", "三领域PDF", "成本进度商业PDF",
+})
+_PDF_OVERVIEW_TRIGGERS = frozenset({"总览PDF", "00PDF", "决策卡PDF"})
 
 
 def _load_bank() -> list[dict]:
@@ -244,6 +252,27 @@ def parse_cheatsheet_request(text: str) -> tuple[str, str | None]:
         return ("today", None)
     if t in _SYNC_TRIGGERS:
         return ("sync", None)
+    if t in _PDF_TODAY_TRIGGERS:
+        return ("pdf_today", None)
+    if t in _PDF_P0_TRIGGERS:
+        return ("pdf_p0", None)
+    if t in _PDF_OVERVIEW_TRIGGERS:
+        return ("pdf_overview", None)
+    if t in _PDF_TRIGGERS:
+        return ("pdf_all", None)
+
+    # 速记PDF 资源管理 / 资源管理PDF
+    m_pdf = re.match(r"^(?:速记PDF|导出速记)\s*(.+)$", t) or re.match(
+        r"^(.+?)(?:速记)?PDF$", t
+    )
+    if m_pdf:
+        sub = m_pdf.group(1).strip()
+        if sub in ("全部", "所有", "all"):
+            return ("pdf_all", None)
+        area = _resolve_cheatsheet_area(sub)
+        if area:
+            return ("pdf_area", area)
+        return ("unknown_area", sub)
 
     for pat in (
         re.compile(r"^速记\s*(.+)$"),
@@ -255,6 +284,8 @@ def parse_cheatsheet_request(text: str) -> tuple[str, str | None]:
             sub = m.group(1).strip()
             if not sub or sub in ("清单", "列表", "菜单"):
                 return ("menu", None)
+            if sub.upper() == "PDF" or sub == "pdf":
+                return ("pdf_all", None)
             area = _resolve_cheatsheet_area(sub)
             if area:
                 return ("push", area)
@@ -503,25 +534,67 @@ def push_menu() -> str:
 
     lines.extend([
         "📖 **用法**",
-        "  发「今日速记」→ 自动推今天该背的领域",
+        "  发「今日速记」→ 跟补考周历 / 模考弱域（不再纯轮换）",
         "  发「速记 成本管理」→ 指定领域",
+        "  发「速记PDF」→ 导出全部领域 PDF（按日归档）",
+        "  发「今日速记PDF」→ 只导出今天推荐领域",
         "  发「速记清单」→ 本菜单",
         "",
         "📁 完整版在 Cursor: pmp_notes/薄弱点速记/",
+        "📄 PDF 在: pmp_notes/薄弱点速记/pdf/日期/",
     ])
     return "\n".join(lines)
 
 
-def push_today() -> str:
-    """按薄弱优先级 + 日期轮换，推送今日速记。"""
-    try:
-        from pmp_athena.cheatsheet_sync import ensure_daily_sync
-    except ModuleNotFoundError:
-        from cheatsheet_sync import ensure_daily_sync
-    ensure_daily_sync(silent=True)
+def _today_cheatsheet_pick() -> tuple[str, str]:
+    """选出今日速记领域 + 推荐理由。
 
+    优先级：
+    1. 补考周历当天领域（含「模考最弱域/次弱域」动态解析）
+    2. 考前日历/薄弱 P0 焦点
+    3. 历史薄弱轮换（兜底）
+    """
+    # 1) 周历
+    try:
+        try:
+            from pmp_athena.retake_calendar import enriched_slot
+        except ModuleNotFoundError:
+            from retake_calendar import enriched_slot  # type: ignore
+
+        slot = enriched_slot(date.today())
+        raw = slot.get("area") if slot else None
+        mapped = _resolve_cheatsheet_area(str(raw)) if raw else None
+        if mapped:
+            why = str(slot.get("why") or "跟补考周历")
+            return mapped, why
+    except Exception:
+        pass
+
+    # 2) 考前焦点 / P0
+    try:
+        try:
+            from pmp_athena.cheatsheet_sync import (
+                _d_day,
+                _ranked_area_triples,
+                today_focus_areas,
+            )
+        except ModuleNotFoundError:
+            from cheatsheet_sync import (  # type: ignore
+                _d_day,
+                _ranked_area_triples,
+                today_focus_areas,
+            )
+
+        focus = today_focus_areas(_ranked_area_triples(), _d_day())
+        for raw in focus:
+            mapped = _resolve_cheatsheet_area(raw)
+            if mapped:
+                return mapped, "考前焦点 / 薄弱 P0"
+    except Exception:
+        pass
+
+    # 3) 薄弱轮换兜底
     weak = get_weak_areas()
-    # 可推送的领域（有 MD 文件）
     candidates: list[str] = []
     seen: set[str] = set()
     for area, _, _, _ in weak:
@@ -532,16 +605,25 @@ def push_today() -> str:
     for area in DOMAIN_ORDER:
         if area not in seen:
             candidates.append(area)
-
     if not candidates:
-        return push_menu()
-
+        return "商业环境", "默认兜底"
     idx = date.today().toordinal() % len(candidates)
-    area = candidates[idx]
+    return candidates[idx], f"薄弱点轮换 {idx + 1}/{len(candidates)}"
 
+
+def push_today() -> str:
+    """推送今日速记：优先跟补考周历 / 模考弱域，不再纯日期轮换。"""
+    try:
+        from pmp_athena.cheatsheet_sync import ensure_daily_sync
+    except ModuleNotFoundError:
+        from cheatsheet_sync import ensure_daily_sync
+    ensure_daily_sync(silent=True)
+
+    area, why = _today_cheatsheet_pick()
     header = [
         f"🌅 **今日速记 · {date.today().strftime('%m月%d日')}**",
-        f"📍 今日推荐：**{area}**（薄弱点轮换 {idx + 1}/{len(candidates)}）",
+        f"📍 今日推荐：**{area}**",
+        f"📌 依据：{why}",
         "",
     ]
     body = format_wechat_push(area)
@@ -550,6 +632,24 @@ def push_today() -> str:
 
 def push_list() -> str:
     return push_menu()
+
+
+def _format_pdf_result(paths: list[Path], *, title: str) -> str:
+    if not paths:
+        return "⚠️ 未生成任何 PDF。"
+    folder = paths[0].parent
+    lines = [
+        f"📄 **{title}**",
+        f"📁 `{folder}`",
+        "",
+    ]
+    for p in paths:
+        lines.append(f"  · {p.name}")
+    lines.extend([
+        "",
+        "💡 微信里打不开本地路径：到 Cursor 项目 `pmp_notes/薄弱点速记/pdf/` 打开。",
+    ])
+    return "\n".join(lines)
 
 
 def handle_message(text: str) -> str:
@@ -561,6 +661,46 @@ def handle_message(text: str) -> str:
         except ModuleNotFoundError:
             from cheatsheet_sync import format_wechat_sync_report, sync_all
         return format_wechat_sync_report(sync_all())
+
+    if action in ("pdf_all", "pdf_today", "pdf_area", "pdf_p0", "pdf_overview"):
+        try:
+            from pmp_athena.cheatsheet_pdf import (
+                OVERVIEW_PDF_FILES,
+                render_all,
+                render_area_pdf,
+                render_overview_pdf,
+                render_p0,
+                render_today,
+            )
+        except ModuleNotFoundError:
+            from cheatsheet_pdf import (  # type: ignore
+                OVERVIEW_PDF_FILES,
+                render_all,
+                render_area_pdf,
+                render_overview_pdf,
+                render_p0,
+                render_today,
+            )
+        try:
+            if action == "pdf_all":
+                paths = render_all()
+                return _format_pdf_result(paths, title="速记 PDF 已全部导出")
+            if action == "pdf_overview":
+                paths = [
+                    render_overview_pdf(md_name, label=label)
+                    for md_name, label in OVERVIEW_PDF_FILES
+                ]
+                return _format_pdf_result(paths, title="00 总览 PDF")
+            if action == "pdf_p0":
+                p = render_p0()
+                return _format_pdf_result([p], title="Process 合订 PDF（成本/进度/商业）")
+            if action == "pdf_today":
+                p = render_today()
+                return _format_pdf_result([p], title="今日速记 PDF")
+            p = render_area_pdf(area or "")
+            return _format_pdf_result([p], title=f"{area} 速记 PDF")
+        except Exception as e:
+            return f"⚠️ PDF 导出失败：{e}"
 
     if action == "menu" or action == "list":
         return push_menu()

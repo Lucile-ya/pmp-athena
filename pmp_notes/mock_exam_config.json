@@ -32,7 +32,7 @@
       "pdf_name": "考前冲刺卷2",
       "status": "pending",
       "total_questions": 180,
-      "has_pdf": true
+      "has_pdf": false
     },
     {
       "id": "M004",
@@ -41,7 +41,7 @@
       "pdf_name": "考前冲刺卷3",
       "status": "pending",
       "total_questions": 180,
-      "has_pdf": true
+      "has_pdf": false
     },
     {
       "id": "M005",
@@ -59,7 +59,7 @@
       "pdf_name": "2609期PMP模考一",
       "status": "pending",
       "total_questions": 180,
-      "has_pdf": true
+      "has_pdf": false
     },
     {
       "id": "M007",

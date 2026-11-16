@@ -119,12 +119,11 @@ def _sprint_area(area: str) -> str:
 
 def _live_slot() -> dict:
     try:
-        from pmp_athena.retake_calendar import day_plan
+        from pmp_athena.retake_calendar import enriched_slot
     except ModuleNotFoundError:
-        from retake_calendar import day_plan  # type: ignore
-    p = day_plan(date.today())
-    if p:
-        slot = p.as_slot()
+        from retake_calendar import enriched_slot  # type: ignore
+    slot = enriched_slot(date.today())
+    if slot:
         if slot.get("kind") == "area" and not slot.get("area"):
             fb = sprint_slot(_ranked_area_triples(), _d_day())
             if fb.get("area"):
@@ -136,9 +135,15 @@ def _live_slot() -> dict:
 
 def _tomorrow_slot() -> dict:
     try:
-        from pmp_athena.retake_calendar import next_plan
+        from pmp_athena.retake_calendar import enriched_slot, next_plan
     except ModuleNotFoundError:
-        from retake_calendar import next_plan  # type: ignore
+        from retake_calendar import enriched_slot, next_plan  # type: ignore
+    # 明天优先用 enriched（解析次弱域）
+    from datetime import timedelta
+
+    tm = enriched_slot(date.today() + timedelta(days=1))
+    if tm:
+        return tm
     nxt = next_plan(date.today())
     if nxt:
         return nxt.as_slot()

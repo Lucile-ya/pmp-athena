@@ -60,11 +60,21 @@ AUTO_TRAP_HEADING_ALIASES = (
     "### 来自错题本（自动",
 )
 TRAP_SECTION_HEADERS = ("七、易错陷阱", "八、易错陷阱", "十、易错陷阱")
-MAX_REMEMBER_COL = 32
-MAX_PITFALL_COL = 40
+# 微信一屏可读；宁少勿截成半句
+MAX_REMEMBER_COL = 42
+MAX_PITFALL_COL = 48
 MIN_FREQ_FOR_BOOST = 2
 MAX_NEW_TRAPS_PER_DOMAIN = 10
 BOOTSTRAP_FREQ_ONLY = True  # 首次同步只写入错≥2次的模式
+
+# 自动区禁止出现的「解析流水账 / OCR 残片」
+_JUNK_MNEMONIC_RE = re.compile(
+    r"(收缩解析|答案解析|本题考查|关键句[:：]|其余选项|易混淆选项|"
+    r"^选[A-Ea-e][，,、]|解析[：:]|^\(?参考案例|"
+    r"题目的问题在于|那么选项中|"
+    r"^对于重大|^关键字|^D选项是最佳|^A选项|^B选项|^C选项|"
+    r"不是最佳选项|首先要考虑的)"
+)
 
 _deferred_cheatsheet_sync = False
 
@@ -79,6 +89,8 @@ class SyncResult:
     skipped_duplicate: int = 0
     hf_cards_count: int = 0
     hf_cards_updated: bool = False
+    pdf_count: int = 0
+    pdf_error: str = ""
 
     @property
     def total_traps(self) -> int:
@@ -101,6 +113,12 @@ class SyncResult:
             lines.append(f"- 已更新 {self.headers_updated} 份领域速记的数据头")
         if self.overview_updated:
             lines.append(f"- 已同步 {self.overview_updated} 份总览卡（攻错/对比/Process合订）")
+        if self.pdf_count:
+            lines.append(
+                f"- 速记 PDF 已导出 **{self.pdf_count}** 份 → `薄弱点速记/pdf/{date.today().isoformat()}/`"
+            )
+        if self.pdf_error:
+            lines.append(f"- 速记 PDF 导出失败：{self.pdf_error[:80]}")
         if self.skipped_duplicate:
             lines.append(f"- 跳过 {self.skipped_duplicate} 条重复")
         if not lines:
@@ -144,64 +162,147 @@ def _truncate(text: str, limit: int) -> str:
     t = re.sub(r"\s+", " ", (text or "").strip())
     if len(t) <= limit:
         return t
-    return t[: limit - 1] + "…"
+    # 尽量在顿号/逗号处切断，避免半句
+    cut = t[:limit]
+    for sep in ("，", "、", "；", " ", "·"):
+        pos = cut.rfind(sep)
+        if pos >= max(12, limit // 2):
+            return cut[:pos].rstrip("，、；· ") 
+    return t[: limit - 1].rstrip("，、；· ") + "…"
 
 
 def _strip_mnemonic_noise(text: str) -> str:
     t = re.sub(r"\s+", " ", (text or "").strip())
     t = re.sub(r"^钉死[：:]\s*", "", t)
+    t = re.sub(r"^(?:解析|Explanation)\s*[：:]\s*", "", t, flags=re.I)
     t = t.strip("*，,。；; ")
     return t
 
 
+def _parse_pipe_mnemonic(expl: str) -> tuple[str, str] | None:
+    """explanation 形如「背这句 | 别踩」时直接拆成两列。"""
+    text = _strip_mnemonic_noise(expl or "")
+    if "|" not in text and "｜" not in text:
+        return None
+    text = text.replace("｜", "|")
+    left, right = [p.strip() for p in text.split("|", 1)]
+    if len(left) < 6 or len(right) < 2:
+        return None
+    if _is_junk_mnemonic(left):
+        return None
+    return left, right
+
+
+def _is_junk_mnemonic(text: str) -> bool:
+    """不可背：解析残片、题干流水、半截 OCR。"""
+    t = (text or "").strip()
+    if len(t) < 6:
+        return True
+    if _JUNK_MNEMONIC_RE.search(t):
+        return True
+    if "易混淆选项" in t:
+        return True
+    # 半截省略号 = 未写完，一律不进自动区
+    if "…" in t or "..." in t:
+        return True
+    # 明显未完成的半句
+    if t.endswith(("和", "的", "了", "与", "及", "将", "把", "从", "在", "别", "锁")):
+        return True
+    return False
+
+
+def _quality_trap_row(remember: str, pitfall: str) -> bool:
+    if _is_junk_mnemonic(remember):
+        return False
+    if not pitfall or len(pitfall.strip()) < 4:
+        return False
+    # 右列也禁止半截
+    if "…" in pitfall or "..." in pitfall:
+        return False
+    if pitfall.rstrip().endswith(("和", "的", "了", "与", "别", "锁", "批")):
+        return False
+    if _JUNK_MNEMONIC_RE.search(pitfall) and not pitfall.startswith("别"):
+        return False
+    return True
+
+
 def build_memory_trap(error: dict, *, freq: int = 1) -> tuple[str, str]:
-    """可背诵行：(背这句, 别踩)。禁止塞题干/OCR 解析。"""
+    """可背诵行：(背这句, 别踩)。禁止塞题干/OCR 解析。
+
+    优先顺序：explanation 管道口诀 → 根因诊断 → 规则口诀 → 极简「别选X应选Y」。
+    质量不合格时返回空串，由上层跳过该条。
+    """
     try:
-        from pmp_athena.error_insights import build_mnemonic, build_summary
+        from pmp_athena.error_insights import build_mnemonic, build_trap_line
         from pmp_athena.root_cause_engine import diagnose
         from pmp_athena.root_cause_variants import get_root_cause_summary
     except ImportError:
-        from error_insights import build_mnemonic, build_summary
+        from error_insights import build_mnemonic, build_trap_line
         from root_cause_engine import diagnose
         from root_cause_variants import get_root_cause_summary
 
+    my_a = str(error.get("my_answer") or "?").strip().upper()
+    ok_a = str(error.get("correct_answer") or "?").strip().upper()
+
     remember = ""
-    diag = diagnose(error)
-    if diag:
+    pitfall = ""
+
+    # 1) 人工/入库时写的「口诀 | 别踩」
+    piped = _parse_pipe_mnemonic(str(error.get("explanation") or ""))
+    if piped:
+        remember, pitfall = piped
+
+    # 2) 根因引擎
+    diag = diagnose(error) if not remember else None
+    if not remember and diag:
         summary = get_root_cause_summary(diag.get("name", ""))
         if summary and summary.get("core_distinction"):
             remember = summary["core_distinction"]
         else:
             remember = diag.get("mnemonic") or ""
-
-    if not remember:
-        remember = build_mnemonic(error)
-    if not remember or remember.startswith("记牢正确选项"):
-        remember = build_summary(error)
-
-    remember = _strip_mnemonic_noise(remember)
-    my_a = str(error.get("my_answer") or "?").strip().upper()
-    ok_a = str(error.get("correct_answer") or "?").strip().upper()
-
-    pitfall = ""
-    if diag:
-        summary = get_root_cause_summary(diag.get("name", ""))
         traps = (summary or {}).get("common_traps") or []
         if traps:
             pitfall = traps[0]
-    if not pitfall:
-        summary = build_summary(error)
-        if summary and "易混淆选项" not in summary and summary != remember:
-            pitfall = summary
+
+    # 3) 规则口诀（仍 junk 则放弃该条，不强凑半截）
+    if not remember or _is_junk_mnemonic(remember):
+        cand = build_mnemonic(error)
+        remember = "" if (
+            not cand
+            or cand.startswith("记牢正确选项")
+            or _is_junk_mnemonic(cand)
+        ) else cand
+
+    remember = _strip_mnemonic_noise(remember)
+    if not remember:
+        return "", ""
+
+    if not pitfall or _is_junk_mnemonic(pitfall):
+        try:
+            tip = build_trap_line(error)
+        except Exception:
+            tip = ""
+        if tip and not _is_junk_mnemonic(tip):
+            pitfall = tip
     if not pitfall:
         pitfall = f"别选 {my_a}，应选 {ok_a}"
     elif not pitfall.startswith("别"):
-        pitfall = f"别选 {my_a} · {pitfall}"
+        pitfall = f"别选 {my_a} · {_strip_mnemonic_noise(pitfall)}"
 
-    left = _truncate(remember, MAX_REMEMBER_COL)
-    right = _truncate(pitfall, MAX_PITFALL_COL)
-    if freq >= MIN_FREQ_FOR_BOOST:
-        right = _truncate(f"{right}（×{freq}）", MAX_PITFALL_COL)
+    # 超长宁换短句，绝不截成半句
+    if len(remember) > MAX_REMEMBER_COL:
+        # 管道口诀过长：保留前半完整语义失败则丢弃
+        return "", ""
+    left = remember
+    if len(pitfall) > MAX_PITFALL_COL:
+        right = f"别选 {my_a}，应选 {ok_a}"
+    else:
+        right = pitfall
+    if freq >= MIN_FREQ_FOR_BOOST and len(right) + 4 <= MAX_PITFALL_COL:
+        right = f"{right}（×{freq}）"
+
+    if not _quality_trap_row(left, right):
+        return "", ""
     return left, right
 
 
@@ -272,7 +373,7 @@ def _rewrite_auto_memory_section(
         table_rows = "".join(f"| {w} | {r} |\n" for w, r in rows)
         block = (
             f"\n{AUTO_TRAP_HEADING} · 更新于 {today}\n\n"
-            "> 只背左列；右列是你常踩的坑。错题一更新这里就刷新。\n\n"
+            "> 只背左列整句；右列是坑。半截解析/OCR 已过滤，不够 10 条不强凑。\n\n"
             "| 背这句 | 别踩 |\n"
             "|--------|------|\n"
             f"{table_rows}"
@@ -297,11 +398,37 @@ def _map_error_area(error: dict) -> str | None:
     return None
 
 
+_DOMAIN_HINTS: dict[str, tuple[str, ...]] = {
+    "商业环境": ("战略", "合规", "效益", "商业", "论证", "变革", "NPV", "法规", "价值", "矩阵"),
+    "成本管理": ("成本", "预算", "CPI", "EAC", "储备", "挣值", "EV", "融资", "TCPI", "AC"),
+    "敏捷/混合方法": ("敏捷", "冲刺", "Sprint", "PO", "Scrum", "迭代", "看板", "燃尽", "故事"),
+    "质量管理": ("质量", "QA", "QC", "审计", "缺陷", "鱼骨", "帕累托", "预防", "控制质量"),
+    "进度管理": ("进度", "关键路径", "赶工", "快速跟进", "SV", "SPI", "浮动", "压缩", "WBS估算"),
+    "资源管理": ("团队", "冲突", "资源", "仆人", "RACI", "导师", "隐性", "授权", "职能", "障碍", "士气", "站会"),
+    "干系人管理": ("干系人", "相关方", "参与", "权力", "利益", "登记册", "抵制"),
+    "整合管理": ("变更", "CCB", "章程", "整合", "收尾", "裁剪", "文档", "DoD", "验收"),
+    "范围管理": ("范围", "WBS", "需求", "镀金", "蔓延", "RTM", "确认范围", "验收标准"),
+}
+
+
+def _relevant_to_domain(area: str, remember: str, pitfall: str) -> bool:
+    """口诀须和本域沾边，防止风险/合同万能句串台。"""
+    hints = _DOMAIN_HINTS.get(area)
+    if not hints:
+        return True
+    blob = f"{remember} {pitfall}"
+    return any(h in blob for h in hints)
+
+
 def collect_memory_traps_by_area(
     errors: list[dict],
 ) -> dict[str, list[tuple[str, str, int, int]]]:
-    """返回 {领域: [(背这句, 别踩, error_id, freq), ...]}，按频次去重。"""
-    by_area: dict[str, list[tuple[str, str, int, int, str]]] = defaultdict(list)
+    """返回 {领域: [(背这句, 别踩, error_id, freq), ...]}。
+
+    排序：① explanation 管道口诀（可背）→ ② 高频 → ③ 其它合格低频。
+    宁缺毋滥，禁止 OCR 半截与跨域万能句占满 10 格。
+    """
+    by_area: dict[str, list[tuple[str, str, int, int, str, int]]] = defaultdict(list)
     # 按题干 gist 聚合频次（同一题多次错）
     freq_groups: dict[tuple[str, str], list[dict]] = defaultdict(list)
 
@@ -319,34 +446,31 @@ def collect_memory_traps_by_area(
         if not isinstance(eid, int):
             continue
         freq = len(group)
-        if freq < MIN_FREQ_FOR_BOOST and len(group) == 1:
-            # 单次错也收录，但排序靠后；首批仍优先高频
-            pass
+        piped = 1 if _parse_pipe_mnemonic(str(rep.get("explanation") or "")) else 0
         remember, pitfall = build_memory_trap(rep, freq=freq)
+        if not remember or not pitfall:
+            continue
+        if not piped and not _relevant_to_domain(area, remember, pitfall):
+            continue
         ts = str(rep.get("timestamp") or rep.get("date") or "")
-        by_area[area].append((remember, pitfall, eid, freq, ts))
+        by_area[area].append((remember, pitfall, eid, freq, ts, piped))
 
     out: dict[str, list[tuple[str, str, int, int]]] = {}
     for area, items in by_area.items():
-        items.sort(key=lambda x: (-x[3], x[4]))
+        # 管道口诀优先，再高频，再新
+        items.sort(key=lambda x: (-x[5], -x[3], x[4]))
         trimmed: list[tuple[str, str, int, int]] = []
         seen: set[str] = set()
-        # 先收高频，不够再补低频
-        for prefer_freq in (True, False):
-            for remember, pitfall, eid, freq, _ts in items:
-                if prefer_freq and freq < MIN_FREQ_FOR_BOOST:
-                    continue
-                if not prefer_freq and freq >= MIN_FREQ_FOR_BOOST:
-                    continue
-                rk = _row_key(remember, pitfall)
-                if not rk or rk in seen:
-                    continue
-                if remember.startswith("记牢正确选项"):
-                    continue
-                seen.add(rk)
-                trimmed.append((remember, pitfall, eid, freq))
-                if len(trimmed) >= MAX_NEW_TRAPS_PER_DOMAIN:
-                    break
+        for remember, pitfall, eid, freq, _ts, _piped in items:
+            if not _quality_trap_row(remember, pitfall):
+                continue
+            rk = _row_key(remember, pitfall)
+            if not rk or rk in seen:
+                continue
+            if remember.startswith("记牢正确选项"):
+                continue
+            seen.add(rk)
+            trimmed.append((remember, pitfall, eid, freq))
             if len(trimmed) >= MAX_NEW_TRAPS_PER_DOMAIN:
                 break
         if trimmed:
@@ -504,12 +628,11 @@ def _plan_slot_for_day(
     day_d = (EXAM_DAY - day).days
     if day_d > SPRINT_WINDOW:
         try:
-            from pmp_athena.retake_calendar import day_plan
+            from pmp_athena.retake_calendar import enriched_slot
         except ModuleNotFoundError:
-            from retake_calendar import day_plan  # type: ignore
-        p = day_plan(day)
-        if p:
-            slot = p.as_slot()
+            from retake_calendar import enriched_slot  # type: ignore
+        slot = enriched_slot(day)
+        if slot:
             area = slot.get("area")
             num = None
             if area:
@@ -1155,7 +1278,7 @@ def _touch_daily_refresh() -> None:
     _save_sync_state(state)
 
 
-def sync_all(*, dry_run: bool = False) -> SyncResult:
+def sync_all(*, dry_run: bool = False, export_pdf: bool = True) -> SyncResult:
     trap_result = sync_traps_from_errors(dry_run=dry_run)
     hf_count, hf_written = sync_hf_cards(dry_run=dry_run)
     trap_result.hf_cards_count = hf_count
@@ -1163,6 +1286,17 @@ def sync_all(*, dry_run: bool = False) -> SyncResult:
     trap_result.readme_updated = refresh_readme(dry_run=dry_run, hf_cards_count=hf_count)
     trap_result.headers_updated = refresh_domain_headers(dry_run=dry_run)
     trap_result.overview_updated = refresh_overview_cards(dry_run=dry_run)
+    if not dry_run and export_pdf:
+        try:
+            try:
+                from pmp_athena.cheatsheet_pdf import render_all
+            except ModuleNotFoundError:
+                from cheatsheet_pdf import render_all  # type: ignore
+            paths = render_all()
+            trap_result.pdf_count = len(paths)
+        except Exception as e:
+            # PDF 失败不阻断速记同步
+            trap_result.pdf_error = str(e)
     if not dry_run:
         _touch_daily_refresh()
     return trap_result

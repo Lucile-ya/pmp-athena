@@ -202,3 +202,156 @@ def next_plan(day: date | None = None, path: Path | None = None) -> DayPlan | No
     table = all_days(path)
     nxt = day + timedelta(days=1)
     return table.get(nxt)
+
+
+def latest_mock_weak_ranking(*, limit: int = 6) -> list[str]:
+    """最近一次完整模考的弱域排序（错题多→少），映射到标准领域名。
+
+    优先：exam_records 最近 completed 且 ≥100 题的 weak_areas；
+    其次：错题本/题库里带「模拟考试」标记或 source=mock_exam 的近期错题计数；
+    再退：历史薄弱错误率。
+    """
+    ranked: list[str] = []
+
+    # 1) exam_records.weak_areas
+    try:
+        try:
+            from pmp_athena.config import EXAM_RECORDS_PATH
+        except ModuleNotFoundError:
+            from config import EXAM_RECORDS_PATH  # type: ignore
+        import json
+
+        raw = json.loads(EXAM_RECORDS_PATH.read_text(encoding="utf-8"))
+        exams = raw.get("exams") if isinstance(raw, dict) else raw
+        mocks = [
+            e
+            for e in (exams or [])
+            if isinstance(e, dict)
+            and e.get("status", "completed") == "completed"
+            and int(e.get("total_questions") or 0) >= 100
+        ]
+        mocks.sort(key=lambda e: str(e.get("exam_date") or e.get("date") or ""), reverse=True)
+        if mocks:
+            for name in mocks[0].get("weak_areas") or []:
+                mapped = normalize_area(str(name)) or str(name)
+                if mapped and mapped not in ranked:
+                    ranked.append(mapped)
+    except Exception:
+        pass
+
+    # 2) 错题本：模拟考试题干 / mock_exam 来源
+    if len(ranked) < 2:
+        from collections import Counter
+
+        counts: Counter[str] = Counter()
+        try:
+            try:
+                from pmp_athena.config import ERROR_LOG_PATH, QUESTION_BANK_PATH
+            except ModuleNotFoundError:
+                from config import ERROR_LOG_PATH, QUESTION_BANK_PATH  # type: ignore
+            import json
+
+            err = json.loads(ERROR_LOG_PATH.read_text(encoding="utf-8"))
+            items = err.get("errors") if isinstance(err, dict) else err
+            for e in items or []:
+                if not isinstance(e, dict):
+                    continue
+                q = str(e.get("question") or "")
+                if "模拟考试" not in q and "模考" not in q[:20]:
+                    continue
+                area = normalize_area(e.get("knowledge_area") or "") or e.get("knowledge_area")
+                if area:
+                    counts[str(area)] += 1
+            if not counts:
+                bank = json.loads(QUESTION_BANK_PATH.read_text(encoding="utf-8"))
+                qs = bank if isinstance(bank, list) else bank.get("questions") or []
+                for r in qs:
+                    if not isinstance(r, dict):
+                        continue
+                    if r.get("is_correct") is not False:
+                        continue
+                    if (r.get("source") or "") != "mock_exam":
+                        continue
+                    area = normalize_area(r.get("knowledge_area") or "") or r.get(
+                        "knowledge_area"
+                    )
+                    if area:
+                        counts[str(area)] += 1
+            for area, _n in counts.most_common(limit):
+                if area not in ranked:
+                    ranked.append(area)
+        except Exception:
+            pass
+
+    # 3) 历史薄弱兜底
+    if len(ranked) < 2:
+        try:
+            try:
+                from pmp_athena.weak_area_cheatsheet import get_weak_areas
+            except ModuleNotFoundError:
+                from weak_area_cheatsheet import get_weak_areas  # type: ignore
+
+            for area, _rate, _w, _t in get_weak_areas():
+                mapped = normalize_area(area) or area
+                if mapped and mapped not in ranked:
+                    ranked.append(mapped)
+                if len(ranked) >= limit:
+                    break
+        except Exception:
+            pass
+
+    return ranked[:limit]
+
+
+def resolve_day_areas(plan: DayPlan | None) -> list[str]:
+    """解析当天领域；支持周历「模考最弱域 / 次弱域」动态占位。"""
+    if plan is None:
+        return []
+    areas = list(plan.areas or [])
+    blob = f"{plan.athena} {plan.live}"
+    need_dynamic = bool(
+        re.search(r"最弱域|次弱域|模考最弱|模考次弱", blob)
+    ) or (plan.kind == "area" and not areas)
+
+    if need_dynamic:
+        ranking = latest_mock_weak_ranking()
+        if re.search(r"次弱域|模考次弱", blob):
+            pick = ranking[1] if len(ranking) > 1 else (ranking[0] if ranking else None)
+            areas = [pick] if pick else areas
+        elif re.search(r"最弱域|模考最弱", blob) or not areas:
+            pick = ranking[0] if ranking else None
+            if pick:
+                # 「最弱+次弱」类文案可带两个
+                if re.search(r"最弱.?次弱|次弱.?最弱", blob) and len(ranking) > 1:
+                    areas = ranking[:2]
+                else:
+                    areas = [pick]
+
+    # 规范化
+    out: list[str] = []
+    for a in areas:
+        mapped = normalize_area(a) or a
+        if mapped and mapped not in out:
+            out.append(mapped)
+    return out
+
+
+def enriched_slot(day: date | None = None, path: Path | None = None) -> dict:
+    """day_plan.as_slot() + 动态弱域解析（供今日任务 / 今日速记共用）。"""
+    p = day_plan(day, path)
+    if not p:
+        return {}
+    slot = p.as_slot()
+    areas = resolve_day_areas(p)
+    if areas:
+        slot["area"] = areas[0]
+        slot["focus"] = areas
+        if re.search(r"最弱域|次弱域", p.athena):
+            label = "+".join(
+                ("敏捷" if a.startswith("敏捷") else a) for a in areas[:2]
+            )
+            task = re.sub(r"\*\*", "", p.athena).strip()
+            if len(task) > 28:
+                task = task[:26] + "…"
+            slot["why"] = f"周历：{task} → {label}"
+    return slot
