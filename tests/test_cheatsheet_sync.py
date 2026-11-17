@@ -62,6 +62,49 @@ def test_insert_auto_trap_rows() -> None:
     assert "本题考查" not in out
     assert "某题干很长" not in out
     assert _row_key(w, r) in _existing_trap_keys(out)
+    assert "去重追加" in out
+
+
+def test_auto_trap_rows_accumulate_without_cap() -> None:
+    from pmp_athena.cheatsheet_sync import _merge_trap_rows, _insert_auto_trap_rows
+
+    content = """## 七、易错陷阱
+
+| ❌ 错 | ✅ 对 |
+|------|------|
+| 手写旧坑 | 手写纠正 |
+
+### 来自你的错题（自动 · 更新于 2026-11-16）
+
+| 背这句 | 别踩 |
+|--------|------|
+| 旧口诀甲先评估再行动 | 别立刻改基准甲 |
+| 旧口诀乙先沟通再升级 | 别第一步找高管乙 |
+
+## 八、做题决策链
+"""
+    merged = _merge_trap_rows(
+        [
+            ("新口诀丙缺EV无法判断", "别只看预算水平丙"),
+            ("旧口诀甲先评估再行动", "别立刻改基准甲-新版"),
+        ],
+        [
+            ("旧口诀甲先评估再行动", "别立刻改基准甲"),
+            ("旧口诀乙先沟通再升级", "别第一步找高管乙"),
+        ],
+    )
+    assert [r for r, _ in merged] == [
+        "新口诀丙缺EV无法判断",
+        "旧口诀甲先评估再行动",
+        "旧口诀乙先沟通再升级",
+    ]
+    out = _insert_auto_trap_rows(
+        content, [("新口诀丙缺EV无法判断", "别只看预算水平丙")], "2026-11-17"
+    )
+    assert "新口诀丙缺EV无法判断" in out
+    assert "旧口诀乙先沟通再升级" in out
+    assert "去重追加" in out
+    assert "不会无限加长" not in out
 
 
 def test_extract_mnemonic_bold_label() -> None:

@@ -64,7 +64,8 @@ TRAP_SECTION_HEADERS = ("七、易错陷阱", "八、易错陷阱", "十、易�
 MAX_REMEMBER_COL = 42
 MAX_PITFALL_COL = 48
 MIN_FREQ_FOR_BOOST = 2
-MAX_NEW_TRAPS_PER_DOMAIN = 10
+# 自动「背这句」区：去重追加、不设上限（合格口诀不丢）
+MAX_NEW_TRAPS_PER_DOMAIN = 0  # 0 = 不截断
 BOOTSTRAP_FREQ_ONLY = True  # 首次同步只写入错≥2次的模式
 
 # 自动区禁止出现的「解析流水账 / OCR 残片」
@@ -329,6 +330,48 @@ def _existing_trap_keys(content: str) -> set[str]:
     return keys
 
 
+def _parse_auto_trap_rows(section: str) -> list[tuple[str, str]]:
+    """从易错节里抽出「来自你的错题（自动）」表行，供去重追加。"""
+    m = re.search(
+        r"###\s*来自(?:你的错题|错题本)[^\n]*\n(.*?)(?=\n### |\n## |\Z)",
+        section,
+        re.DOTALL,
+    )
+    if not m:
+        return []
+    rows: list[tuple[str, str]] = []
+    for line in m.group(1).splitlines():
+        if "|" not in line or line.strip().startswith("|---"):
+            continue
+        parts = [p.strip() for p in line.split("|") if p.strip()]
+        if len(parts) < 2:
+            continue
+        if parts[0] in ("❌ 错", "错", "问", "背这句", "别踩"):
+            continue
+        rows.append((parts[0], parts[1]))
+    return rows
+
+
+def _merge_trap_rows(
+    primary: list[tuple[str, str]],
+    secondary: list[tuple[str, str]],
+) -> list[tuple[str, str]]:
+    """primary 优先（本次同步），再追加 secondary（文件里已有），按口诀去重。"""
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for remember, pitfall in list(primary) + list(secondary):
+        if not _quality_trap_row(remember, pitfall):
+            continue
+        if remember.startswith("记牢正确选项"):
+            continue
+        rk = _row_key(remember, pitfall)
+        if not rk or rk in seen:
+            continue
+        seen.add(rk)
+        out.append((remember, pitfall))
+    return out
+
+
 def _find_trap_section_span(content: str) -> tuple[int, int] | None:
     for header in TRAP_SECTION_HEADERS:
         m = re.search(rf"^##\s*{re.escape(header)}\s*$", content, re.MULTILINE)
@@ -561,21 +604,25 @@ def _rewrite_auto_memory_section(
     rows: list[tuple[str, str]],
     today: str,
 ) -> str:
-    """整段重写自动区；手写易错表只清垃圾不追加；先搞懂/闪卡/决策补丁整段覆盖。"""
+    """重写自动区：合格口诀去重追加（不截断）；手写易错表只清垃圾；钉死/闪卡/决策仍整段覆盖。"""
     rows = _clean_display_rows(rows)
     span = _find_trap_section_span(content)
     if not span:
         updated = content
+        merged_rows = rows
     else:
         start, end = span
-        section = _strip_auto_trap_block(content[start:end])
-        section = _merge_hand_trap_table(section, rows)
-        if rows:
-            table_rows = "".join(f"| {w} | {r} |\n" for w, r in rows)
+        raw_section = content[start:end]
+        existing_auto = _parse_auto_trap_rows(raw_section)
+        merged_rows = _merge_trap_rows(rows, existing_auto)
+        section = _strip_auto_trap_block(raw_section)
+        section = _merge_hand_trap_table(section, merged_rows)
+        if merged_rows:
+            table_rows = "".join(f"| {w} | {r} |\n" for w, r in merged_rows)
             block = (
                 f"\n{AUTO_TRAP_HEADING} · 更新于 {today}）\n\n"
-                "> 只背左列整句；右列是坑。半截解析/OCR 已过滤，不够 10 条不强凑。"
-                "本区每次同步**整段覆盖**，不会无限加长。\n\n"
+                "> 只背左列整句；右列是坑。半截解析/OCR 已过滤。"
+                "本区**自动更新、去重追加**，合格口诀不丢、不设条数上限。\n\n"
                 "| 背这句 | 别踩 |\n"
                 "|--------|------|\n"
                 f"{table_rows}"
@@ -583,9 +630,10 @@ def _rewrite_auto_memory_section(
             section = section.rstrip() + block + "\n"
         updated = content[:start] + section + content[end:]
 
-    updated = _rewrite_xian_gaodong_auto(updated, rows, today)
-    updated = _rewrite_flash_auto(updated, rows, today)
-    updated = _rewrite_decision_auto_patch(updated, rows, today)
+    # 钉死/闪卡仍只取前几条，避免「先搞懂」刷屏
+    updated = _rewrite_xian_gaodong_auto(updated, merged_rows, today)
+    updated = _rewrite_flash_auto(updated, merged_rows, today)
+    updated = _rewrite_decision_auto_patch(updated, merged_rows, today)
     return updated
 
 
@@ -633,7 +681,7 @@ def collect_memory_traps_by_area(
     """返回 {领域: [(背这句, 别踩, error_id, freq), ...]}。
 
     排序：① explanation 管道口诀（可背）→ ② 高频 → ③ 其它合格低频。
-    宁缺毋滥，禁止 OCR 半截与跨域万能句占满 10 格。
+    宁缺毋滥：过滤 OCR 半截与跨域万能句；条数默认不截断（去重追加）。
     """
     by_area: dict[str, list[tuple[str, str, int, int, str, int]]] = defaultdict(list)
     # 按题干 gist 聚合频次（同一题多次错）
@@ -678,7 +726,7 @@ def collect_memory_traps_by_area(
                 continue
             seen.add(rk)
             trimmed.append((remember, pitfall, eid, freq))
-            if len(trimmed) >= MAX_NEW_TRAPS_PER_DOMAIN:
+            if MAX_NEW_TRAPS_PER_DOMAIN > 0 and len(trimmed) >= MAX_NEW_TRAPS_PER_DOMAIN:
                 break
         if trimmed:
             out[area] = trimmed
