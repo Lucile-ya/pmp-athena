@@ -64,6 +64,9 @@ CHAPTER_ALIASES: dict[str, str] = {
     "瀑布": "瀑布训练",
     "项目治理": "项目治理绩效域",
     "治理": "项目治理绩效域",
+    # 第八版新考纲机构章节：项目类型（预测/敏捷/混合）
+    "项目类型": "项目类型",
+    "新考纲-项目类型": "项目类型",
 }
 
 STATS_MARKERS = (
@@ -100,8 +103,8 @@ def map_chapter_to_area(chapter: str) -> str:
         if alias == t or t.startswith(alias):
             return area
 
-    # 机构自定义章节名（瀑布训练/治理等）原样保留，便于对比历史成绩
-    if t in CHAPTER_ALIASES.values() or re.search(r"(训练|绩效域)$", t):
+    # 机构自定义章节名（瀑布训练/治理/项目类型等）原样保留，便于对比历史成绩
+    if t in CHAPTER_ALIASES.values() or re.search(r"(训练|绩效域|项目类型)$", t):
         return t
     return t if t in KNOWLEDGE_AREAS else "综合"
 

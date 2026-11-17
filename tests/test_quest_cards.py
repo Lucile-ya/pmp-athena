@@ -57,7 +57,9 @@ class QuestCardTests(unittest.TestCase):
         self.assertIn("题眼：", text)
         self.assertIn("背：", text)
         self.assertIn("别踩：", text)
-        self.assertIn("你曾 B → 应 D", text)
+        self.assertNotIn("你曾", text)
+        self.assertNotIn("别再选", text)
+        self.assertNotIn("锁 D", text)
         self.assertNotIn("记牢正确选项", text)
 
 

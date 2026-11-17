@@ -434,7 +434,7 @@ def _cards_text() -> str:
     focus_s = "+".join(_sprint_area(a) for a in focus[:2]) if focus else "顽疾"
     lines = [
         f"③ 摘要卡（{STEP3_MINUTES}分钟 · {len(picked)} 张 · 今日域 {focus_s}）",
-        "出声念「背」，扫一眼「别踩」。不必重做选项。",
+        "出声念「背」，扫一眼「别踩」。只背语义，不看选项。",
         "",
     ]
     for i, it in enumerate(picked, 1):

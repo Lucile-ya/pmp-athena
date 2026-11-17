@@ -32,6 +32,16 @@ except ModuleNotFoundError:
 # 更具体的规则必须排在前面：否则「转移/采购/变更」会误配镀金、合同审查题。
 SCENARIO_RULES: list[tuple[tuple[str, ...], str, str]] = [
     (
+        ("虚拟团队", "文化不同", "地理分散", "文化数据", "职业道德"),
+        "虚拟团队文化差异：主动收集文化信息并让成员参与讨论，别只登记风险或解散虚队。",
+        "虚队文化先摸底讨论，别只登风险或解散。",
+    ),
+    (
+        ("who would be responsible", "交付责任并不明确", "责任归属", "重叠的领域", "资源管理计划"),
+        "责任归属不清查资源管理计划（管 who）；WBS 只管 what。",
+        "责任不清查资源计划，WBS管事不管人。",
+    ),
+    (
         ("关闭标准", "即将结束", "添加功能", "镀金", "产品拥护者", "释放剩余"),
         "已满足关闭标准时释放资源，剩余时间/预算不加功能。",
         "满足关闭就收摊，剩余预算不镀金。",
@@ -252,12 +262,7 @@ def build_summary(error: dict) -> str:
         return matched[0]
 
     area = error.get("knowledge_area", "综合")
-    my_a = error.get("my_answer", "?")
-    correct = error.get("correct_answer", "?")
-    return (
-        f"[{area}] 易混淆选项 {my_a} 与 {correct}，"
-        f"核心考点是选 {correct} 对应的场景/工具/流程。"
-    )
+    return f"[{area}] 易混淆干扰项，先锁场景/工具/流程再选动作。"
 
 
 def build_mnemonic(error: dict) -> str:
@@ -281,44 +286,68 @@ def build_mnemonic(error: dict) -> str:
     if area in AREA_MNEMONICS:
         return AREA_MNEMONICS[area]
 
-    correct = error.get("correct_answer", "")
-    return f"先锁场景再选 {correct}，别靠语感蒙。"
+    return "先锁场景再选动作，别靠语感蒙。"
 
 
 def _mnemonic_from_explanation(expl: str) -> str:
     text = clean_explanation_text(str(expl or "")).strip()
     if not text:
         return ""
-    # 取首句，压到口诀长度
-    first = re.split(r"[。！？\n]", text)[0].strip()
-    first = re.sub(r"\s+", "", first)
-    if len(first) < 8:
-        return ""
-    if len(first) > 28:
-        first = first[:27] + "…"
-    return first
+    # 优先中文句；丢掉纯英文/选项字母残留
+    for part in re.split(r"[。！？\n|;；|]", text):
+        first = part.strip()
+        first = re.sub(r"[A-Za-z]{10,}", "", first)  # 去掉 whowouldberesponsible 一类，保留 Kick-off/CEO
+        first = _strip_option_letters(re.sub(r"\s+", "", first))
+        first = re.sub(r"^题干问的是['\"‘’].*?[—\-]+", "", first)  # 去掉「题干问的是'…'——」壳
+        if len(first) < 8:
+            continue
+        if len(first) > 28:
+            first = first[:27] + "…"
+        return first
+    return ""
+
+
+def _strip_option_letters(text: str) -> str:
+    """摘要卡去掉选项字母（A/B/C/D），只留可背语义。"""
+    t = text or ""
+    t = re.sub(r"别再选\s*[A-Ea-e]\s*，?\s*锁\s*[A-Ea-e]\s*[：:.]?\s*", "", t)
+    t = re.sub(r"(?:别再选|应选|锁|选了?)\s*[A-Ea-e]\b[：:.]?\s*", "", t)
+    t = re.sub(r"易混淆选项\s*[A-Ea-e]\s*与\s*[A-Ea-e]", "易混淆干扰项", t)
+    t = re.sub(r"选项\s*[A-Ea-e]\b", "干扰项", t)
+    t = re.sub(r"(?<![A-Za-z])[A-Ea-e]\s*[\(（]", "(", t)  # C(集成计划) → (集成计划)
+    t = re.sub(r"[A-Ea-e]\s*[→\-–—]+\s*[A-Ea-e]", "", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t.strip(" ：:，,")
 
 
 def build_trap_line(error: dict) -> str:
-    """别踩：一句话点出干扰项。"""
-    my = str(error.get("my_answer") or "").strip().upper()
-    correct = str(error.get("correct_answer") or "").strip().upper()
+    """别踩：一句话点出干扰项（不写选项字母）。"""
     expl = clean_explanation_text(str(error.get("explanation") or ""))
     summary = build_summary(error)
+    q = str(error.get("question") or "")
+    # 规则命中时直接用总结，避免从半截解析抠出「明书)」一类残句
+    if _match_scenario(f"{q} {expl}"):
+        tip = _strip_option_letters(summary)
+        if len(tip) > 32:
+            tip = tip[:31] + "…"
+        return tip
     # 从解析里抓「别/不要/而非/不是」类
     m = re.search(r"[^。]{0,20}(?:不要|别|而非|不是|勿)[^。]{2,30}", expl)
     if m:
-        tip = re.sub(r"\s+", "", m.group(0))
-        if len(tip) > 28:
-            tip = tip[:27] + "…"
-        return tip
-    if my and correct and my != correct:
-        return f"别再选 {my}，锁 {correct}：{summary[:22]}"
-    return summary[:28] if summary else ""
+        tip = _strip_option_letters(re.sub(r"\s+", "", m.group(0)))
+        # 残句/选项碎片不要
+        if tip and re.search(r"[\u4e00-\u9fff]{4,}", tip) and not re.match(
+            r"^[\)\]\}，,、.．]", tip
+        ):
+            if len(tip) > 28:
+                tip = tip[:27] + "…"
+            return tip
+    tip = _strip_option_letters(summary[:32] if summary else "")
+    return tip
 
 
 def format_quest_summary_card(error: dict, *, mistake_count: int = 0) -> str:
-    """今日任务③摘要卡：能背，不甩半截题干。"""
+    """今日任务③摘要卡：能背，不甩选项字母。"""
     eid = error.get("id", "?")
     area = error.get("knowledge_area") or "综合"
     if str(area).startswith("敏捷"):
@@ -328,10 +357,8 @@ def format_quest_summary_card(error: dict, *, mistake_count: int = 0) -> str:
     stem = re.split(r"\s*[A-E][\.、．\)]\s*", q)[0].strip()
     if len(stem) > 42:
         stem = stem[:41] + "…"
-    mnemonic = build_mnemonic(error)
+    mnemonic = _strip_option_letters(build_mnemonic(error))
     trap = build_trap_line(error)
-    my = str(error.get("my_answer") or "?").upper()
-    correct = str(error.get("correct_answer") or "?").upper()
     fire = f"🔥{mistake_count}次" if mistake_count >= 3 else f"错{mistake_count}次"
     lines = [
         f"#{eid} [{area}] {fire}",
@@ -340,8 +367,6 @@ def format_quest_summary_card(error: dict, *, mistake_count: int = 0) -> str:
     ]
     if trap:
         lines.append(f"别踩：{trap}")
-    if my and correct:
-        lines.append(f"你曾 {my} → 应 {correct}")
     return "\n".join(lines)
 
 
