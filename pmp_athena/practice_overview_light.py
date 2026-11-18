@@ -78,6 +78,17 @@ def _format_monthly_rate(correct: int, total: int) -> str:
     return f"{correct / max(1, total) * 100:.1f}%"
 
 
+def _format_score(correct: int, total: int, *, with_flag: bool = False) -> str:
+    """累计口径：164/225 (72.9%)，可选达标旗标。"""
+    if total <= 0:
+        return "无数据"
+    rate = correct / total * 100
+    text = f"{correct}/{total} ({rate:.1f}%)"
+    if with_flag:
+        text += f" {_rate_flag(rate)}"
+    return text
+
+
 def _exam_correct_rate_pct(e: dict) -> str:
     cr = e.get("correct_rate", 0)
     if isinstance(cr, float):
@@ -298,7 +309,10 @@ def generate_summary(from_date: str | None = None) -> str:
             month_exams[ed].append(e)
 
     sorted_months = sorted(
-        set(monthly.keys()) | set(monthly_dups.keys()) | set(month_chapters.keys())
+        set(monthly.keys())
+        | set(monthly_dups.keys())
+        | set(month_chapters.keys())
+        | set(month_exams.keys())
     )
 
     # ── 首次/二次正确率（不含模考重复记账；章节练习无逐题，不进此段）──
@@ -340,7 +354,13 @@ def generate_summary(from_date: str | None = None) -> str:
         lines.append(f"口径：仅统计 {from_date} 及之后（7–9 月旧数据不计入本轮）。")
         lines.append("")
     if dup_mock_n > 0:
-        lines.append(f"口径：题库正确率已剔除 {dup_mock_n} 条模考错题重复记账，模考看下方正式卷。")
+        lines.append(
+            f"口径：总刷题 = 日常逐题 + 章节/App + 模考整卷；"
+            f"题库里 {dup_mock_n} 条模考错题重复记账已剔除，不与整卷叠算。"
+        )
+        lines.append("")
+    else:
+        lines.append("口径：总刷题 = 日常逐题 + 章节/App + 模考整卷。")
         lines.append("")
 
     # ── 逐月详情 ──
@@ -348,6 +368,8 @@ def generate_summary(from_date: str | None = None) -> str:
 
     chapter_total_all = 0
     chapter_correct_all = 0
+    mock_total_all = 0
+    mock_correct_all = 0
 
     for m in sorted_months:
         records = monthly.get(m, [])
@@ -363,10 +385,16 @@ def generate_summary(from_date: str | None = None) -> str:
         chapter_total_all += chap_t
         chapter_correct_all += chap_c
 
-        # 章节练习=App 题库刷题，并入月度刷题量（与逐题入库互补，不重复记模考）
-        t = bank_t + chap_t
-        c = bank_c + chap_c
-        judged_n = len(judged) + chap_t
+        mocks = month_exams.get(m, [])
+        mock_t = sum(int(e.get("total_questions") or 0) for e in mocks)
+        mock_c = sum(int(e.get("correct_count") or 0) for e in mocks)
+        mock_total_all += mock_t
+        mock_correct_all += mock_c
+
+        # 日常逐题 + 章节/App + 模考整卷（模考错题重复记账已从 bank 剔除）
+        t = bank_t + chap_t + mock_t
+        c = bank_c + chap_c + mock_c
+        judged_n = len(judged) + chap_t + mock_t
         rate = c / max(1, judged_n) * 100
 
         f_t = month_first_total.get(m, 0)
@@ -376,36 +404,39 @@ def generate_summary(from_date: str | None = None) -> str:
 
         ym = int(m[:4]), int(m[5:])
         date_range = _format_date_range(m, records)
-        if (not records) and chapters:
-            chap_days = sorted(
+        if (not records) and (chapters or mocks):
+            extra_days = sorted(
                 {
                     (e.get("exam_date") or "")[:10]
-                    for e in chapters
+                    for e in (chapters + mocks)
                     if e.get("exam_date")
                 }
             )
-            if chap_days:
+            if extra_days:
                 date_range = _format_date_range(
-                    m, [{"date": d} for d in chap_days]
+                    m, [{"date": d} for d in extra_days]
                 )
-        n_exams = len(month_exams.get(m, []))
+        n_exams = len(mocks)
 
         lines.append(f"📅 {_MONTH_CN[ym[1]]}（{date_range}）")
         pending_note = f"（待判卷 {pending} 题）" if pending > 0 else ""
         dup_note = f"（已剔除 {dup_n} 条模考重复记账）" if dup_n else ""
         lines.append(
-            f"刷题：{t} 题 | 正确率 {_format_monthly_rate(c, judged_n)}"
+            f"刷题：{_format_score(c, judged_n, with_flag=True)}"
             f"{pending_note}{dup_note}"
         )
-        if chap_t > 0 and bank_t > 0:
-            lines.append(
-                f"  其中：逐题入库 {bank_t} + 章节/App题库 {chap_t}"
-            )
-        elif chap_t > 0:
-            lines.append(f"  其中：章节/App题库 {chap_t}")
+        parts = []
+        if bank_t > 0:
+            parts.append(f"日常 {_format_score(bank_c, len(judged) if judged else bank_t)}")
+        if chap_t > 0:
+            parts.append(f"章节/App {_format_score(chap_c, chap_t)}")
+        if mock_t > 0:
+            parts.append(f"模考 {_format_score(mock_c, mock_t)}")
+        if parts:
+            lines.append(f"  其中：{' · '.join(parts)}")
         lines.append(
-            f"  首次正确率 {_format_monthly_rate(f_c, f_t)}"
-            f"  |  二次正确率 {_format_monthly_rate(s_c, s_t)}"
+            f"  首次正确率 {_format_score(f_c, f_t)}"
+            f"  |  二次正确率 {_format_score(s_c, s_t)}"
         )
 
         if n_exams > 0:
@@ -474,13 +505,17 @@ def generate_summary(from_date: str | None = None) -> str:
     if daily_lines:
         lines.extend(daily_lines)
 
-    # ── 总览（逐题入库 + 章节/App 题库截图）──
+    # ── 总览（日常逐题 + 章节/App + 模考整卷）──
     judged_all = [r for r in bank_for_rate if r.get("is_correct") is not None]
     bank_correct = sum(1 for r in judged_all if r.get("is_correct"))
     bank_total = len(bank_for_rate)
-    correct = bank_correct + chapter_correct_all
-    total = bank_total + chapter_total_all
-    overall_pct = correct / max(1, (len(judged_all) + chapter_total_all)) * 100
+    correct = bank_correct + chapter_correct_all + mock_correct_all
+    total = bank_total + chapter_total_all + mock_total_all
+    overall_pct = (
+        correct
+        / max(1, (len(judged_all) + chapter_total_all + mock_total_all))
+        * 100
+    )
 
     # 薄弱领域
     area_stats: dict[str, dict] = defaultdict(lambda: {"total": 0, "correct": 0})
@@ -539,17 +574,24 @@ def generate_summary(from_date: str | None = None) -> str:
     else:
         target_line = f"🔴 差距较大（{overall_pct:.0f}% vs 70%）"
 
+    bank_judged_n = len(judged_all)
     lines.extend([
         "📌 当前总览",
         "─" * 30,
-        f"总刷题：{total} 题 | 总正确率：{overall_pct:.1f}%",
+        f"累计：{_format_score(correct, total, with_flag=True)}",
+        f"  · 日常逐题：{_format_score(bank_correct, bank_judged_n or bank_total)}",
+        f"  · 章节/App：{_format_score(chapter_correct_all, chapter_total_all)}",
+        f"  · 模考整卷：{_format_score(mock_correct_all, mock_total_all)}",
+        (
+            f"题量构成：日常 {bank_total} + 章节/App {chapter_total_all}"
+            f" + 模考 {mock_total_all} = {total}"
+        ),
     ])
-    if chapter_total_all > 0:
-        lines.append(
-            f"（含章节/App题库 {chapter_total_all} 题；逐题入库 {bank_total} 题）"
-        )
     if dup_mock_n > 0:
-        lines.append(f"（原始题库 {len(bank)} 条含模考重复记账，已剔除 {dup_mock_n} 条）")
+        lines.append(
+            f"（原始题库 {len(bank)} 条含模考错题重复记账，已剔除 {dup_mock_n} 条，"
+            f"模考按整卷 {mock_total_all} 计入）"
+        )
     if total_review > 0:
         lines.append(f"错题复习：{total_review} 排队 | {due_today} 今日到期 | {mastered} 已掌握")
     lines.append(f"🎯 目标：{target_line}")
