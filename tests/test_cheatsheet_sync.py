@@ -107,6 +107,41 @@ def test_auto_trap_rows_accumulate_without_cap() -> None:
     assert "不会无限加长" not in out
 
 
+def test_flash_auto_rows_accumulate_without_overwrite() -> None:
+    from pmp_athena.cheatsheet_sync import _rewrite_flash_auto
+
+    content = """## 🃏 闪卡
+
+| 问 | 答 |
+|----|-----|
+| 手写卡？ | 手写答案 |
+
+### 自动加练（更新于 2026-11-17）
+
+> 遮住右列自测；与错题口诀同步，每次覆盖不追加。
+
+| 问 | 答 |
+|----|-----|
+| 先改数据网络？ | 外来投资先评估对目标影响 |
+| 强制统一所有模板？ | 多团队敏捷靠协商一致实践 |
+
+"""
+    out = _rewrite_flash_auto(
+        content,
+        [
+            ("按战略统一标准排优先级=组合管理", "别选项目集或启动"),
+            ("外来投资先评估对目标影响", "别先改数据网络"),
+        ],
+        "2026-11-18",
+    )
+    assert "去重追加" in out
+    assert "覆盖不追加" not in out
+    assert "按战略统一标准排优先级=组合管理" in out
+    assert "外来投资先评估对目标影响" in out
+    assert "多团队敏捷靠协商一致实践" in out  # 旧行保留
+    assert out.count("| 外来投资先评估对目标影响 |") == 1  # 同口诀不重复
+
+
 def test_extract_mnemonic_bold_label() -> None:
     from pmp_athena.cheatsheet_sync import extract_mnemonic
 

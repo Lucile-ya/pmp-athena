@@ -525,12 +525,39 @@ def _rewrite_xian_gaodong_auto(
     return content[:start] + section + content[end:]
 
 
+def _parse_flash_auto_rows(section: str) -> list[tuple[str, str]]:
+    """从闪卡节抽出「### 自动加练」表行 → (口诀, 问句坑)，供去重追加。"""
+    m = re.search(
+        r"###\s*自动加练[^\n]*\n(.*?)(?=\n### |\n## |\Z)",
+        section,
+        re.DOTALL,
+    )
+    if not m:
+        return []
+    rows: list[tuple[str, str]] = []
+    for line in m.group(1).splitlines():
+        if "|" not in line or line.strip().startswith("|---"):
+            continue
+        parts = [p.strip() for p in line.split("|") if p.strip()]
+        if len(parts) < 2:
+            continue
+        if parts[0] in ("问", "答", "背这句", "别踩"):
+            continue
+        question = parts[0].rstrip("？?").strip()
+        remember = parts[1].strip()
+        if len(remember) < 4 or len(question) < 4:
+            continue
+        # 存成 (口诀, 坑)：坑用问句原文，写出时再走 _pitfall_to_wrong_col
+        rows.append((remember, question))
+    return rows
+
+
 def _rewrite_flash_auto(
     content: str,
     rows: list[tuple[str, str]],
     today: str,
 ) -> str:
-    """在闪卡节末尾重写「### 自动加练」表。"""
+    """在闪卡节末尾重写「### 自动加练」表：合格行去重追加，不覆盖、不设条数上限。"""
     m = re.search(r"^##\s*🃏\s*闪卡[^\n]*\s*$", content, re.MULTILINE)
     if not m:
         return content
@@ -539,24 +566,41 @@ def _rewrite_flash_auto(
     nxt = re.search(r"^##\s", rest, re.MULTILINE)
     end = start + (nxt.start() if nxt else len(rest))
     section = content[start:end]
+    existing = _parse_flash_auto_rows(section)
     section = re.sub(
         r"\n*###\s*自动加练[^\n]*\n(?:.*?)(?=\n### |\n## |\Z)",
         "\n",
         section,
         flags=re.DOTALL,
     )
-    rows = _clean_display_rows(rows)
-    if rows:
+    incoming = _clean_display_rows(rows)
+    # 闪卡只要「能当自测问句」的坑；占位「别踩干扰项」不进加练（口诀仍在易错表）
+    incoming_flash = [
+        (r, p)
+        for r, p in incoming
+        if (p or "").strip() not in ("别踩干扰项", "别踩", "踩干扰项")
+    ]
+    existing_flash = [
+        (r, p)
+        for r, p in existing
+        if (p or "").strip() not in ("别踩干扰项", "别踩", "踩干扰项")
+    ]
+    # 新同步优先，再保留文件里已有加练行
+    merged = _merge_trap_rows(incoming_flash, existing_flash)
+    if merged:
         lines = ["| 问 | 答 |", "|----|-----|"]
-        for remember, pitfall in rows[:8]:
+        for remember, pitfall in merged:
             q = _pitfall_to_wrong_col(pitfall)
             if len(q) < 4:
+                # 已有行的「问」本身往往已去「别」，再剥一次仍可用
+                q = (pitfall or "").strip()
+            if len(q) < 4 or q in ("踩干扰项", "别踩"):
                 continue
             lines.append(f"| {q}？ | {remember} |")
         if len(lines) > 2:
             block = (
                 f"\n### 自动加练（更新于 {today}）\n\n"
-                "> 遮住右列自测；与错题口诀同步，每次覆盖不追加。\n\n"
+                "> 遮住右列自测；与错题口诀同步，**去重追加**、不设条数上限（合格行不丢）。\n\n"
                 + "\n".join(lines)
                 + "\n"
             )
@@ -604,7 +648,7 @@ def _rewrite_auto_memory_section(
     rows: list[tuple[str, str]],
     today: str,
 ) -> str:
-    """重写自动区：合格口诀去重追加（不截断）；手写易错表只清垃圾；钉死/闪卡/决策仍整段覆盖。"""
+    """重写自动区：合格口诀去重追加（不截断）；手写易错表只清垃圾；钉死/决策整段覆盖；闪卡加练去重追加。"""
     rows = _clean_display_rows(rows)
     span = _find_trap_section_span(content)
     if not span:
