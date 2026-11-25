@@ -7,7 +7,7 @@
 CLI:
   python pmp_athena/cheatsheet_pdf.py all
   python pmp_athena/cheatsheet_pdf.py p0          # Process 合订（成本/进度/商业）
-  python pmp_athena/cheatsheet_pdf.py overview    # 00 总览三份
+  python pmp_athena/cheatsheet_pdf.py overview    # 00 总览（含过程四条链）
   python pmp_athena/cheatsheet_pdf.py area --area 资源管理
   python pmp_athena/cheatsheet_pdf.py today
 """
@@ -44,6 +44,7 @@ except ModuleNotFoundError:
 PDF_DIR = CHEATSHEET_DIR / "pdf"
 # 00 总览合订（跟领域 MD 一起按日导出）
 OVERVIEW_PDF_FILES: list[tuple[str, str]] = [
+    ("00-过程四条链.md", "过程四条链"),
     ("00-P0三领域完整知识点.md", "Process合订_成本进度商业"),
     ("00-考前攻错决策卡.md", "考前攻错决策卡"),
     ("00-三领域对比速记卡.md", "三领域对比速记卡"),
@@ -549,7 +550,7 @@ def render_bind_pdf(*, out_dir: Path | None = None) -> Path:
     story.append(Paragraph(f"更新日期 {date.today().isoformat()}", styles["meta"]))
     story.append(
         Paragraph(
-            "含：攻错决策卡 / 三域对比 / Process合订 + 九大领域可背诵版",
+            "含：过程四条链 / 攻错决策卡 / 三域对比 / Process合订 + 九大领域可背诵版",
             styles["meta"],
         )
     )
