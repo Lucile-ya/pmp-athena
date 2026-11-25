@@ -353,6 +353,19 @@ def _build_compact(data: dict[str, Any]) -> str:
 
     lines = [title]
 
+    # 0) 累计题量 + 总正确率（微信精简版也要有，不能只拆分月/分类）
+    if data["total"] > 0:
+        judged_n = (
+            len(data["judged_all"])
+            + data["chapter_total_all"]
+            + data["mock_total_all"]
+        )
+        rate_n = judged_n if judged_n > 0 else data["total"]
+        lines.append(
+            f"📌 总刷题量 {data['total']} 题 · 总正确率 "
+            f"{_format_score(data['correct'], rate_n, with_flag=True)}"
+        )
+
     # 1) 刷题量 + 月度对比（置顶）
     details = data["month_details"]
     if details:
