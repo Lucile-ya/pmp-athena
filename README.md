@@ -5,7 +5,7 @@
 ![Python](https://img.shields.io/badge/Python-3.10+-yellow)
 ![AI助手](https://img.shields.io/badge/支持-Claude_Code_|_Cursor_|_WorkBuddy-purple)
 ![微信桥接](https://img.shields.io/badge/扩展-微信远程刷题-orange)
-![版本](https://img.shields.io/badge/版本-v1.4.1-red)
+![版本](https://img.shields.io/badge/版本-v1.5.0-red)
 
 > **不同于传统题库只提供「答案 + 解析」，PMP Athena 更关注：为什么错？考什么？下次怎么避免？**
 >
@@ -31,6 +31,7 @@
 | 🎯 **学习顾问** | 薄弱点诊断、今日错题复习、备考计划 | `study_advisor.py` |
 | 📋 **薄弱点速记** | 按错题数据推送口诀+闪卡+陷阱（微信一屏背诵） | `weak_area_cheatsheet.py` + `pmp_notes/薄弱点速记/` |
 | 📊 **模考** | PDF 模考 / 状态持久化 / 成绩写入 / 时间·速度·精度三维诊断 | `mock_exam_state.py` / `exam_recorder.py` |
+| 📊 **做题总览** | 一屏：累计题量与总正确率、分月趋势、日常 / 章节 App / 模考整卷、整卷分数 | `practice_overview_light.py` |
 | 🖼️ **截图 OCR** | 题目截图、模考成绩、章节练习统计图识别入库 | `image_processor.py` |
 | 🗺️ **思维导图结构化** | PNG 思维导图 OCR → PMBOK 标准表格 MD | `mindmap_ocr.py` / `build_mindmap_md.py` |
 | 💬 **微信桥接** | 硬路由绕过 LLM，25+ 指令直接调 Python CLI | [wechat-claude-code](https://github.com/Wechat-ggGitHub/wechat-claude-code) + `athena-router.ts` |
@@ -58,6 +59,7 @@
 | `随机每日一练` | 从 34 套 PDF 随机抽 10 题 |
 | `今日任务` | 跟 `2026-12-补考学习计划.md` 当天栏目（20 题 + 5 错题） |
 | `睡前复习` | 硬路由 `bedtime_review.py`：错题定额优先 + D-Day 四档知识点 |
+| `做题总览` / `今日状态` | 累计题量与总正确率，再拆日常 / 章节 / 模考 |
 | `分析趋势` | 模考趋势 + 通过概率预测 |
 | `帮我生成 14 天冲刺计划` | 按薄弱领域定制每日任务 |
 
@@ -370,6 +372,7 @@ A. … B. … C. … D. …
 | 多题 + `我的答案是：XXX` | `daily_practice.py batch --stdin` |
 | 更新41题，正确答案是 B | `daily_practice.py batch-update-text` |
 | 复习错题 / 薄弱点 / 学习计划 | `study_advisor.py` |
+| 做题总览 / 今日状态 / 做题汇总 | `practice_overview_light.py` |
 | 薄弱点速记 / 今日速记 / 速记 成本管理 | `weak_area_cheatsheet.py` |
 | 录入错题（截图） | `image_processor.py` + `record_answer.py` |
 | 资源管理知识点 / 挣值 / 敏捷速查 | `dynamic_knowledge.py` (L1/L2/L3) |
@@ -467,7 +470,8 @@ pmp_athena/                       # 核心业务代码
 ├── study_advisor.py              # 薄弱点 / 复习 / 计划
 ├── mock_exam_state.py            # 模考断点续做
 ├── exam_recorder.py              # 模考记录
-├── practice_overview.py          # 刷题总览（含时间线）
+├── practice_overview_light.py    # 做题总览（累计 + 分月 + 日常/章节/模考）
+├── practice_overview.py          # 刷题总览（时间线与今日建议）
 ├── practice_summary.py           # 月度 / 备考汇总
 ├── prep_analytics.py             # 周月总结、错题专项计划
 ├── prep_push.py                  # 备考推送队列
