@@ -60,12 +60,21 @@ class TestOverviewExcludesMockDumps(unittest.TestCase):
 
         with patch.object(pol, "_load", side_effect=fake_load):
             text = pol.generate_summary()
+            detail = pol.generate_summary(detail=True)
 
-        self.assertIn("已剔除 10 条模考重复记账", text)
-        self.assertIn("正确率 100.0%", text)  # 9月 2/2
-        self.assertNotRegex(text.split("📅 9月")[-1].split("📈")[0], r"正确率 16\.")
-        self.assertIn("最近模考 63%", text)
+        # 默认精简版：列模考分，不堆口径/章节
+        self.assertIn("模考成绩", text)
         self.assertIn("模拟二", text)
+        self.assertIn("最近模考 63%", text)
+        self.assertNotIn("已剔除 10 条模考重复记账", text)
+        self.assertNotIn("每日一练明细", text)
+
+        # --detail 仍剔除 mock_exam 重复记账，日常 9 月不被 10 条全错 dump 拉低
+        self.assertIn("已剔除 10 条模考重复记账", detail)
+        sep = detail.split("📅 9月")[-1].split("📈")[0]
+        self.assertIn("日常 2/2 (100.0%)", sep)
+        self.assertNotRegex(sep, r"日常 2/\d+ \(1[0-9]\.")  # 勿被 dump 拉到 ~16%
+        self.assertIn("模拟二", detail)
 
 
 class TestTrendAreaRate(unittest.TestCase):
