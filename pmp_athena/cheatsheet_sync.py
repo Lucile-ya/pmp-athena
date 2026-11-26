@@ -876,13 +876,41 @@ def _daily_practice_dates() -> dict[int, str]:
     return dates
 
 
+def _koujue_pair(remember: str, pitfall: str) -> tuple[str, str] | None:
+    """合订自动区只收口诀。不要题干，不要「别选A应选B」。"""
+    left = re.sub(r"\s+", "", remember or "")
+    if (
+        not left
+        or len(left) > 24
+        or _is_junk_mnemonic(left)
+        or _is_option_letter_junk(left)
+        or "项目经理" in left
+        or left.startswith(("一个", "在项目", "由于", "基于", "这意味"))
+    ):
+        return None
+    right = re.sub(r"\s+", "", pitfall or "")
+    right = re.sub(r"（×\d+）$", "", right)
+    if _is_option_letter_junk(right) or "易混淆" in right or "应选" in right:
+        quoted = re.search(r"「([^」]{4,16})」", right)
+        if not quoted:
+            return None
+        right = quoted.group(1)
+        if not right.startswith("别"):
+            right = "别" + right
+    if not right or len(right) > 22 or _is_option_letter_junk(right) or "应选" in right:
+        return None
+    if not _quality_trap_row(left, right):
+        return None
+    return left, right
+
+
 def collect_process_chain_daily_rows(
     errors: list[dict],
     dated_ids: dict[int, str],
-) -> dict[str, list[tuple[str, str, str]]]:
-    """{锚点: [(题干, 背这句, 别踩), ...]}，每节只留最近若干条每日一练。"""
+) -> dict[str, list[tuple[str, str]]]:
+    """{锚点: [(背这句, 别踩), ...]}，每节只留最近若干条每日一练口诀。"""
     area_to_anchor = dict(PROCESS_CHAIN_SECTIONS)
-    by_anchor: dict[str, list[tuple[str, str, str, str]]] = defaultdict(list)
+    by_anchor: dict[str, list[tuple[str, str, str]]] = defaultdict(list)
     seen_remember: dict[str, set[str]] = defaultdict(set)
     by_id = {e.get("id"): e for e in errors if isinstance(e.get("id"), int)}
     ranked = sorted(
@@ -898,57 +926,78 @@ def collect_process_chain_daily_rows(
         anchor = area_to_anchor.get(_map_error_area(err) or "")
         if not anchor:
             continue
-        remember, pitfall = build_memory_trap(err)
-        if remember and not _usable_daily_remember(remember):
-            remember = ""
-        if not remember:
-            remember = _fallback_daily_remember(str(err.get("explanation") or ""))
-            my_a = str(err.get("my_answer") or "?").strip().upper()
-            ok_a = str(err.get("correct_answer") or "?").strip().upper()
-            pitfall = f"别选 {my_a}，应选 {ok_a}"
-        if not remember or not _usable_daily_remember(remember):
+        pair = _koujue_pair(*build_memory_trap(err))
+        if not pair:
             continue
-        if not _quality_trap_row(remember, pitfall):
-            continue
+        remember, pitfall = pair
         if len(by_anchor[anchor]) >= PROCESS_CHAIN_DAILY_CAP:
             continue
         key = _row_key(remember, pitfall)
         if not key or key in seen_remember[anchor]:
             continue
         seen_remember[anchor].add(key)
-        gist = _cell(_question_gist(err.get("question", ""), 18), 18)
         stamp = str(err.get("timestamp") or day)
-        by_anchor[anchor].append(
-            (gist, _cell(remember, MAX_REMEMBER_COL), _cell(pitfall, MAX_PITFALL_COL), stamp)
-        )
+        by_anchor[anchor].append((remember, pitfall, stamp))
 
-    out: dict[str, list[tuple[str, str, str]]] = {}
+    out: dict[str, list[tuple[str, str]]] = {}
     for anchor, rows in by_anchor.items():
-        rows.sort(key=lambda r: r[3], reverse=True)
-        out[anchor] = [(g, rem, pit) for g, rem, pit, _stamp in rows]
+        rows.sort(key=lambda r: r[2], reverse=True)
+        out[anchor] = [(rem, pit) for rem, pit, _stamp in rows]
     return out
+
+
+def _hand_remember_keys(section: str) -> set[str]:
+    """手写「你的错题口诀」里已经有的背这句，自动区不再重复。"""
+    m = re.search(r"### 你的错题口诀\n(.*?)(?=\n### |\Z)", section, re.S)
+    if not m:
+        return set()
+    keys: set[str] = set()
+    for line in m.group(1).splitlines():
+        parts = [p.strip() for p in line.split("|") if p.strip()]
+        if len(parts) < 3 or parts[0] in ("题干",) or set(parts[0]) <= {"-"}:
+            continue
+        keys.add(re.sub(r"\s+", "", parts[1]))
+    return keys
+
+
+def _repeats_hand_mnemonic(remember: str, hand: set[str]) -> bool:
+    """和手写口诀同一句，或连续四字已经出现过，就不再追加。"""
+    left = re.sub(r"\s+", "", remember or "")
+    if not left:
+        return True
+    for written in hand:
+        if not written:
+            continue
+        if left in written or written in left:
+            return True
+        for i in range(len(left) - 3):
+            if left[i : i + 4] in written:
+                return True
+    return False
 
 
 def _upsert_daily_append_block(
     section: str,
-    rows: list[tuple[str, str, str]],
+    rows: list[tuple[str, str]],
     today: str,
 ) -> str:
-    """在手写口诀表之后插入/替换「每日一练追加」，不改上面的手写行。"""
+    """在手写口诀表之后插入/替换「每日一练追加」，只加背这句和别踩。"""
     section = re.sub(
         r"\n*### 每日一练追加（自动[^\n]*\n(?:.*?)(?=\n### |\n## |\Z)",
         "\n",
         section,
         flags=re.DOTALL,
     )
+    hand = _hand_remember_keys(section)
+    rows = [(r, p) for r, p in rows if not _repeats_hand_mnemonic(r, hand)]
     if not rows:
         return section
-    lines = ["| 题干 | 背这句 | 别踩 |", "|------|--------|------|"]
-    for gist, remember, pitfall in rows:
-        lines.append(f"| {gist} | {remember} | {pitfall} |")
+    lines = ["| 背这句 | 别踩 |", "|--------|------|"]
+    for remember, pitfall in rows:
+        lines.append(f"| {remember} | {pitfall} |")
     block = (
         f"\n### 每日一练追加（自动 · 更新于 {today}）\n\n"
-        "> 每日一练错题口诀，每节保留最近 "
+        "> 只追加口诀。每节最近 "
         f"{PROCESS_CHAIN_DAILY_CAP} 条。上面的手写表不动。\n\n"
         + "\n".join(lines)
         + "\n"
@@ -963,7 +1012,7 @@ def _upsert_daily_append_block(
 
 def apply_process_chain_daily(
     content: str,
-    rows_by_anchor: dict[str, list[tuple[str, str, str]]],
+    rows_by_anchor: dict[str, list[tuple[str, str]]],
     today: str,
 ) -> str:
     matches = list(_PROCESS_ANCHOR_RE.finditer(content))

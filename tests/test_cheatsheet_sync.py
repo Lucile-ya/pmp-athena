@@ -326,13 +326,19 @@ def test_process_chain_daily_append_keeps_hand_table() -> None:
 """
     updated = apply_process_chain_daily(
         content,
-        {"成本": [("资源被别的项目占着", "先找对方项目经理协商", "别选 B，应选 D")]},
+        {"成本": [("先找对方项目经理协商", "别改进度")]},
         "2026-11-26",
     )
+    auto = updated.split("### 每日一练追加", 1)[1]
     assert "手写旧行" in updated
     assert "### 每日一练追加（自动 · 更新于 2026-11-26）" in updated
     assert updated.index("每日一练追加") < updated.index("### 决策链")
     assert "[成本](#成本)" in updated
+    assert "| 背这句 | 别踩 |" in auto
+    assert "先找对方项目经理协商" in auto
+    assert "别改进度" in auto
+    assert "别选" not in auto
+    assert "| 题干 |" not in auto
 
     expl = (
         "D选项是最佳选项。首先，项目经理需要与其他项目经理沟通，"
