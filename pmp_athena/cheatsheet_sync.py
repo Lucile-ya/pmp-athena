@@ -26,7 +26,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 try:
-    from pmp_athena.config import CHEATSHEET_DIR, ERROR_LOG_PATH
+    from pmp_athena.config import CHEATSHEET_DIR, ERROR_LOG_PATH, QUESTION_BANK_PATH
     from pmp_athena.knowledge_retriever import normalize_area
     from pmp_athena.weak_area_cheatsheet import (
         DOMAIN_FILES,
@@ -37,7 +37,7 @@ try:
         get_weak_areas,
     )
 except ModuleNotFoundError:
-    from config import CHEATSHEET_DIR, ERROR_LOG_PATH
+    from config import CHEATSHEET_DIR, ERROR_LOG_PATH, QUESTION_BANK_PATH
     from knowledge_retriever import normalize_area
     from weak_area_cheatsheet import (
         DOMAIN_FILES,
@@ -53,6 +53,21 @@ README_PATH = CHEATSHEET_DIR / "README.md"
 OVERVIEW_DECISION = CHEATSHEET_DIR / "00-考前攻错决策卡.md"
 OVERVIEW_COMPARE = CHEATSHEET_DIR / "00-三领域对比速记卡.md"
 OVERVIEW_PROCESS = CHEATSHEET_DIR / "00-P0三领域完整知识点.md"
+PROCESS_CHAIN = CHEATSHEET_DIR / "00-过程四条链.md"
+# 合订章节锚点。每日一练错题按知识领域追加到对应节，不改手写口诀表。
+PROCESS_CHAIN_SECTIONS: tuple[tuple[str, str], ...] = (
+    ("整合管理", "整合"),
+    ("进度管理", "进度"),
+    ("范围管理", "范围"),
+    ("质量管理", "质量"),
+    ("成本管理", "成本"),
+    ("风险管理", "风险"),
+    ("采购管理", "采购"),
+)
+PROCESS_CHAIN_DAILY_CAP = 8
+_PROCESS_ANCHOR_RE = re.compile(
+    r'<a id="(?P<id>整合|进度|范围|质量|成本|风险|采购)"></a>'
+)
 AUTO_TRAP_HEADING = "### 来自你的错题（自动"
 # 兼容旧标题，同步时整段替换
 AUTO_TRAP_HEADING_ALIASES = (
@@ -92,6 +107,7 @@ class SyncResult:
     hf_cards_updated: bool = False
     pdf_count: int = 0
     pdf_error: str = ""
+    process_chain_rows: int = 0
 
     @property
     def total_traps(self) -> int:
@@ -114,6 +130,10 @@ class SyncResult:
             lines.append(f"- 已更新 {self.headers_updated} 份领域速记的数据头")
         if self.overview_updated:
             lines.append(f"- 已同步 {self.overview_updated} 份总览卡（攻错/对比/Process合订）")
+        if self.process_chain_rows:
+            lines.append(
+                f"- 过程四条链已追加每日一练口诀 **{self.process_chain_rows}** 条"
+            )
         if self.pdf_count:
             lines.append(
                 f"- 速记 PDF 已导出 **{self.pdf_count}** 份 → `薄弱点速记/pdf/{date.today().isoformat()}/`"
@@ -790,6 +810,193 @@ def collect_trap_candidates(
     }
 
 
+def _cell(text: str, limit: int) -> str:
+    t = re.sub(r"\s+", "", (text or "").strip())
+    t = t.replace("|", "／")
+    if len(t) <= limit:
+        return t
+    return t[: limit - 1] + "…"
+
+
+_NARRATIVE_REMEMBER = re.compile(
+    r"^(那么|这暗示|当一个|所以要|在这个|一个|项目经理正在|并要求|提供一个|这个计划|通过回顾|家公司)"
+)
+_ACTION_PRIMARY = ("应该", "先", "不要", "协商", "沟通")
+_ACTION_SECONDARY = ("验证", "计划", "CCB", "QA", "QC")
+
+
+def _usable_daily_remember(text: str) -> bool:
+    """合订只收能当口诀的句子，不收题干残片。"""
+    t = (text or "").strip()
+    if not t or _NARRATIVE_REMEMBER.search(t) or _is_junk_mnemonic(t):
+        return False
+    return any(h in t for h in _ACTION_PRIMARY + _ACTION_SECONDARY)
+
+
+def _fallback_daily_remember(explanation: str) -> str:
+    """解析被「选X是最佳」开头挡住时，抽一句带动作的分句。"""
+    t = re.sub(r"\s+", "", explanation or "")
+    t = re.sub(r"^[A-E]选项是最佳选项[。.]?", "", t)
+    t = re.sub(r"^选[A-E][,，]", "", t)
+    t = re.sub(r"^(首先|在这个问题中)[,，]?", "", t)
+    primary = ""
+    secondary = ""
+    for part in re.split(r"[。；]", t):
+        for seg in re.split(r"[，,]", part):
+            seg = seg.strip()
+            if not (8 <= len(seg) <= MAX_REMEMBER_COL):
+                continue
+            if not _usable_daily_remember(seg):
+                continue
+            if any(h in seg for h in _ACTION_PRIMARY) and len(seg) >= len(primary):
+                primary = seg
+            elif any(h in seg for h in _ACTION_SECONDARY) and len(seg) >= len(secondary):
+                secondary = seg
+    return primary or secondary
+
+
+def _daily_practice_dates() -> dict[int, str]:
+    """error_log_id → 最近一次每日一练日期。错题本本身不记 source。"""
+    try:
+        bank = json.loads(QUESTION_BANK_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(bank, list):
+        return {}
+    dates: dict[int, str] = {}
+    for row in bank:
+        if row.get("source") != "daily_practice" or row.get("is_correct") is not False:
+            continue
+        eid = row.get("error_log_id")
+        if not isinstance(eid, int):
+            continue
+        day = str(row.get("date") or "")[:10]
+        if day > dates.get(eid, ""):
+            dates[eid] = day
+    return dates
+
+
+def collect_process_chain_daily_rows(
+    errors: list[dict],
+    dated_ids: dict[int, str],
+) -> dict[str, list[tuple[str, str, str]]]:
+    """{锚点: [(题干, 背这句, 别踩), ...]}，每节只留最近若干条每日一练。"""
+    area_to_anchor = dict(PROCESS_CHAIN_SECTIONS)
+    by_anchor: dict[str, list[tuple[str, str, str, str]]] = defaultdict(list)
+    seen_remember: dict[str, set[str]] = defaultdict(set)
+    by_id = {e.get("id"): e for e in errors if isinstance(e.get("id"), int)}
+    ranked = sorted(
+        dated_ids.items(),
+        key=lambda item: str((by_id.get(item[0]) or {}).get("timestamp") or item[1]),
+        reverse=True,
+    )
+
+    for eid, day in ranked:
+        err = by_id.get(eid)
+        if not err:
+            continue
+        anchor = area_to_anchor.get(_map_error_area(err) or "")
+        if not anchor:
+            continue
+        remember, pitfall = build_memory_trap(err)
+        if remember and not _usable_daily_remember(remember):
+            remember = ""
+        if not remember:
+            remember = _fallback_daily_remember(str(err.get("explanation") or ""))
+            my_a = str(err.get("my_answer") or "?").strip().upper()
+            ok_a = str(err.get("correct_answer") or "?").strip().upper()
+            pitfall = f"别选 {my_a}，应选 {ok_a}"
+        if not remember or not _usable_daily_remember(remember):
+            continue
+        if not _quality_trap_row(remember, pitfall):
+            continue
+        if len(by_anchor[anchor]) >= PROCESS_CHAIN_DAILY_CAP:
+            continue
+        key = _row_key(remember, pitfall)
+        if not key or key in seen_remember[anchor]:
+            continue
+        seen_remember[anchor].add(key)
+        gist = _cell(_question_gist(err.get("question", ""), 18), 18)
+        stamp = str(err.get("timestamp") or day)
+        by_anchor[anchor].append(
+            (gist, _cell(remember, MAX_REMEMBER_COL), _cell(pitfall, MAX_PITFALL_COL), stamp)
+        )
+
+    out: dict[str, list[tuple[str, str, str]]] = {}
+    for anchor, rows in by_anchor.items():
+        rows.sort(key=lambda r: r[3], reverse=True)
+        out[anchor] = [(g, rem, pit) for g, rem, pit, _stamp in rows]
+    return out
+
+
+def _upsert_daily_append_block(
+    section: str,
+    rows: list[tuple[str, str, str]],
+    today: str,
+) -> str:
+    """在手写口诀表之后插入/替换「每日一练追加」，不改上面的手写行。"""
+    section = re.sub(
+        r"\n*### 每日一练追加（自动[^\n]*\n(?:.*?)(?=\n### |\n## |\Z)",
+        "\n",
+        section,
+        flags=re.DOTALL,
+    )
+    if not rows:
+        return section
+    lines = ["| 题干 | 背这句 | 别踩 |", "|------|--------|------|"]
+    for gist, remember, pitfall in rows:
+        lines.append(f"| {gist} | {remember} | {pitfall} |")
+    block = (
+        f"\n### 每日一练追加（自动 · 更新于 {today}）\n\n"
+        "> 每日一练错题口诀，每节保留最近 "
+        f"{PROCESS_CHAIN_DAILY_CAP} 条。上面的手写表不动。\n\n"
+        + "\n".join(lines)
+        + "\n"
+    )
+    marker = re.search(r"^### 决策链\s*$", section, re.M)
+    if not marker:
+        marker = re.search(r"^## 这几天怎么用\s*$", section, re.M)
+    if marker:
+        return section[: marker.start()].rstrip() + "\n" + block + "\n" + section[marker.start() :]
+    return section.rstrip() + "\n" + block + "\n"
+
+
+def apply_process_chain_daily(
+    content: str,
+    rows_by_anchor: dict[str, list[tuple[str, str, str]]],
+    today: str,
+) -> str:
+    matches = list(_PROCESS_ANCHOR_RE.finditer(content))
+    if not matches:
+        return content
+    pieces = [content[: matches[0].start()]]
+    for i, match in enumerate(matches):
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(content)
+        anchor = match.group("id")
+        section = content[match.start() : end]
+        pieces.append(_upsert_daily_append_block(section, rows_by_anchor.get(anchor, []), today))
+    return "".join(pieces)
+
+
+def sync_process_chain_daily(
+    errors: list[dict] | None = None,
+    *,
+    dry_run: bool = False,
+) -> int:
+    """把每日一练错题口诀追加进过程四条链对应章节。返回写入条数。"""
+    if not PROCESS_CHAIN.is_file():
+        return 0
+    errors = _load_errors() if errors is None else errors
+    rows = collect_process_chain_daily_rows(errors, _daily_practice_dates())
+    content = PROCESS_CHAIN.read_text(encoding="utf-8")
+    updated = apply_process_chain_daily(content, rows, date.today().isoformat())
+    if updated == content:
+        return 0
+    if not dry_run:
+        PROCESS_CHAIN.write_text(updated, encoding="utf-8")
+    return sum(len(v) for v in rows.values())
+
+
 def sync_traps_from_errors(*, dry_run: bool = False) -> SyncResult:
     """按错题本回写各领域：先搞懂钉死点 + 易错表合并 + 背这句区 + 决策补丁 + 闪卡加练。"""
     result = SyncResult()
@@ -835,6 +1042,7 @@ def sync_traps_from_errors(*, dry_run: bool = False) -> SyncResult:
         state["memory_format"] = "背这句/别踩"
         _save_sync_state(state)
 
+    result.process_chain_rows = sync_process_chain_daily(errors, dry_run=dry_run)
     return result
 
 
@@ -1669,6 +1877,7 @@ def format_sync_brief(result: SyncResult | None) -> str:
         or result.hf_cards_updated
         or result.readme_updated
         or result.overview_updated
+        or result.process_chain_rows
     ):
         return ""
     return "📌 速记已同步：" + " · ".join(

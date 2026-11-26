@@ -298,3 +298,46 @@ def test_auto_sync_defer_and_flush(monkeypatch) -> None:
 
     assert flush_cheatsheet_sync() is None
     cs._deferred_cheatsheet_sync = False
+
+
+def test_process_chain_daily_append_keeps_hand_table() -> None:
+    from pmp_athena.cheatsheet_sync import (
+        _fallback_daily_remember,
+        apply_process_chain_daily,
+    )
+
+    content = """**跳转**：[成本](#成本)
+
+<a id="成本"></a>
+
+## 5. 成本 · 先算 EV
+
+### 你的错题口诀
+
+| 题干 | 背这句 | 别踩 |
+|------|--------|------|
+| 手写旧行 | 先算 EV | 只看花了多少 |
+
+### 决策链
+
+```
+给数字 → 先算 EV
+```
+"""
+    updated = apply_process_chain_daily(
+        content,
+        {"成本": [("资源被别的项目占着", "先找对方项目经理协商", "别选 B，应选 D")]},
+        "2026-11-26",
+    )
+    assert "手写旧行" in updated
+    assert "### 每日一练追加（自动 · 更新于 2026-11-26）" in updated
+    assert updated.index("每日一练追加") < updated.index("### 决策链")
+    assert "[成本](#成本)" in updated
+
+    expl = (
+        "D选项是最佳选项。首先，项目经理需要与其他项目经理沟通，"
+        "看看是否可以共享或重新分配该资源。"
+    )
+    remember = _fallback_daily_remember(expl)
+    assert "其他项目经理" in remember
+    assert "D选项" not in remember
