@@ -66,9 +66,12 @@
       "name": "2609英文模考",
       "start_cmd": "开始模考八",
       "pdf_name": "PMP模考题-2609",
-      "status": "pending",
+      "status": "completed",
       "total_questions": 180,
-      "has_pdf": false
+      "has_pdf": false,
+      "score": 113,
+      "correct_rate": 62.8,
+      "date": "2026-11-26"
     },
     {
       "id": "M008",
